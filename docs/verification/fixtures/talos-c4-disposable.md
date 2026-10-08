@@ -56,9 +56,15 @@ sudo -n -E sh -c 'umask 077; cd /tmp/tpc4; \
     --talosconfig-destination /tmp/tpc4/talosconfig'
 ```
 
-The exact provisioner output, endpoint allowlist, image digests, and client
-version will be recorded here once it is created. Synthetic config files remain
-outside the repository and must be removed after the cluster is destroyed.
+The first short-path attempt started all four QEMU VMs but did not complete:
+Talos logs showed DHCP requests on `enp0s6` receiving no offer, and the
+provisioner timed out connecting to `10.79.0.2:50000` with `no route to host`.
+The exact fixture was destroyed with the command below. No C4 endpoint is
+currently allowlisted, and no Talos or Kubernetes API was reached. Do not
+retry the QEMU fixture until the host's bridge/DHCP path is understood. The
+host firewall/network configuration was inspected but not changed. Synthetic
+config files remain outside the repository and must be removed after fixture
+work is complete.
 
 Teardown is restricted to this fixture name and state path:
 
@@ -79,3 +85,4 @@ gone, then remove `/tmp/tpc4`. If provisioning partially fails, inspect only nam
 - Host Kubernetes API endpoint: pending provisioning
 - Immutable Talos/Kubernetes image digests: pending image resolution
 - Final talosconfig effective role and certificate expiry: pending generation
+- Provisioning attempt: failed on 2026-10-09 because QEMU guest DHCP received no offer; exact cluster destroyed
