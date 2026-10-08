@@ -6,7 +6,11 @@
 
 mod database;
 mod encryption;
+mod session;
+mod vault;
 
 pub use database::{Database, ProfileMetadata, StorageError};
 pub(crate) use encryption::{EncryptedEnvelope, decrypt, encrypt};
 pub use encryption::{EncryptionError, EncryptionKey};
+pub use session::{SessionOnlyStore, SessionStoreError};
+pub use vault::{MasterKeyVault, PlatformVault, VaultError};

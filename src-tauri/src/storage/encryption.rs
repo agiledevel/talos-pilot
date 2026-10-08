@@ -28,6 +28,10 @@ impl EncryptionKey {
     pub fn from_secret(secret: SecretBox<[u8; 32]>) -> Self {
         Self(secret)
     }
+
+    pub(crate) fn expose_to_vault(&self) -> &[u8; 32] {
+        self.0.expose_secret()
+    }
 }
 
 /// Ciphertext plus independently versioned nonce and envelope metadata.

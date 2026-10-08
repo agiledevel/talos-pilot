@@ -16,6 +16,7 @@ prost-build = "=0.14.4"
 tauri-build = { version = "=2.7.1", features = [] }
 
 [dependencies]
+base64 = "=0.22.1"
 chacha20poly1305 = { version = "=0.11.0", features = ["zeroize"] }
 getrandom = "=0.4.3"
 prost = "=0.14.4"
@@ -36,9 +37,19 @@ tokio = { version = "=1.53.2", features = [
   "time",
 ] }
 ts-rs = { version = "=12.0.1", features = ["serde-compat"] }
+zeroize = "=1.9.1"
 
 [dev-dependencies]
 tempfile = "=3.27.0"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "=3.6.3", default-features = false, features = ["crypto-rust", "sync-secret-service"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "=3.6.3", default-features = false, features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "=3.6.3", default-features = false, features = ["windows-native"] }
 
 [lints.rust]
 missing_docs = "deny"

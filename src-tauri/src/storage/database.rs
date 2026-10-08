@@ -5,7 +5,9 @@ use std::{path::Path, time::Duration};
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use secrecy::SecretBox;
 
-use super::{EncryptedEnvelope, EncryptionError, EncryptionKey, decrypt, encrypt};
+use super::{
+    EncryptedEnvelope, EncryptionError, EncryptionKey, MasterKeyVault, VaultError, decrypt, encrypt,
+};
 
 pub(crate) const MAX_IDENTIFIER_BYTES: usize = 128;
 pub(crate) const MAX_SECRET_BYTES: usize = 16 * 1024 * 1024;
@@ -75,6 +77,9 @@ pub enum StorageError {
     /// Encryption, parsing, or authentication failed.
     #[error(transparent)]
     Encryption(#[from] EncryptionError),
+    /// The native credential vault could not provide a persistent key.
+    #[error(transparent)]
+    Vault(#[from] VaultError),
 }
 
 /// Owns a single SQLite connection and applies versioned migrations atomically.
@@ -107,6 +112,31 @@ impl Database {
         let _: String = connection.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))?;
         connection.pragma_update(None, "synchronous", "FULL")?;
         Ok(Self { connection })
+    }
+
+    /// Loads or creates the persistent master key while holding SQLite's
+    /// cross-process write reservation.
+    ///
+    /// Every application instance must use this method rather than calling
+    /// the vault directly. The immediate transaction serializes first-key
+    /// creation across processes that share this database file, preventing a
+    /// second instance from overwriting a key after the first has encrypted
+    /// records with it. The transaction commits before the key is returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if SQLite cannot obtain the reservation or if the
+    /// vault is missing, locked, unavailable, or contains invalid key data.
+    pub fn load_or_create_master_key(
+        &mut self,
+        vault: &impl MasterKeyVault,
+    ) -> Result<EncryptionKey, StorageError> {
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let key = vault.load_or_create_key()?;
+        transaction.commit()?;
+        Ok(key)
     }
 
     /// Persists nonsensitive profile metadata using parameterized SQL.
@@ -266,7 +296,10 @@ mod tests {
         fmt::Debug,
         fs,
         path::{Path, PathBuf},
-        sync::{Arc, Barrier},
+        sync::{
+            Arc, Barrier, Mutex,
+            atomic::{AtomicU8, Ordering},
+        },
         thread,
     };
 
@@ -277,7 +310,7 @@ mod tests {
     use super::{
         CURRENT_SCHEMA_VERSION, Database, MAX_SECRET_BYTES, ProfileMetadata, StorageError,
     };
-    use crate::storage::EncryptionKey;
+    use crate::storage::{EncryptionKey, MasterKeyVault, VaultError};
 
     const PLAINTEXT_SENTINEL: &[u8] = b"synthetic-secret-marker-for-storage";
 
@@ -301,6 +334,35 @@ mod tests {
 
     fn test_key(fill: u8) -> EncryptionKey {
         EncryptionKey::from_secret(SecretBox::new(Box::new([fill; 32])))
+    }
+
+    struct ConcurrentVault {
+        key: Mutex<Option<[u8; 32]>>,
+        next_fill: AtomicU8,
+    }
+
+    impl MasterKeyVault for ConcurrentVault {
+        fn load_or_create_key(&self) -> Result<EncryptionKey, VaultError> {
+            if let Some(existing) = *self.key.lock().map_err(|_| VaultError::Unavailable)? {
+                return Ok(EncryptionKey::from_secret(SecretBox::new(Box::new(
+                    existing,
+                ))));
+            }
+            thread::sleep(std::time::Duration::from_millis(25));
+            let candidate = [self.next_fill.fetch_add(1, Ordering::Relaxed); 32];
+            *self.key.lock().map_err(|_| VaultError::Unavailable)? = Some(candidate);
+            Ok(EncryptionKey::from_secret(SecretBox::new(Box::new(
+                candidate,
+            ))))
+        }
+    }
+
+    struct UnavailableVault;
+
+    impl MasterKeyVault for UnavailableVault {
+        fn load_or_create_key(&self) -> Result<EncryptionKey, VaultError> {
+            Err(VaultError::Unavailable)
+        }
     }
 
     fn contains_plaintext(path: &Path, sentinel: &[u8]) -> bool {
@@ -419,6 +481,81 @@ mod tests {
         }
         let database = must(Database::open(&path));
         assert_eq!(must(database.schema_version()), CURRENT_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn concurrent_first_key_creation_is_serialized_across_database_connections() {
+        let (_directory, path) = temporary_database();
+        let database = must(Database::open(&path));
+        must(database.insert_profile(&profile()));
+        drop(database);
+
+        let vault = Arc::new(ConcurrentVault {
+            key: Mutex::new(None),
+            next_fill: AtomicU8::new(21),
+        });
+        let barrier = Arc::new(Barrier::new(2));
+        let workers = (0..2)
+            .map(|index| {
+                let thread_path = path.clone();
+                let thread_vault = Arc::clone(&vault);
+                let thread_barrier = Arc::clone(&barrier);
+                thread::spawn(move || {
+                    let mut database = must(Database::open(&thread_path));
+                    thread_barrier.wait();
+                    let key = must(database.load_or_create_master_key(thread_vault.as_ref()));
+                    must(database.store_encrypted_value(
+                        "profile-1",
+                        &format!("concurrent-{index}"),
+                        &format!("synthetic-{index}"),
+                        &key,
+                        &SecretBox::new(b"concurrent-synthetic-secret".to_vec().into_boxed_slice()),
+                    ));
+                    key
+                })
+            })
+            .collect::<Vec<_>>();
+        let keys = workers
+            .into_iter()
+            .map(|worker| {
+                worker
+                    .join()
+                    .unwrap_or_else(|_| panic!("key initialization worker must complete"))
+            })
+            .collect::<Vec<_>>();
+
+        let database = must(Database::open(&path));
+        for index in 0..2 {
+            assert_eq!(
+                must(database.load_encrypted_value(
+                    "profile-1",
+                    &format!("concurrent-{index}"),
+                    &format!("synthetic-{index}"),
+                    &keys[0],
+                ))
+                .expose_secret(),
+                b"concurrent-synthetic-secret"
+            );
+        }
+    }
+
+    #[test]
+    fn vault_failure_aborts_persistent_key_access_without_fallback() {
+        let (_directory, path) = temporary_database();
+        let mut database = must(Database::open(&path));
+        assert!(matches!(
+            database.load_or_create_master_key(&UnavailableVault),
+            Err(StorageError::Vault(VaultError::Unavailable))
+        ));
+        let reference_count: i64 = must(database.connection.query_row(
+            "SELECT COUNT(*) FROM credential_references",
+            [],
+            |row| row.get(0),
+        ));
+        assert_eq!(reference_count, 0);
+
+        let other_connection = must(Database::open(&path));
+        drop(other_connection);
     }
 
     #[test]

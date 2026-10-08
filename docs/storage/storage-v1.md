@@ -49,5 +49,34 @@ written to SQLite, WAL, shared-memory, or rollback-journal rows.
 
 See [decision 0003](../decisions/0003-storage-schema-and-envelope.md) for the
 dependency and format selection. The Rust implementation lives in
-[`src-tauri/src/storage/`](../../src-tauri/src/storage/); C3.2 owns vault
-integration, and no renderer or native command calls it yet.
+[`src-tauri/src/storage/`](../../src-tauri/src/storage/). No renderer or
+native command calls it yet.
+
+## Master key vault and session-only memory
+
+`PlatformVault` stores a randomly generated 32-byte master key in the current
+user's native credential store: Linux Secret Service, macOS Keychain, or
+Windows Credential Manager. The selected provider features are target-scoped
+and disable keyring's mock store. Keyring calls are serialized within the
+process because Secret Service is an RPC interface. Provider diagnostics are
+redacted to static storage errors.
+
+Persistent startup obtains the key through
+`Database::load_or_create_master_key`, which holds SQLite's immediate write
+reservation while consulting the vault. Instances sharing a database file
+therefore cannot race to generate and replace the first key before writing
+records.
+
+The key is stored as base64 UTF-8 text for Secret Service implementations such
+as KDE Wallet that do not accept arbitrary binary values. The encoded buffer
+is zeroized after use and decoded bytes are immediately owned by `SecretBox`.
+This encoding does not replace or change the SQLite AEAD envelope.
+
+On vault failure, persistent operations fail. The caller may offer an explicit
+session-only choice; `SessionOnlyStore` has no database connection and holds
+values in `SecretBox` memory until removed or dropped, with at most 256 entries
+and 64 MiB of retained payload. It does not save ciphertext rows that would be
+undecryptable after restart. The storage
+module is still not connected to Tauri IPC; that workflow and its accessible
+choice UI belong to C3.3. See [decision 0004](../decisions/0004-native-vault-integration.md)
+for provider selection and platform verification limits.

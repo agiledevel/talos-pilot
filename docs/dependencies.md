@@ -19,6 +19,7 @@ Research date: 2026-10-08. Versions were queried from upstream npm `dist-tags.la
 | Browser / accessibility        | Playwright 1.64.0; axe-core/playwright 4.13.0                               | [Playwright metadata](https://registry.npmjs.org/@playwright/test/latest), [axe metadata](https://registry.npmjs.org/@axe-core/playwright/latest)                                                                                                                                         |
 | Native test harness            | WebdriverIO 9.31.9; Tauri service/plugin 1.5.0; Rust plugins 1.5.0          | [Tauri WebDriver guide](https://v2.tauri.app/develop/tests/webdriver/), [service setup](https://webdriver.io/docs/desktop-testing/tauri/plugin-setup)                                                                                                                                     |
 | Backend storage                | rusqlite 0.40.2 (bundled); XChaCha20-Poly1305 0.11.0; secrecy 0.10.3        | [rusqlite](https://docs.rs/rusqlite/0.40.2/rusqlite/), [AEAD](https://docs.rs/chacha20poly1305/0.11.0/chacha20poly1305/), [secrecy](https://docs.rs/secrecy/0.10.3/secrecy/)                                                                                                              |
+| Native credential vault        | keyring 3.6.3; base64 0.22.1; zeroize 1.9.1                               | [keyring 3.6.3](https://docs.rs/keyring/3.6.3/keyring/), [features](https://docs.rs/crate/keyring/3.6.3/features), [base64](https://docs.rs/base64/0.22.1/base64/), [zeroize](https://docs.rs/zeroize/1.9.1/zeroize/)                                                                 |
 | Type declarations              | React / React DOM 19.3.0; Node 26.6.4                                       | [React](https://registry.npmjs.org/@types/react/latest), [React DOM](https://registry.npmjs.org/@types/react-dom/latest), [Node](https://registry.npmjs.org/@types/node/latest)                                                                                                           |
 | Rust advisory scanner          | cargo-audit 0.22.2                                                          | [crate metadata](https://crates.io/api/v1/crates/cargo-audit)                                                                                                                                                                                                                             |
 | CI security scanners           | CodeQL action 4.38.1; Trivy 0.74.0                                          | [CodeQL release](https://github.com/github/codeql-action/releases/tag/v4.38.1), [Trivy release](https://github.com/aquasecurity/trivy/releases/tag/v0.74.0)                                                                                                                               |
@@ -35,7 +36,19 @@ C3.1 uses `rusqlite` **0.40.2** (MIT) with bundled SQLite **3.53.2**,
 `chacha20poly1305` **0.11.0** (Apache-2.0 OR MIT), `getrandom` **0.4.3**, and
 `secrecy` **0.10.3** (Apache-2.0 OR MIT). The locked feature set excludes
 SQLCipher, OpenSSL, runtime extension loading, and system SQLite. The selected
-formats and security boundary are recorded in [decision 0003](decisions/0003-storage-schema-and-envelope.md); OS vault packages remain C3.2 research.
+formats and security boundary are recorded in [decision 0003](decisions/0003-storage-schema-and-envelope.md).
+
+C3.2 pins `keyring` **3.6.3** with default features disabled and explicitly
+selects Secret Service (`sync-secret-service`, `crypto-rust`) on Linux,
+Keychain (`apple-native`) on macOS, and Credential Manager (`windows-native`)
+on Windows. This excludes keyring's mock provider and unrelated platform
+stores. Linux uses system `libdbus-1`; the build image already provides it for
+Tauri. Vault keys are base64 encoded for UTF-8-only Secret Service
+implementations, with the encoded transient zeroized; the decoded 32-byte key
+enters zeroizing `SecretBox` memory immediately. See [decision
+0004](decisions/0004-native-vault-integration.md). Linux Secret Service has a
+real KDE Wallet persistence/reopen run; macOS and Windows runtime qualification
+remain open for C8.
 
 The native harness pins `@wdio/tauri-service` and `@wdio/tauri-plugin` to
 **1.5.0**, the WebdriverIO CLI/local runner/Mocha framework to **9.31.9**, and
