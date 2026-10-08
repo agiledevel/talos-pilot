@@ -61,9 +61,9 @@ pnpm icons:check                   # deterministic desktop icon conversion
 pnpm desktop:build                 # native release executable
 ```
 
-[GitHub Actions](.github/workflows/check.yml) runs renderer checks and Rust formatting, Clippy, tests, rustdoc, builds, and dependency scans across the desktop build matrix. The [SonarCloud gate](.github/workflows/sonar.yml) requires the installed GitHub App's latest successful analysis on the exact commit. It rejects missing, stale, skipped, and failed results. Badges above report live checks; they are not a claim that every planned feature is qualified.
+[GitHub Actions](.github/workflows/check.yml) runs renderer checks and Rust formatting, Clippy, tests, rustdoc, builds, and dependency scans across the desktop build matrix. The [SonarCloud gate](.github/workflows/sonar.yml) runs SonarQube Cloud CI-based analysis with renderer/automation coverage on the exact commit and fails unless the quality gate passes. Badges above report live checks; they are not a claim that every planned feature is qualified.
 
-See the [initialization evidence](docs/verification/initialization.md) and [automation evidence](docs/verification/automation.md) for executed environments and limitations. The existing GLib/macro dependency advisory findings remain tracked foundation work. SonarCloud's automatic analysis currently does not support Rust or imported coverage; Rust has its own enforced checks. [SonarSource's documented limits](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/automatic-analysis/).
+See the [initialization evidence](docs/verification/initialization.md) and [automation evidence](docs/verification/automation.md) for executed environments and limitations. The existing GLib/macro dependency advisory findings remain tracked foundation work. SonarCloud does not replace the Rust checks above; Rust formatting, Clippy, tests, and rustdoc remain enforced separately. Setup is in [CI/release](docs/ci-release.md).
 
 ## Preview releases
 

@@ -51,10 +51,11 @@ jobs:
     needs: source
     permissions:
       contents: read
-      checks: read
     uses: ./.github/workflows/sonar.yml
     with:
       revision: ${{ needs.source.outputs.revision }}
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   assets:
     name: Build ${{ matrix.target }} assets

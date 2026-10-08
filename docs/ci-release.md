@@ -1,26 +1,22 @@
 # GitHub quality gate and preview releases
 
-## SonarCloud through the GitHub App
+## SonarCloud CI-based analysis
 
-The owner configured the SonarCloud GitHub App. This repository therefore uses the app's analysis and waits for its GitHub check instead of starting another scanner. SonarSource explicitly documents that [automatic and CI-based analysis must not run together](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/automatic-analysis/).
+The `SonarCloud quality gate` workflow runs SonarQube Cloud's [CI-based analysis for GitHub Actions](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/ci-based-analysis/github-actions-for-sonarcloud). It runs on pushes to `main`, pull requests targeting `main`, manual dispatch, and as a reusable workflow for an exact release revision. The job checks out full history, runs `pnpm test:coverage` to produce `coverage/lcov.info`, and runs the official [`SonarSource/sonarqube-scan-action`](https://github.com/SonarSource/sonarqube-scan-action/releases/tag/v8.2.2), pinned by commit to **v8.2.2**. That action verifies the Scanner CLI's GPG signature before running it.
 
-The `SonarCloud quality gate` workflow checks the exact PR head commit or push commit through GitHub's read-only Checks API. It accepts only a completed `success` conclusion from the official `sonarqubecloud` app (or its historical `sonarcloud` identity), for the expected check name. The newest rerun controls the result. API errors fail immediately; missing/pending checks expire after ten minutes. A skip, neutral result, cancellation, or failure cannot satisfy the gate. The GitHub token has only content/check read permissions; no Sonar token, organization key, or guessed project key is needed.
+[`sonar-project.properties`](../sonar-project.properties) holds the analysis contract: organization `agiledevel`, project `agiledevel_talos-pilot`, sources (`src`, `scripts`, `src-tauri/src`), colocated test files, the LCOV report, and `sonar.qualitygate.wait=true` with a ten-minute timeout. The scan step, and so the job, fails if the quality gate fails, does not finish in time, or cannot authenticate. No result is treated as a pass.
+
+The automatic-analysis approach was replaced after commit `8e22df6`. The installed GitHub App never posted a check for that commit, so the previous check-polling gate failed after its deadline (run 37811900492). CI-based analysis does not depend on the app posting results, and it imports the renderer and automation coverage that automatic analysis ignores.
 
 Repository setup:
 
-1. In SonarCloud, confirm this repository is imported and bound to its project, and that the intended analysis method is enabled. Installing the GitHub App alone does not establish that the project has been imported or analyzed. At implementation time, the public latest-commit check list did not yet contain a SonarCloud result.
-2. Confirm the app reports `SonarCloud Code Analysis`. If the installation uses a different name, set the public repository Actions variable `SONAR_CHECK_NAME` to its exact check name. App identity and commit matching are still required.
-3. Protect `main` with required checks for **SonarCloud quality gate**, **renderer**, and all four **desktop** matrix jobs. The workflow files establish these checks; they do not themselves modify branch-protection settings. Require checks from their expected GitHub Apps in the repository ruleset.
+1. `SONAR_TOKEN` is a repository Actions secret holding a SonarQube Cloud token that can analyze `agiledevel_talos-pilot`. Only the scan step receives it, through the step environment.
+2. In SonarQube Cloud, turn off **Administration → Analysis Method → Automatic Analysis** for the project. SonarSource [does not allow automatic and CI-based analysis to run together](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/automatic-analysis/), and the scanner fails while automatic analysis is enabled.
+3. Protect `main` with required checks for **SonarCloud quality gate**, **renderer**, and all four **desktop** matrix jobs. The workflow files create these checks; they do not change branch-protection settings.
 
-`.sonarcloud.properties` is the app's automatic-analysis configuration. The [current automatic-analysis documentation](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/automatic-analysis/) excludes Rust and does not import coverage reports. Renderer coverage remains a local/CI artifact, and Rust gates remain mandatory. A future migration to CI scanning must first disable automatic analysis and use confirmed organization/project/region values; no duplicate scanner is installed here.
+GitHub does not pass repository secrets to pull requests from forks, so the gate fails for fork pull requests rather than being skipped. Running fork analysis would need SonarSource's separate `workflow_run` pattern, which is not implemented.
 
-For a local check, run the same script as CI with a GitHub token possessing `checks:read` and a repository/SHA supplied through your environment:
-
-```sh
-node scripts/sonar-gate.ts
-```
-
-The expected variables are `GITHUB_REPOSITORY`, `ANALYSIS_SHA`, and `GITHUB_TOKEN`; optionally `SONAR_CHECK_NAME`. Node is pinned in `.node-version`.
+The release workflow passes `SONAR_TOKEN` explicitly to the reusable workflow and analyzes the tagged revision. How SonarQube Cloud classifies an analysis started from a tag ref, and which new-code baseline it uses, has not been checked with a live release run.
 
 ## Preview release contract
 
@@ -70,10 +66,10 @@ git-cliff --config cliff.toml --output CHANGELOG.md
 
 Release notes use the same configuration for the requested tag range. The action is pinned to git-cliff-action **4.9.1** by commit and explicitly selects binary version **2.14.2**. The existing checkout/setup-node pins remain current; upload-artifact **7.0.2** and download-artifact **8.0.2** were researched from their release APIs and pinned by commit. Workflow syntax is checked locally and in CI with actionlint **1.7.12**; CI verifies the pinned Linux archive's SHA-256 before executing it.
 
-Sources: [git-cliff releases](https://github.com/orhun/git-cliff/releases/tag/v2.14.2), [git-cliff action](https://github.com/orhun/git-cliff-action/releases/tag/v4.9.1), [actionlint](https://github.com/rhysd/actionlint/releases/tag/v1.7.12), [upload action](https://github.com/actions/upload-artifact/releases/tag/v7.0.2), [download action](https://github.com/actions/download-artifact/releases/tag/v8.0.2), [Tauri distribution](https://v2.tauri.app/distribute/pipelines/github/), [SonarCloud GitHub integration](https://docs.sonarsource.com/sonarqube-cloud/managing-your-projects/administering-your-projects/devops-platform-integration/github/), and the official [SonarQubeCloud GitHub App](https://github.com/apps/sonarqubecloud).
+Sources: [SonarQube scan action](https://github.com/SonarSource/sonarqube-scan-action/releases/tag/v8.2.2), [git-cliff releases](https://github.com/orhun/git-cliff/releases/tag/v2.14.2), [git-cliff action](https://github.com/orhun/git-cliff-action/releases/tag/v4.9.1), [actionlint](https://github.com/rhysd/actionlint/releases/tag/v1.7.12), [upload action](https://github.com/actions/upload-artifact/releases/tag/v7.0.2), [download action](https://github.com/actions/download-artifact/releases/tag/v8.0.2), [Tauri distribution](https://v2.tauri.app/distribute/pipelines/github/), and [SonarCloud GitHub integration](https://docs.sonarsource.com/sonarqube-cloud/managing-your-projects/administering-your-projects/devops-platform-integration/github/).
 
 ## Failure recovery
 
-A missing SonarCloud result is an integration failure to investigate, not permission to bypass the gate. Check the project's repository binding and app check name, then rerun once the exact commit's analysis is available.
+A failed SonarCloud job is an integration or quality failure to investigate, not permission to bypass the gate. The scanner log shows the cause: a missing or unauthorized `SONAR_TOKEN`, automatic analysis still enabled, a failed quality gate (with a link to the SonarQube Cloud dashboard), or a gate timeout. Fix the cause and rerun the job for the same commit.
 
 Failed matrix jobs can be rerun in GitHub Actions; successful platform artifacts are retained for fourteen days. A failure while creating/uploading the final draft can leave an incomplete draft. Inspect and remove that incomplete draft without deleting the existing source tag, then rerun the workflow for the same tag. Existing published releases are never overwritten by this pipeline; GitHub rejects creating an already existing release. Rebuild all assets if the original run's artifacts have expired.
