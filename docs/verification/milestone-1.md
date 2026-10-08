@@ -142,4 +142,12 @@ The real GTK native file picker was manually exercised under X11/Xvfb in the `na
 - **FND-007 / C7:** investigate current `cargo audit` and Trivy results, the GLib unsoundness and proc-macro maintenance warnings; no silent exception or reachability claim.
 - **FND-008 / C0–C9:** configured automation is not execution evidence. Record final exact-revision CodeQL/Trivy and platform runner outcomes when available.
 
+### C4 acceptance cases
+
+C4 extends only the private Rust-to-Go helper protocol and backend application service. A Rust-owned authenticated Talos session sends the synthetic talosconfig over stdin framing; no command argument, environment variable, renderer payload, or log contains it. API endpoints, node targets, and Kubernetes API endpoint remain separate identities. The Go helper must use upstream `github.com/siderolabs/talos/pkg/machinery` APIs pinned to Talos 1.14.1, perform one authenticated `Version` read, and watch the nonsensitive COSI `MachineStatus` resource. The Rust projection contains only Talos version, resource stage, ready state, and bounded lifecycle status; it omits addresses, certificates, config, and raw resource bodies.
+
+The single active fixture is allowlisted in [talos-c4-disposable.md](fixtures/talos-c4-disposable.md) before provisioning. It is a local three-control-plane/one-worker Talos 1.14.1 QEMU cluster running Kubernetes 1.36.5, with a unique cluster name, isolated talosctl state and config paths, recorded QEMU/disk/image identities, endpoint and node allowlists, synthetic credentials, and exact destroy command. Tests must never select or mutate other Docker, libvirt, Talos, or Kubernetes clusters.
+
+Acceptance requires a real packaged-helper handshake to the fixture, authenticated version read, initial `MachineStatus` snapshot plus bounded COSI stream, valid TLS verification, endpoint failover, invalid target/RBAC/TLS/unavailable-node failures, rejected sensitive resource subscription, slow-consumer queue bound, stream cancellation, helper exit, reconnect/deadline handling, and resource counts returning to baseline. Frontend-facing tests validate only bounded DTOs; helper IPC tests use deterministic faults for each failure class. C4 is not complete if only mocks or `talosctl` CLI output pass.
+
 The C0 research packets introduced no Talos or Kubernetes endpoint, credentials, or vault. C1 adds the private helper protocol, supervision, bundling, and safe status command; no cluster API or credential operation is exposed yet.
