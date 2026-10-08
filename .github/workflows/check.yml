@@ -86,6 +86,7 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --all-targets --features native-test
       - run: cargo doc --manifest-path src-tauri/Cargo.toml --locked --no-deps
       - run: pnpm desktop:build
+      - run: pnpm production:check
       - name: Run actual Tauri IPC tests
         run: pnpm test:native
       - run: cargo install cargo-audit --version 0.22.2 --locked

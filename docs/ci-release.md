@@ -69,6 +69,14 @@ helper process count returns to baseline after the application exits. The
 default production build does not enable the feature or include its injected
 frontend plugin.
 
+Immediately after the default `pnpm desktop:build`, CI runs
+`pnpm production:check`. It checks the compiled Cargo graph, Tauri config and
+capabilities, production renderer assets, and native executable for test-only
+WDIO surfaces, then launches the default app with `TAURI_WEBDRIVER_PORT` set to
+a free loopback port and verifies that no WebDriver listener appears. It closes
+the app and waits for its process exit. On Linux it uses Xvfb when no display is
+available.
+
 Each matrix job must produce exactly one installer of each declared package type in its expected Tauri output directory. Nested application executables cannot satisfy the installer requirement. Artifact names include the target triple to prevent cross-platform collisions. The final job downloads all four artifacts, verifies their SHA-256 hashes, generates notes with git-cliff, prepends the [preview scope statement](release-preview.md), and creates a draft prerelease with packages, changelog, and hashes. Only this final job receives `contents:write`; build jobs have read-only repository access. A failed QA/gate/build prevents the draft job from running.
 
 Linux packaging prefetches the latest versioned [AppImage runtime, 20251108](https://github.com/AppImage/type2-runtime/releases/tag/20251108), and verifies its published SHA-256 before setting `LDAI_RUNTIME_FILE`. The newer `continuous` download is mutable, so it is unsuitable for the foundation's exact pins. Supplying the runtime through the upstream [linuxdeploy plugin's supported option](https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/blob/master/src/main.cpp) also avoids an observed deadlock in appimagetool's internal OpenSSL runtime downloader. The Tauri-managed linuxdeploy tool and plugins remain upstream downloads; this runtime pin alone does not establish byte-reproducible installers.
