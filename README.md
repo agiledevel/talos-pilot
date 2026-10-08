@@ -11,7 +11,7 @@
 
 Talos Pilot is being built to bring cluster infrastructure and Kubernetes workloads into one desktop application. The planned v1 covers creating clusters on machines in Talos maintenance mode, inspecting nodes and workloads, managing resources and Helm releases, performing guided upgrades, and backing up and recovering clusters.
 
-**Current stage: foundation development, milestone 1 (C1.1).** The application provides a runnable Tauri shell with light/dark themes, compact density, and an empty cluster view. C1.1 adds the versioned Rust/Go helper protocol, bounded framing, generated IPC declarations, and cross-language fixtures. Native helper supervision and status commands, credential storage, and cluster management remain in progress. Preview packages demonstrate the shell and packaging; the complete v1 scope remains the [locked design](docs/design.md).
+**Current stage: foundation development, milestone 1 (C1.3).** The application provides a runnable Tauri shell with light/dark themes, compact density, and an empty cluster view. C1.1–C1.3 add the versioned Rust/Go helper protocol, bounded framing, generated IPC declarations, cross-language fixtures, Rust supervision, a safe status command, and target-specific helper builds. Native packaged handshake/permission-denial qualification, credential storage, and cluster reads remain in progress. Preview packages demonstrate the shell and packaging; the complete v1 scope remains the [locked design](docs/design.md).
 
 The [milestone 1 FLASH LLM implementation plan](docs/plans/milestone-1-flash.md) defines the remaining foundation work in small execution packets, with context, checkpoints, required tests, and evidence for a fast implementing model.
 
@@ -38,7 +38,7 @@ The renderer does not own cluster credentials or connect directly to cluster API
 
 ## Run from source
 
-Install **Node 26.11.1**, **pnpm 12.10.1**, **Rust 1.99.0**, and the [Tauri native prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS. Node and Rust are pinned in `.node-version` and `rust-toolchain.toml`.
+Install **Node 26.11.1**, **pnpm 12.10.1**, **Rust 1.99.0**, **Go 1.27.1**, and the [Tauri native prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS. Node and Rust are pinned in `.node-version` and `rust-toolchain.toml`; Go is pinned by `helper/go.mod`.
 
 ```sh
 git clone https://github.com/agiledevel/talos-pilot.git
@@ -60,7 +60,7 @@ pnpm exec playwright install chromium
 pnpm test:e2e                      # browser appearance and accessibility
 pnpm icons:check                   # deterministic desktop icon conversion
 pnpm contracts:check               # generated Rust/Go/TypeScript contracts are current
-pnpm desktop:build                 # native release executable
+pnpm desktop:build                 # builds the target helper and native release executable
 ```
 
 [GitHub Actions](.github/workflows/check.yml) runs renderer checks and Rust formatting, Clippy, tests, rustdoc, builds, and dependency scans across the desktop build matrix. The [security scans](.github/workflows/security.yml) run CodeQL on the workflows, TypeScript, and Rust, and Trivy on dependencies, secrets, and misconfigurations. Each fails on any finding. Badges above report live checks; they are not a claim that every planned feature is qualified.

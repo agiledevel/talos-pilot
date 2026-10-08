@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "helper:build": "node scripts/build-helper.ts",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build --no-bundle",
     "lint": "oxlint --type-aware --type-check --deny-warnings",

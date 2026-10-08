@@ -425,6 +425,33 @@ mod tests {
         binary
     }
 
+    fn build_delayed_helper() -> PathBuf {
+        let helper_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../helper");
+        let binary = std::env::temp_dir().join(format!(
+            "talos-pilot-delayed-helper-test-{}{}",
+            std::process::id(),
+            std::env::consts::EXE_SUFFIX
+        ));
+        let result = Command::new("go")
+            .args(["build", "-o"])
+            .arg(&binary)
+            .arg("./testdata/delayedhelper")
+            .current_dir(helper_dir)
+            .output();
+        let output =
+            result.unwrap_or_else(|_| panic!("pinned Go toolchain must build timeout fixture"));
+        assert!(
+            output.status.success(),
+            "Go timeout fixture build must succeed"
+        );
+        binary
+    }
+
+    fn remove_helper(binary: PathBuf) {
+        std::fs::remove_file(binary)
+            .unwrap_or_else(|_| panic!("temporary helper binary must be removable"));
+    }
+
     #[tokio::test]
     async fn performs_real_handshake_status_and_graceful_shutdown() {
         let helper = build_helper("handshake-status-shutdown");
@@ -442,7 +469,7 @@ mod tests {
             .shutdown(Duration::from_secs(5))
             .await
             .unwrap_or_else(|_| panic!("real Go helper must exit after shutdown"));
-        let _ = std::fs::remove_file(helper);
+        remove_helper(helper);
     }
 
     #[tokio::test]
@@ -452,17 +479,17 @@ mod tests {
             .await
             .err();
         assert!(matches!(error, Some(SupervisorError::HandshakeRejected)));
-        let _ = std::fs::remove_file(helper);
+        remove_helper(helper);
     }
 
     #[tokio::test]
     async fn startup_deadline_terminates_a_started_helper() {
-        let helper = build_helper("startup-deadline");
+        let helper = build_delayed_helper();
         assert!(matches!(
-            HelperSupervisor::start(&helper, "development", Duration::ZERO).await,
+            HelperSupervisor::start(&helper, "development", Duration::from_millis(50)).await,
             Err(SupervisorError::Timeout)
         ));
-        let _ = std::fs::remove_file(helper);
+        remove_helper(helper);
     }
 
     #[tokio::test]
@@ -481,7 +508,7 @@ mod tests {
             supervisor.refresh_status(Duration::from_secs(5)).await,
             Err(SupervisorError::ChildExited)
         ));
-        let _ = std::fs::remove_file(helper);
+        remove_helper(helper);
     }
 
     #[tokio::test]
@@ -497,6 +524,6 @@ mod tests {
             supervisor.shutdown(Duration::from_secs(5)).await,
             Err(SupervisorError::ResponseMismatch)
         ));
-        let _ = std::fs::remove_file(helper);
+        remove_helper(helper);
     }
 }

@@ -42,6 +42,15 @@ codes, safe messages, and retry classification; raw causes stay in the
 backend. Unknown or mismatched message variants fail closed. No operation
 payload is logged.
 
+The Tauri command `get_helper_status` starts the helper lazily and returns only
+the validated build identity, protocol major, and accepted status capability.
+Tauri's generated app ACL enables this command only in the `main` capability.
+The command accepts no path or process arguments from the renderer. Rust starts
+the executable from the resolved app resource directory in packaged builds and
+from the generated `src-tauri/binaries/` directory in development. Application
+exit requests graceful shutdown and awaits child reaping; failed exchanges
+terminate and reap the child before returning a structured safe error.
+
 ## Bounds and ownership
 
 The maximum frame payload is 1 MiB. Chunked data, when introduced, is limited
@@ -92,3 +101,11 @@ Intel/Apple Silicon, and Windows x86_64 are published on the [v36.2 release
 page](https://github.com/protocolbuffers/protobuf/releases/tag/v36.2). The
 foundation CI packet installs the matching archive and verifies its digest
 before running the same local generation command.
+
+`pnpm helper:build` uses the target triple supplied by the Tauri CLI to
+cross-compile the helper with `CGO_ENABLED=0` for the four declared desktop
+targets. It writes one generated executable under `src-tauri/binaries/`, which
+is ignored by Git and bundled under the app resource directory. The Go linker
+embeds the same build identity as the Rust application; startup rejects a
+helper whose identity or protocol capability does not match. `pnpm desktop:dev`
+and `pnpm desktop:build` invoke this step through Tauri's build hooks.

@@ -49,7 +49,16 @@ Build matrix:
 | macOS 15 Intel         | x86_64-apple-darwin      | DMG, with app bundle built |
 | Windows Server 2022    | x86_64-pc-windows-msvc   | NSIS installer             |
 
-These are build runners; Windows Server compilation does not qualify Windows 11 runtime behavior, and macOS 15 does not prove the macOS 13 minimum. A separate release-only [Tauri configuration](../.github/tauri.release.conf.json) enables bundling. macOS previews are ad-hoc signed and not notarized; Windows previews are not publisher-signed. Production signing credentials, updater artifacts, and the future helper binary are not simulated.
+These are build runners; Windows Server compilation does not qualify Windows 11 runtime behavior, and macOS 15 does not prove the macOS 13 minimum. A separate release-only [Tauri configuration](../.github/tauri.release.conf.json) enables bundling. macOS previews are ad-hoc signed and not notarized; Windows previews are not publisher-signed. Production signing credentials and updater artifacts are not simulated.
+
+The desktop QA and release asset jobs install Go **1.27.1** from `helper/go.mod`
+with `actions/setup-go` **v6.5.0**, pinned to commit
+`924ae3a1cded613372ab5595356fb5720e22ba16`. The Tauri build hook cross-compiles
+the Go helper for the selected Rust target triple with cgo disabled, embeds the
+exact source revision as its build identity, and places it in the app's bundled
+resource directory. Go format, vet, tests, race tests, module verification,
+and build run in the desktop QA matrix before native compilation. Local
+`pnpm desktop:dev` and `pnpm desktop:build` use the same helper build hook.
 
 Each matrix job must produce exactly one installer of each declared package type in its expected Tauri output directory. Nested application executables cannot satisfy the installer requirement. Artifact names include the target triple to prevent cross-platform collisions. The final job downloads all four artifacts, verifies their SHA-256 hashes, generates notes with git-cliff, prepends the [preview scope statement](release-preview.md), and creates a draft prerelease with packages, changelog, and hashes. Only this final job receives `contents:write`; build jobs have read-only repository access. A failed QA/gate/build prevents the draft job from running.
 
