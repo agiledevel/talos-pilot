@@ -5,12 +5,19 @@ description = "Talos and Kubernetes desktop management"
 edition = "2024"
 rust-version = "1.99"
 publish = false
+default-run = "talos-pilot"
 
 [build-dependencies]
+prost-build = "=0.14.4"
 tauri-build = { version = "=2.7.1", features = [] }
 
 [dependencies]
+prost = "=0.14.4"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
 tauri = { version = "=2.12.1", features = [] }
+thiserror = "=2.0.21"
+ts-rs = { version = "=12.0.1", features = ["serde-compat"] }
 
 [lints.rust]
 missing_docs = "deny"

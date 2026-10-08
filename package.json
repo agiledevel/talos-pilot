@@ -22,6 +22,8 @@
     "check": "pnpm format:check && pnpm lint && pnpm test:run && pnpm build",
     "icons:generate": "node scripts/icons.ts --write",
     "icons:check": "node scripts/icons.ts",
+    "contracts:generate": "node scripts/contracts.ts --write",
+    "contracts:check": "node scripts/contracts.ts --check",
     "release:check": "node scripts/release-metadata.ts",
     "release:check-linux": "node scripts/appimage-resources.ts",
     "release:assets": "node scripts/release-assets.ts"

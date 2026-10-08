@@ -8,12 +8,12 @@ Milestone 1 needs reproducible TypeScript DTOs generated from Rust Serde contrac
 
 ## Decision
 
-- Use `ts-rs` **12.0.1** with its `serde-compat` feature for TypeScript declarations. Rust Serde DTOs remain authoritative. The initial application DTO source is `src-tauri/src/ipc/dto.rs`; committed generated declarations go under `src/lib/ipc/generated/`. Generated files are checked by regeneration in C1.
-- Use the Google Protocol Buffers compiler **protoc 36.2**, Rust `prost` and `prost-build` **0.14.4**, Go `google.golang.org/protobuf` and `protoc-gen-go` **1.36.12**. The schema source is `proto/helper/v1/envelope.proto`; checked-in generated Rust and Go are owned by their respective C1 generation scripts under `src-tauri/src/helper/protocol/generated/` and `helper/internal/protocol/generated/`. Tool downloads must be checksum verified. The Go runtime pin matches Talos machinery v1.14.1's module requirement.
+- Use `ts-rs` **12.0.1** with its `serde-compat` feature for TypeScript declarations. Rust Serde DTOs remain authoritative in `src-tauri/src/contracts.rs`; committed generated declarations go under `src/lib/ipc/generated/`. Generated files are checked by regeneration in C1.
+- Use the Google Protocol Buffers compiler **protoc 36.2**, Rust `prost` and `prost-build` **0.14.4**, Go `google.golang.org/protobuf` and `protoc-gen-go` **1.36.12**. The schema source is `proto/helper/v1/envelope.proto`; Cargo generates Rust types into its build `OUT_DIR`, while Go output is checked in at `helper/internal/protocol/helper/v1/envelope.pb.go`. Tool downloads must be checksum verified. The Go runtime pin matches Talos machinery v1.14.1's module requirement.
 - Use Go **1.27.1** with Talos machinery **v1.14.1** for the helper baseline. Go's official release history lists 1.27.1 as the latest 1.27 patch on the research date. Talos machinery declares Go 1.26.5 and its v1.14.1 release was built with Go 1.26.8.
 - Use `@wdio/tauri-service` and `@wdio/tauri-plugin` **1.5.0**, with Rust crates `tauri-plugin-wdio` and `tauri-plugin-wdio-webdriver` **1.5.0**, for the native harness. Enable these only in an explicit test build. Select the embedded provider so the same path can run on Linux, Windows, and macOS; keep production registration and capabilities absent.
 
-The C1 source layout and scripts must implement independent deterministic regeneration, detect missing/untracked outputs, and retain output-to-source provenance. The generated files are not handwritten. Dependency manifests and lockfiles are added when the corresponding implementation packet lands, after reviewing complete transitive dependencies and licenses.
+The C1 source layout and scripts implement deterministic regeneration, detect missing/unexpected/stale tracked outputs, and retain output-to-source provenance. The generated files are not handwritten. Dependency manifests and lockfiles are added when the corresponding implementation packet lands, after reviewing complete transitive dependencies and licenses.
 
 ## Alternatives considered
 

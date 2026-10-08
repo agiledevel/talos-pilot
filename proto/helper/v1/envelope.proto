@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package talos_pilot.helper.v1;
+
+option go_package = "github.com/agiledevel/talos-pilot/helper/internal/protocol/helper/v1;protocolv1";
+
+// Envelope is one private helper protocol message. Framing is defined in
+// docs/protocol/helper-v1.md; this message never crosses renderer IPC.
+message Envelope {
+  uint32 protocol_major = 1;
+  MessageKind kind = 2;
+  string request_id = 3;
+  optional string session_id = 4;
+  optional string operation_id = 5;
+  uint64 sequence = 6;
+
+  oneof payload {
+    HandshakeRequest handshake_request = 10;
+    HandshakeResponse handshake_response = 11;
+    StatusRequest status_request = 12;
+    StatusResponse status_response = 13;
+    ShutdownRequest shutdown_request = 14;
+    ShutdownResponse shutdown_response = 15;
+    ProtocolError error = 16;
+  }
+}
+
+enum MessageKind {
+  MESSAGE_KIND_UNSPECIFIED = 0;
+  MESSAGE_KIND_HANDSHAKE_REQUEST = 1;
+  MESSAGE_KIND_HANDSHAKE_RESPONSE = 2;
+  MESSAGE_KIND_STATUS_REQUEST = 3;
+  MESSAGE_KIND_STATUS_RESPONSE = 4;
+  MESSAGE_KIND_SHUTDOWN_REQUEST = 5;
+  MESSAGE_KIND_SHUTDOWN_RESPONSE = 6;
+  MESSAGE_KIND_ERROR = 7;
+}
+
+message HandshakeRequest {
+  uint32 protocol_major = 1;
+  string expected_build_identity = 2;
+}
+
+message HandshakeResponse {
+  uint32 protocol_major = 1;
+  string build_identity = 2;
+  repeated string capabilities = 3;
+}
+
+message StatusRequest {}
+
+message StatusResponse {
+  string build_identity = 1;
+  repeated string capabilities = 2;
+}
+
+message ShutdownRequest {}
+
+message ShutdownResponse {}
+
+message ProtocolError {
+  string code = 1;
+  string safe_message = 2;
+  bool retryable = 3;
+}

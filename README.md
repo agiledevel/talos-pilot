@@ -11,7 +11,7 @@
 
 Talos Pilot is being built to bring cluster infrastructure and Kubernetes workloads into one desktop application. The planned v1 covers creating clusters on machines in Talos maintenance mode, inspecting nodes and workloads, managing resources and Helm releases, performing guided upgrades, and backing up and recovering clusters.
 
-**Current stage: foundation development, milestone 1.** The application currently provides a runnable Tauri shell with light/dark themes, compact density, and an empty cluster view. Cluster connections, credential storage, and management operations are not implemented yet. Preview packages demonstrate the shell and packaging; the complete v1 scope remains the [locked design](docs/design.md).
+**Current stage: foundation development, milestone 1 (C1.1).** The application provides a runnable Tauri shell with light/dark themes, compact density, and an empty cluster view. C1.1 adds the versioned Rust/Go helper protocol, bounded framing, generated IPC declarations, and cross-language fixtures. Native helper supervision and status commands, credential storage, and cluster management remain in progress. Preview packages demonstrate the shell and packaging; the complete v1 scope remains the [locked design](docs/design.md).
 
 The [milestone 1 FLASH LLM implementation plan](docs/plans/milestone-1-flash.md) defines the remaining foundation work in small execution packets, with context, checkpoints, required tests, and evidence for a fast implementing model.
 
@@ -59,6 +59,7 @@ pnpm test:coverage                 # coverage reports, including LCOV
 pnpm exec playwright install chromium
 pnpm test:e2e                      # browser appearance and accessibility
 pnpm icons:check                   # deterministic desktop icon conversion
+pnpm contracts:check               # generated Rust/Go/TypeScript contracts are current
 pnpm desktop:build                 # native release executable
 ```
 
