@@ -17,6 +17,7 @@ Research date: 2026-10-08. Versions were queried from upstream npm `dist-tags.la
 | DOM test environment           | jsdom 30.1.2                                                                | [npm metadata](https://registry.npmjs.org/jsdom/latest)                                                                                                                                                                                                                                   |
 | React test helpers             | Testing Library React 16.3.3; DOM 10.4.2; jest-dom 7.0.1; user-event 14.6.7 | [React](https://registry.npmjs.org/@testing-library/react/latest), [DOM](https://registry.npmjs.org/@testing-library/dom/latest), [assertions](https://registry.npmjs.org/@testing-library/jest-dom/latest), [interaction](https://registry.npmjs.org/@testing-library/user-event/latest) |
 | Browser / accessibility        | Playwright 1.64.0; axe-core/playwright 4.13.0                               | [Playwright metadata](https://registry.npmjs.org/@playwright/test/latest), [axe metadata](https://registry.npmjs.org/@axe-core/playwright/latest)                                                                                                                                         |
+| Native test harness            | WebdriverIO 9.31.9; Tauri service/plugin 1.5.0; Rust plugins 1.5.0          | [Tauri WebDriver guide](https://v2.tauri.app/develop/tests/webdriver/), [service setup](https://webdriver.io/docs/desktop-testing/tauri/plugin-setup)                                                                                                                                     |
 | Type declarations              | React / React DOM 19.3.0; Node 26.6.4                                       | [React](https://registry.npmjs.org/@types/react/latest), [React DOM](https://registry.npmjs.org/@types/react-dom/latest), [Node](https://registry.npmjs.org/@types/node/latest)                                                                                                           |
 | Rust advisory scanner          | cargo-audit 0.22.2                                                          | [crate metadata](https://crates.io/api/v1/crates/cargo-audit)                                                                                                                                                                                                                             |
 | CI security scanners           | CodeQL action 4.38.1; Trivy 0.74.0                                          | [CodeQL release](https://github.com/github/codeql-action/releases/tag/v4.38.1), [Trivy release](https://github.com/aquasecurity/trivy/releases/tag/v0.74.0)                                                                                                                               |
@@ -29,15 +30,28 @@ Tokio **1.53.2** (MIT) is now a direct Rust dependency for bounded helper-proces
 
 The renderer uses `@tauri-apps/api` **2.12.1** (Apache-2.0 OR MIT), pinned to the Tauri core/CLI release. Only the `core` module's `invoke` and `isTauri` APIs are used for the current command boundary; no shell or filesystem plugin is included. The [official core API reference](https://v2.tauri.app/reference/javascript/api/namespacecore/) documents both functions.
 
+The native harness pins `@wdio/tauri-service` and `@wdio/tauri-plugin` to
+**1.5.0**, the WebdriverIO CLI/local runner/Mocha framework to **9.31.9**, and
+`tauri-plugin-wdio` / `tauri-plugin-wdio-webdriver` to **1.5.0**. It uses the
+embedded provider on Linux, Windows, and macOS. Only the `native-test` Cargo
+feature registers these plugins, and only its Tauri config grants their
+permissions. The pnpm lifecycle policy allows `esbuild`'s install script for
+the pinned TypeScript WebDriver configuration, while `edgedriver` and
+`geckodriver` installers are denied because the embedded provider does not use
+external browser drivers. The native harness's audited transitive overrides and
+their compatibility review are recorded in [decision 0002](decisions/0002-wdio-transitive-advisory-remediation.md).
+
 ## Licensing and updates
 
 Direct frontend/build/test packages are MIT, except TypeScript (Apache-2.0), Playwright (Apache-2.0), and Tauri CLI (Apache-2.0 OR MIT). The Rust desktop/build crates are Apache-2.0 OR MIT. Upstream packages are actively released; registry metadata and successful builds establish this initialization's compatibility, not the later platform/cluster qualification.
+
+The WebdriverIO service/plugin packages are MIT; `tauri-plugin-wdio` is MIT OR Apache-2.0 and `tauri-plugin-wdio-webdriver` is MIT. The full transitive inventory and redistributed notices remain in the C7 review.
 
 `pnpm licenses list --json` inventories installed dependencies. The initialization inventory contains MIT, MIT-0, Apache-2.0, Apache-2.0 OR MIT, BSD-2-Clause, BSD-3-Clause, ISC, CC0-1.0, BlueOak-1.0.0, and MPL-2.0 licenses. MPL code and its notices require particular attention when assembling redistributable notices; final installer notices and a release inventory remain release tasks. The [generated inventory](verification/dependency-inventory.json) records the installed npm and resolved Cargo package/license metadata. Rust dependencies include permissive and MPL-2.0 licenses, Unicode data licenses, and LLVM exceptions; the alternative LGPL options on two crates can be satisfied through their MIT/Apache alternatives. Final redistributed source/notice obligations still need release review. Cargo's lockfile is the Rust dependency inventory; `cargo metadata --locked --format-version 1` provides package license metadata for review.
 
 Use `pnpm audit` and `cargo audit --file src-tauri/Cargo.lock` for advisories. CI also runs Trivy over both lockfiles; its exceptions follow [CI/release](ci-release.md). Record any finding's applicability rather than silently excluding it. The verification record states the actual scan results.
 
-Refresh versions deliberately from these primary sources, preserve exact direct pins, regenerate lockfiles, and rerun affected checks. CI action releases were also researched through GitHub's release/ref APIs; checkout v7.0.1 and setup-node v7.1.0 are pinned by commit. The pnpm release-age exceptions list only the freshly published Vite/Playwright versions reviewed during this initialization; it does not globally turn off pnpm's supply-chain policy.
+Refresh versions deliberately from these primary sources, preserve exact direct pins, regenerate lockfiles, and rerun affected checks. CI action releases were also researched through GitHub's release/ref APIs; checkout v7.0.1, setup-node v7.1.0, and setup-go v6.5.0 are pinned by commit. The pnpm release-age exceptions list only the freshly published Vite/Playwright and WDIO 1.5.0 packages with reviewed target versions; it does not globally turn off pnpm's supply-chain policy.
 
 ## Desktop configuration
 

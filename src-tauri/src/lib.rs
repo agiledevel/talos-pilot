@@ -29,7 +29,7 @@ fn helper_executable(app: &tauri::AppHandle) -> Result<PathBuf, ApplicationError
     #[cfg(not(target_os = "windows"))]
     let file_name = "talos-pilot-helper";
 
-    let directory = if cfg!(debug_assertions) {
+    let directory = if cfg!(debug_assertions) || cfg!(feature = "native-test") {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries")
     } else {
         app.path()
@@ -53,8 +53,24 @@ fn helper_path_error() -> ApplicationErrorDto {
 
 /// Starts the Tauri desktop application.
 pub fn run() {
-    let application = tauri::Builder::default()
-        .manage(HelperService::default())
+    let builder = tauri::Builder::default().manage(HelperService::default());
+    #[cfg(feature = "native-test")]
+    let builder = builder
+        .plugin(tauri_plugin_wdio::init())
+        .plugin(tauri_plugin_wdio_webdriver::init())
+        .setup(|app| {
+            use tauri::{WebviewUrl, WebviewWindowBuilder};
+
+            WebviewWindowBuilder::new(
+                app,
+                "unauthorized",
+                WebviewUrl::App("index.html#native-test-unauthorized".into()),
+            )
+            .title("Talos Pilot native IPC permission test")
+            .build()?;
+            Ok(())
+        });
+    let application = builder
         .invoke_handler(tauri::generate_handler![get_helper_status])
         .build(tauri::generate_context!());
     match application {

@@ -11,7 +11,7 @@
 
 Talos Pilot is being built to bring cluster infrastructure and Kubernetes workloads into one desktop application. The planned v1 covers creating clusters on machines in Talos maintenance mode, inspecting nodes and workloads, managing resources and Helm releases, performing guided upgrades, and backing up and recovering clusters.
 
-**Current stage: foundation development, milestone 1 (C1.3).** The application provides a runnable Tauri shell with light/dark themes, compact density, and an empty cluster view. C1.1–C1.3 add the versioned Rust/Go helper protocol, bounded framing, generated IPC declarations, cross-language fixtures, Rust supervision, a safe status command, and target-specific helper builds. Native packaged handshake/permission-denial qualification, credential storage, and cluster reads remain in progress. Preview packages demonstrate the shell and packaging; the complete v1 scope remains the [locked design](docs/design.md).
+**Current stage: foundation development, milestone 1 (C2.2).** The application provides a runnable Tauri shell with light/dark themes, compact density, and an empty cluster view. C1 adds the versioned Rust/Go helper protocol, Rust supervision, a safe status command, and target-specific helper builds. C2.1 adds runtime-validated renderer IPC; C2.2 exercises the actual Tauri helper handshake, main-window permission, and denial from a window without that capability through the embedded WebDriver. Production exclusion and other platform runs remain in progress. Credential storage and cluster reads are later foundation packets. Preview packages demonstrate the shell and packaging; the complete v1 scope remains the [locked design](docs/design.md).
 
 The [milestone 1 FLASH LLM implementation plan](docs/plans/milestone-1-flash.md) defines the remaining foundation work in small execution packets, with context, checkpoints, required tests, and evidence for a fast implementing model.
 
@@ -58,6 +58,8 @@ pnpm format:rust:check             # rustfmt check (pnpm format:rust applies it)
 pnpm test:coverage                 # coverage reports, including LCOV
 pnpm exec playwright install chromium
 pnpm test:e2e                      # browser appearance and accessibility
+pnpm test:native                   # embedded WebDriver IPC and helper lifecycle
+pnpm test:native                   # embedded WebDriver IPC, helper handshake, and denial checks
 pnpm icons:check                   # deterministic desktop icon conversion
 pnpm contracts:check               # generated Rust/Go/TypeScript contracts are current
 pnpm desktop:build                 # builds the target helper and native release executable

@@ -66,7 +66,7 @@ jobs:
           cache-dependency-path: helper/go.sum
       - name: Linux native prerequisites
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libdbus-1-dev libxdo-dev build-essential pkg-config
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libdbus-1-dev libxdo-dev build-essential pkg-config xvfb
       - run: rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
       - run: pnpm format:rust:check
       - name: Verify Go helper source and modules
@@ -82,7 +82,11 @@ jobs:
       - run: pnpm build
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --all-targets
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --features native-test -- -D warnings
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --all-targets --features native-test
       - run: cargo doc --manifest-path src-tauri/Cargo.toml --locked --no-deps
       - run: pnpm desktop:build
+      - name: Run actual Tauri IPC tests
+        run: pnpm test:native
       - run: cargo install cargo-audit --version 0.22.2 --locked
       - run: cargo audit --file src-tauri/Cargo.lock

@@ -7,6 +7,10 @@ rust-version = "1.99"
 publish = false
 default-run = "talos-pilot"
 
+[features]
+default = []
+native-test = ["dep:tauri-plugin-wdio", "dep:tauri-plugin-wdio-webdriver"]
+
 [build-dependencies]
 prost-build = "=0.14.4"
 tauri-build = { version = "=2.7.1", features = [] }
@@ -16,6 +20,8 @@ prost = "=0.14.4"
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.151"
 tauri = { version = "=2.12.1", features = [] }
+tauri-plugin-wdio = { version = "=1.5.0", optional = true }
+tauri-plugin-wdio-webdriver = { version = "=1.5.0", optional = true }
 thiserror = "=2.0.21"
 tokio = { version = "=1.53.2", features = [
   "io-util",

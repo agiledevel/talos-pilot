@@ -60,6 +60,15 @@ resource directory. Go format, vet, tests, race tests, module verification,
 and build run in the desktop QA matrix before native compilation. Local
 `pnpm desktop:dev` and `pnpm desktop:build` use the same helper build hook.
 
+The desktop QA matrix also runs `pnpm test:native` on each declared runner. It
+builds a separate `native-test` feature/configuration and uses the embedded
+WebDriver service. Linux runs under Xvfb when the runner has no display. The
+native flow invokes the real helper status command from the main window,
+checks denial from a second window without that capability, and verifies the
+helper process count returns to baseline after the application exits. The
+default production build does not enable the feature or include its injected
+frontend plugin.
+
 Each matrix job must produce exactly one installer of each declared package type in its expected Tauri output directory. Nested application executables cannot satisfy the installer requirement. Artifact names include the target triple to prevent cross-platform collisions. The final job downloads all four artifacts, verifies their SHA-256 hashes, generates notes with git-cliff, prepends the [preview scope statement](release-preview.md), and creates a draft prerelease with packages, changelog, and hashes. Only this final job receives `contents:write`; build jobs have read-only repository access. A failed QA/gate/build prevents the draft job from running.
 
 Linux packaging prefetches the latest versioned [AppImage runtime, 20251108](https://github.com/AppImage/type2-runtime/releases/tag/20251108), and verifies its published SHA-256 before setting `LDAI_RUNTIME_FILE`. The newer `continuous` download is mutable, so it is unsuitable for the foundation's exact pins. Supplying the runtime through the upstream [linuxdeploy plugin's supported option](https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/blob/master/src/main.cpp) also avoids an observed deadlock in appimagetool's internal OpenSSL runtime downloader. The Tauri-managed linuxdeploy tool and plugins remain upstream downloads; this runtime pin alone does not establish byte-reproducible installers.
