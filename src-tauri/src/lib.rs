@@ -2,6 +2,7 @@
 
 pub mod contracts;
 pub mod helper;
+pub mod storage;
 
 use std::path::PathBuf;
 
