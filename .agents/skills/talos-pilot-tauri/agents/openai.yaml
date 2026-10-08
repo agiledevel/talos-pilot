@@ -1,0 +1,6 @@
+interface:
+  display_name: "Talos Pilot Tauri"
+  short_description: "Develop secure Tauri IPC and desktop integration"
+  default_prompt: "Use $talos-pilot-tauri to implement and verify the requested Talos Pilot change."
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Talos Pilot Rust"
+  short_description: "Build reliable Rust services and typed API boundaries"
+  default_prompt: "Use $talos-pilot-rust to implement and verify the requested Talos Pilot change."
+policy:
+  allow_implicit_invocation: true

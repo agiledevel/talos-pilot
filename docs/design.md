@@ -1,9 +1,9 @@
 # Talos Pilot — Product and Technical Design
 
-Date: 2026-10-08  
-Status: Draft for design review. User-selected decisions are settled; proposed defaults become the implementation baseline after review.  
-Working name: Talos Pilot, taken from the workspace name.  
-Development model: A solo project directed by the owner and developed with LLM assistance. No release deadline.
+- Date: 2026-10-08
+- Status: Locked implementation baseline v1, following the owner's instruction to lock the design.
+- Product name: Talos Pilot.
+- Development model: A solo project directed by the owner and developed with LLM assistance. No release deadline.
 
 ## 1. Product direction and agreed decisions
 
@@ -11,26 +11,28 @@ Talos Pilot is a desktop application for operating Talos Linux clusters and mana
 
 | Decision | Selection | Status |
 | --- | --- | --- |
-| Desktop platforms | Linux, macOS, and Windows | Confirmed |
-| Application framework | Tauri for the backend host, desktop integration, and WebView rendering | Confirmed |
-| Frontend | React and TypeScript | Confirmed |
-| Frontend development tools | Oxc stack, including Oxlint and Oxfmt | Confirmed |
-| Component framework | Ant Design | Confirmed |
-| Talos integration | Rust backend supervising a bundled Go helper that uses Talos APIs and upstream libraries | Confirmed |
-| First release scope | Full Talos lifecycle and a complete Kubernetes management UI | Confirmed |
-| Provisioning boundary | Configure machines already booted into Talos maintenance mode | Confirmed |
-| Connectivity | Direct connections over LAN or an existing VPN | Confirmed |
-| Visual direction | Clean interface that feels native, with guided workflows | Confirmed |
-| Talos version | Latest Talos 1.14 patch release | Confirmed |
-| AI, MCP, third-party extensions | Follow the first release | Confirmed |
-| Development baseline | Kubernetes 1.36; core compatibility tests on 1.35–1.37 | Proposed from research |
-| Deployment model | Local application, using the operator's cluster credentials | Proposed default |
+| Desktop platforms | Linux, macOS, and Windows | Locked |
+| Application framework | Tauri for the backend host, desktop integration, and WebView rendering | Locked |
+| Frontend | React and TypeScript | Locked |
+| Frontend development tools | Oxc stack, including Oxlint and Oxfmt | Locked |
+| Component framework | Ant Design | Locked |
+| Talos integration | Rust backend supervising a bundled Go helper that uses Talos APIs and upstream libraries | Locked |
+| First release scope | Full Talos lifecycle and a complete Kubernetes management UI | Locked |
+| Provisioning boundary | Configure machines already booted into Talos maintenance mode | Locked |
+| Connectivity | Direct connections over LAN or an existing VPN | Locked |
+| Visual direction | Clean interface that feels native, with guided workflows | Locked |
+| Talos version | Latest Talos 1.14 patch release | Locked |
+| AI, MCP, third-party extensions | Follow the first release | Locked |
+| Development baseline | Kubernetes 1.36; core compatibility tests on 1.35–1.37 | Locked |
+| Deployment model | Local application, using the operator's cluster credentials | Locked |
 
 “First release” means the completed v1 feature set in section 5. Earlier milestones produce internal previews; they do not reduce the agreed release scope.
 
+The stack in section 3, feature scope in section 5, guidelines in section 7, milestone order and initial platform targets in section 9 are settled design choices. [AGENTS.md](../AGENTS.md) mandates the development rules, [quality standards](quality.md) define completion and release gates, and the repository's four development skills supply implementation guidance. Exact compatible dependency pins and measured performance budgets are foundation work within this baseline.
+
 ## 2. Research and feature references
 
-The references inform product behavior and architecture. This document proposes a new implementation.
+The references inform product behavior and architecture. This document defines a new implementation.
 
 | Reference | Findings | Application to Talos Pilot |
 | --- | --- | --- |
@@ -127,7 +129,7 @@ Backend Kubernetes watches use resource versions, pagination, relisting after ex
 
 SQLite stores profile metadata, credential references, preferences, patch metadata, operation plans, per-target results, and redacted history. Encrypt credential blobs, full configuration drafts, cluster secrets, and secret-bearing patches. Store encrypted snapshot files separately. Do not persist Kubernetes Secret values, terminal output, or full logs by default. Vault failure permits session-only access or an explicit encrypted-file fallback; never silently save plaintext credentials.
 
-Suggested source layout:
+Initial source layout:
 
 ```text
 docs/                       design, decisions, roadmap, verification records
@@ -163,6 +165,10 @@ Planned package scripts:
 | `lint:fix` | `oxlint --type-aware --fix` |
 | `format` | `oxfmt` |
 | `format:check` | `oxfmt --check` |
+| `test:run` | Vitest and React Testing Library in non-watch mode |
+| `test:e2e` | Playwright renderer flows with the explicit mock transport |
+| `test:native` | WebdriverIO with the Tauri service against an actual test build |
+| `contracts:check` | Deterministic regeneration and comparison of DTO/Protobuf artifacts |
 | `check` | Formatting check, lint/type diagnostics, renderer tests, and frontend build |
 
 Configure the same checks for local development and CI from milestone 1. Verify the pinned tools against React, Ant Design, Monaco workers, and the generated IPC types before accepting the foundation milestone.
@@ -336,7 +342,7 @@ Build in vertical increments with a runnable result at each step. Each task reco
 
 | Milestone | Deliverable | Completion criteria |
 | --- | --- | --- |
-| 0. Design baseline | This document, approved defaults, initial version/platform matrix | Product scope, architecture, and v1 boundaries agreed |
+| 0. Design baseline — complete 2026-10-08 | Locked design, AGENTS.md, development skills, mandatory quality standards | Product scope, architecture, and v1 boundaries settled by the owner |
 | 1. Feasibility and foundation | Tauri/React/Ant Design shell, Oxc development checks, packaged helper, typed IPC, secure storage, test harness | Launches on all three OSes; Oxlint/Oxfmt checks, Ant Design themes/CSP, helper handshake, mTLS Talos read/stream, Rust Kubernetes read/watch, editor workers, and vault behavior demonstrated |
 | 2. Connections and read views | Context import/linking, overview, Talos nodes/services/logs, Kubernetes discovery/browser | Invalid credentials, partial permissions, unavailable nodes, and reconnects produce usable states |
 | 3. Creation and configuration | Maintenance onboarding, generator, editor, patches, bootstrap/add-node workflows | Create a disposable cluster, join a node, preserve shared identity, apply/stage/try changes, and verify results |
@@ -350,6 +356,8 @@ Implement the shared operation plan/journal primitives before the first mutation
 
 ### Verification strategy
 
+The requirements in [quality.md](quality.md) are mandatory. Milestone completion requires recorded evidence for every applicable gate; a missing harness or unexecuted check remains unfinished work. Documentation-only changes use the documentation checks rather than application tests that do not yet exist.
+
 Frontend changes pass Oxfmt formatting checks and Oxlint lint/type diagnostics before renderer tests and builds. Keep the command definitions and tool versions consistent between local development and CI.
 
 Rust tests cover application boundaries, operation conflicts, storage/migrations, and interrupted-operation reconciliation. Go tests cover helper protocol behavior, configuration generation/validation, patch semantics, and upstream workflow adaptation. Use recorded synthetic fixtures for API-version differences without cluster secrets.
@@ -360,24 +368,28 @@ Real integration tests use disposable Talos clusters, including a three-control-
 
 Core Kubernetes tests cover 1.35, 1.36, and 1.37. Legacy tests cover 1.33/1.34 browsing and sequential migration. Include restricted identities, absent metrics/CRDs, watch expiration, network loss, certificate failure, helper failure, interrupted operations, terminal termination, and port-forward cleanup. Pin test images and refresh patches deliberately.
 
-Proposed initial performance fixture: 20 saved profiles, 3 active clusters, 100 nodes in one cluster, and 10,000 discovered Kubernetes objects. Use paginated queries, virtualized tables, subscription limits, and bounded logs. Measure startup, interaction latency, idle CPU, memory, and long-running stream growth on declared hardware; set release thresholds from the first measured baseline. These fixture sizes are targets for verification, not claimed hard limits or measured performance.
+Initial performance fixture: 20 saved profiles, 3 active clusters, 100 nodes in one cluster, and 10,000 discovered Kubernetes objects. Use paginated queries, virtualized tables, subscription limits, and bounded logs. Measure startup, interaction latency, idle CPU, memory, and long-running stream growth on declared hardware; set release thresholds from the first measured baseline. These fixture sizes are targets for verification, not claimed hard limits or measured performance.
 
-### Packaging defaults
+### Initial packaging targets
 
 | Platform | Initial targets and packages |
 | --- | --- |
 | Linux | x86_64; Ubuntu 22.04+ reference build and a current Fedora test; AppImage, DEB, RPM; document WebKitGTK/runtime requirements |
-| macOS | Apple Silicon and Intel; macOS 13+ proposed baseline; app/DMG with production signing and notarization |
+| macOS | Apple Silicon and Intel; macOS 13+ baseline; app/DMG with production signing and notarization |
 | Windows | x86_64; Windows 11 reference test with Windows 10 compatibility subject to verification; NSIS installer and WebView2 setup |
 
-Linux ARM64 and Windows ARM64 can follow the initial targets. The packaging milestone locks tested OS minimums and runtime installation requirements; listing an OS here does not imply verification has already occurred. [Tauri distribution](https://v2.tauri.app/distribute/).
+Linux ARM64 and Windows ARM64 follow the initial targets. Windows 11 is the v1 release gate; Windows 10 compatibility is an investigation target until verified. The foundation and packaging milestones verify these OS targets and document runtime installation requirements. Any necessary change to a minimum OS target is recorded as a design change; listing an OS here does not imply verification has already occurred. [Tauri distribution](https://v2.tauri.app/distribute/).
 
-## 10. Design review and implementation readiness
+## 10. Locked baseline and implementation readiness
 
 The five requested areas are defined: tech stack (section 3), development course (section 9), frontend technology (section 4), supported features (section 5), and design guidelines (section 7).
 
-The remaining review concerns the proposed defaults: working name, Kubernetes 1.36 development baseline with 1.35–1.37 core tests, local credential model, Rust Kubernetes adapter plus Go Talos/Helm workflows, platform minimums, and milestone order. Adjusting these changes the design before implementation begins.
+The owner has locked the design, including the name, Kubernetes 1.36 development baseline with 1.35–1.37 core tests, local credential model, Rust Kubernetes adapter plus Go Talos/Helm workflows, initial platform targets, and milestone order. Milestone 0 is complete. Milestone 1 is the next development step.
 
-Oxc tooling and Ant Design are confirmed frontend requirements. Technical questions resolved by milestone 1 are the exact compatible toolchain/library pins, cross-platform secret-vault support, Ant Design styles and Monaco workers under the packaged CSP, helper packaging/signing, and native test harness integration. The full lifecycle remains a release requirement; a feasibility failure changes the implementation approach or the plan explicitly.
+Milestone 1 resolves exact compatible toolchain/library pins, cross-platform secret-vault support, Ant Design styles and Monaco workers under the packaged CSP, helper packaging/signing, and native test harness integration. Implement and verify these within the selected architecture. The full lifecycle remains a release requirement.
+
+Routine implementation decisions, dependency patch updates, fixes, and verification proceed under this baseline. A material change to stack, architecture, release scope, security boundaries, or platform targets requires an owner-directed decision, with rationale and consequences recorded here or in a linked architecture decision record. Prepare concrete evidence and a proposed resolution when feasibility requires such a change; do not silently substitute technologies or shrink v1.
+
+All contributors must follow [AGENTS.md](../AGENTS.md), the [quality standards](quality.md), and the relevant [Rust](../.agents/skills/talos-pilot-rust/SKILL.md), [React](../.agents/skills/talos-pilot-react/SKILL.md), [Tauri](../.agents/skills/talos-pilot-tauri/SKILL.md), and [TypeScript](../.agents/skills/talos-pilot-typescript/SKILL.md) skills.
 
 This document is a researched design. No application implementation, live-cluster integration, performance result, or platform build has been validated yet.
