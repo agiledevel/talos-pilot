@@ -51,6 +51,8 @@ Final review: inspected application and tooling sources, capability/CSP configur
 
 ## Remaining foundation tasks
 
+The [milestone 1 FLASH LLM implementation plan](../plans/milestone-1-flash.md) expands these task IDs into ordered checkpoints, implementation guidance, failure-path tests, and a final acceptance matrix. The plan incorporates the later [automation evidence](automation.md); it does not mark any remaining task as completed.
+
 | Task                                        | Acceptance criteria                                                                                                                                                                                                                                                                                       |
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | FND-002: helper and contracts               | Go toolchain/modules/sums pinned; bounded versioned Protobuf handshake and framed transport generated deterministically; malformed/oversized/version-mismatch cases covered; actual native supervision/shutdown and each target's packaged binary verified; add `contracts:check` with generation sources |
