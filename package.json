@@ -30,6 +30,7 @@
     "release:assets": "node scripts/release-assets.ts"
   },
   "dependencies": {
+    "@tauri-apps/api": "2.12.1",
     "antd": "6.6.5",
     "react": "19.3.0",
     "react-dom": "19.3.0"

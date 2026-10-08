@@ -109,3 +109,6 @@ is ignored by Git and bundled under the app resource directory. The Go linker
 embeds the same build identity as the Rust application; startup rejects a
 helper whose identity or protocol capability does not match. `pnpm desktop:dev`
 and `pnpm desktop:build` invoke this step through Tauri's build hooks.
+
+The renderer command contract and runtime DTO validation are documented in
+[application IPC](application-ipc.md).
