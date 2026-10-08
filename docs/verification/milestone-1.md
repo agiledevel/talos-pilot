@@ -9,7 +9,7 @@ This is the active evidence record for [milestone 1](../plans/milestone-1-flash.
 | Checkpoint | Status | Acceptance criteria |
 | --- | --- | --- |
 | C0.1 baseline and ledger | Complete | Reproduce frozen install, renderer, coverage, browser, icon, Rust, advisory, workflow, and native release-build checks; record actual command results, host/tool versions, failures, and next actions. |
-| C0.2 dependency/harness research | In progress | Pin compatible Go/Talos, Rust-to-TypeScript and Protobuf generation/runtime tools, and Tauri native harness packages from primary sources; run minimal compatibility probes and record limits. |
+| C0.2 dependency/harness research | Complete | Pin compatible Go/Talos, Rust-to-TypeScript and Protobuf generation/runtime tools, and Tauri native harness packages from primary sources; run minimal compatibility probes and record limits. |
 | C1 helper and contracts | Pending | Deterministically generate documented Rust/Go/TypeScript protocol and DTO outputs; reject malformed, oversized, unknown, and incompatible frames; exercise actual packaged Rust↔Go handshake, bounded supervision, failure cleanup, and safe status IPC. |
 | C2 native IPC harness | Pending | Runtime-validate renderer DTOs; use an explicit browser mock; run Tauri/WebdriverIO allowed and denied IPC flows; demonstrate cleanup and prove production excludes mock/driver/test commands. |
 | C3 encrypted storage | Pending | Verify schema/migration atomicity, AEAD integrity and redaction, actual OS-vault success/failure, encrypted restart, explicit session-only behavior, and native credential import with exec-auth rejection. |
@@ -40,17 +40,17 @@ Environment: openSUSE Tumbleweed, Linux x86_64, Node/pnpm from the repository-pi
 
 Historical Linux package/runtime failures, advisory details, remote CI qualification limits, and earlier checks remain in [automation evidence](automation.md); they have not been promoted to current passes by this baseline run.
 
-## C0.2 research in progress
+## C0.2 dependency and harness research
 
 Primary-source checks on 2026-10-08 find [Talos `v1.14.1`](https://github.com/siderolabs/talos/releases/tag/v1.14.1) as the current stable 1.14 release. Its root and [`pkg/machinery` modules](https://raw.githubusercontent.com/siderolabs/talos/v1.14.1/pkg/machinery/go.mod) declare Go `1.26.5`, and its release notes state it was built with Go `1.26.8`. The [Go release history](https://go.dev/doc/devel/release) lists `1.27.1` (released 2026-09-01) as the latest 1.27 patch; `1.27.2` is not listed there. Go 1.27.1 is installed in `/tmp` and an isolated module successfully built/tests imported package `github.com/siderolabs/talos/pkg/machinery/client` at v1.14.1. This is a source compatibility probe only, not a helper implementation or cross-target build.
 
-Tauri's [official WebDriver guide](https://v2.tauri.app/develop/tests/webdriver/) recommends `@wdio/tauri-service` with its embedded provider on Windows, Linux, and macOS; its external provider is Linux/Windows only. The npm registry currently provides `@wdio/tauri-service` and `@wdio/tauri-plugin` v1.5.0 (MIT); crates.io provides `tauri-plugin-wdio` and `tauri-plugin-wdio-webdriver` v1.5.0 (MIT/Apache-2.0 and MIT respectively). An isolated Rust 1.99/Tauri 2.12.1 compile probe with both v1.5.0 plugins is running. A compile result does not demonstrate that a driver listener is excluded from production; C2 still requires a test-only build and runtime/artifact checks.
+Tauri's [official WebDriver guide](https://v2.tauri.app/develop/tests/webdriver/) recommends `@wdio/tauri-service` with its embedded provider on Windows, Linux, and macOS; its external provider is Linux/Windows only. The npm registry currently provides `@wdio/tauri-service` and `@wdio/tauri-plugin` v1.5.0 (MIT); crates.io provides `tauri-plugin-wdio` and `tauri-plugin-wdio-webdriver` v1.5.0 (MIT/Apache-2.0 and MIT respectively). An isolated Rust 1.99/Tauri 2.12.1 compile probe with both v1.5.0 plugins passed. It does not demonstrate that a driver listener is excluded from production; C2 still requires a test-only build and runtime/artifact checks.
 
-Initial Rust package research identifies `ts-rs` 12.0.1 (MIT, Rust 1.78 minimum, default `serde-compat` feature), `prost` 0.14.4, and `prost-build` 0.14.4 as compatible candidates; Talos v1.14.1 itself uses `google.golang.org/protobuf` 1.36.12. Exact Protobuf compiler pin, generated language choices, Rust DTO attributes/output tree, and fixture behavior remain unresolved until a real round-trip probe establishes optional/null, enum, bytes, 64-bit integer, and unknown-field semantics. No dependency has been added to the application based on an unverified candidate.
+The exact pins and generation paths are recorded in [decision 0001](../decisions/0001-foundation-generators-and-native-harness.md). A temporary cross-language Protobuf fixture round-tripped `u64::MAX` and bytes from Rust `prost` into generated Go successfully. A separate Rust Serde/`ts-rs` probe confirmed tagged-enum serialization and string-encoded sequence declarations. C1 still owns schema-specific unknown-field policy, committed output generation, drift detection, and malformed wire tests.
 
 ## Open findings and next packet
 
-- **FND-002 / C0.2:** settle compatible helper/protocol/generator/harness pins and compile probes. Record generators and outputs before C1 schema work.
+- **FND-002 / C1:** implement and check in the researched protocol/generator source and outputs; test malformed, oversized, incompatible, unknown, and mismatched messages; run actual helper supervision and packaged handshake.
 - **FND-003 / C3:** determine maintained vault, AEAD, SQLite, and secret-memory dependencies; verify each OS vault with actual platform behavior before persistent credentials are exposed.
 - **FND-004 / C4–C5:** choose compatible Kubernetes/Tokio/TLS pins and provision an allowlisted disposable Talos fixture. No owner cluster may be used implicitly.
 - **FND-005 / C2/C6:** complete typed runtime IPC validation, true native driver suite, production exclusion, and packaged CSP/worker validation.
@@ -58,4 +58,4 @@ Initial Rust package research identifies `ts-rs` 12.0.1 (MIT, Rust 1.78 minimum,
 - **FND-007 / C7:** investigate current `cargo audit` and Trivy results, the GLib unsoundness and proc-macro maintenance warnings; no silent exception or reachability claim.
 - **FND-008 / C0–C9:** configured automation is not execution evidence. Record final exact-revision CodeQL/Trivy and platform runner outcomes when available.
 
-No Talos or Kubernetes endpoint, credentials, native command, helper, vault, or new application behavior is introduced by this baseline packet.
+No Talos or Kubernetes endpoint, credentials, native command, helper, vault, or new application behavior is introduced by these research packets.
