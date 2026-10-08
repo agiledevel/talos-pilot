@@ -2,7 +2,11 @@
 
 use std::{env, fs, path::PathBuf};
 
-use talos_pilot::contracts::{ApplicationErrorDto, HelperCapability, HelperState, HelperStatusDto};
+use talos_pilot::contracts::{
+    AppearanceDensity, AppearanceSettingsDto, AppearanceTheme, ApplicationErrorDto,
+    CredentialImportResultDto, CredentialStorageModeDto, CredentialStorageStatusDto,
+    HelperCapability, HelperState, HelperStatusDto,
+};
 use ts_rs::{Config, TS};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,6 +29,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         HelperCapability::export_all(&config),
         HelperStatusDto::export_all(&config),
         ApplicationErrorDto::export_all(&config),
+        AppearanceTheme::export_all(&config),
+        AppearanceDensity::export_all(&config),
+        AppearanceSettingsDto::export_all(&config),
+        CredentialStorageModeDto::export_all(&config),
+        CredentialStorageStatusDto::export_all(&config),
+        CredentialImportResultDto::export_all(&config),
     ] {
         result?;
     }

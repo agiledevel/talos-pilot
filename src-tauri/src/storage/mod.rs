@@ -6,11 +6,15 @@
 
 mod database;
 mod encryption;
+mod kubeconfig;
+mod runtime;
 mod session;
 mod vault;
 
 pub use database::{Database, ProfileMetadata, StorageError};
 pub(crate) use encryption::{EncryptedEnvelope, decrypt, encrypt};
 pub use encryption::{EncryptionError, EncryptionKey};
+pub use kubeconfig::{KubeconfigError, KubeconfigMetadata, validate_kubeconfig};
+pub use runtime::{CredentialStorageMode, StorageRuntime};
 pub use session::{SessionOnlyStore, SessionStoreError};
 pub use vault::{MasterKeyVault, PlatformVault, VaultError};

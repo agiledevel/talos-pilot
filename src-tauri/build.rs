@@ -3,8 +3,16 @@
 fn main() {
     std::fs::create_dir_all("binaries")
         .unwrap_or_else(|error| panic!("could not prepare helper resource directory: {error}"));
-    let attributes = tauri_build::Attributes::new()
-        .app_manifest(tauri_build::AppManifest::new().commands(&["get_helper_status"]));
+    let attributes =
+        tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
+            "get_helper_status",
+            "get_appearance_settings",
+            "set_appearance_settings",
+            "get_credential_storage_status",
+            "use_session_only_storage",
+            "retry_persistent_storage",
+            "import_kubeconfig",
+        ]));
     tauri_build::try_build(attributes)
         .unwrap_or_else(|error| panic!("could not generate Tauri capabilities: {error}"));
 

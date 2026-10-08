@@ -1,4 +1,10 @@
 import type { ApplicationErrorDto } from "./generated/ApplicationErrorDto";
+import type { AppearanceDensity } from "./generated/AppearanceDensity";
+import type { AppearanceSettingsDto } from "./generated/AppearanceSettingsDto";
+import type { AppearanceTheme } from "./generated/AppearanceTheme";
+import type { CredentialImportResultDto } from "./generated/CredentialImportResultDto";
+import type { CredentialStorageModeDto } from "./generated/CredentialStorageModeDto";
+import type { CredentialStorageStatusDto } from "./generated/CredentialStorageStatusDto";
 import type { HelperCapability } from "./generated/HelperCapability";
 import type { HelperState } from "./generated/HelperState";
 import type { HelperStatusDto } from "./generated/HelperStatusDto";
@@ -9,6 +15,7 @@ const MAX_BUILD_ID_LENGTH = 128;
 const MAX_ERROR_FIELD_LENGTH = 256;
 const MAX_ERROR_MESSAGE_LENGTH = 1024;
 const MAX_CAPABILITY_COUNT = 8;
+const MAX_CONTEXT_NAME_LENGTH = 128;
 
 /** Describes a malformed value received across the native IPC boundary. */
 export class IpcContractError extends Error {
@@ -114,6 +121,76 @@ export function parseApplicationErrorDto(value: unknown): ApplicationErrorDto {
   };
 }
 
+/** Validates persisted appearance settings received from native IPC. */
+export function parseAppearanceSettingsDto(value: unknown): AppearanceSettingsDto {
+  if (!isRecord(value) || !isAppearanceTheme(value.theme) || !isAppearanceDensity(value.density)) {
+    throw new IpcContractError();
+  }
+  return {
+    theme: value.theme,
+    density: value.density,
+  };
+}
+
+/** Validates the nonsensitive credential persistence status from native IPC. */
+export function parseCredentialStorageStatusDto(value: unknown): CredentialStorageStatusDto {
+  if (!isRecord(value) || !isCredentialStorageMode(value.mode)) {
+    throw new IpcContractError();
+  }
+  return { mode: value.mode };
+}
+
+/** Validates safe metadata returned after a native kubeconfig import. */
+export function parseCredentialImportResultDto(value: unknown): CredentialImportResultDto {
+  if (
+    !isRecord(value) ||
+    !isSafeContextLabel(value.context_name) ||
+    !isCredentialStorageMode(value.storage_mode) ||
+    value.storage_mode === "vault_not_checked" ||
+    value.storage_mode === "vault_unavailable"
+  ) {
+    throw new IpcContractError();
+  }
+  return {
+    context_name: value.context_name,
+    storage_mode: value.storage_mode,
+  };
+}
+
+function isAppearanceTheme(value: unknown): value is AppearanceTheme {
+  return value === "system" || value === "light" || value === "dark";
+}
+
+function isAppearanceDensity(value: unknown): value is AppearanceDensity {
+  return value === "comfortable" || value === "compact";
+}
+
+function isCredentialStorageMode(value: unknown): value is CredentialStorageModeDto {
+  return (
+    value === "vault_not_checked" ||
+    value === "persistent" ||
+    value === "persistent_with_session_only" ||
+    value === "vault_unavailable" ||
+    value === "session_only"
+  );
+}
+
 function isBoundedString(value: unknown, maxLength: number): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= maxLength;
+}
+
+function isSafeContextLabel(value: unknown): value is string {
+  return (
+    isBoundedString(value, MAX_CONTEXT_NAME_LENGTH) &&
+    !Array.from(value).some((character) => {
+      const codePoint = character.codePointAt(0);
+      return (
+        codePoint === undefined ||
+        codePoint <= 0x1f ||
+        (codePoint >= 0x7f && codePoint <= 0x9f) ||
+        (codePoint >= 0x202a && codePoint <= 0x202e) ||
+        (codePoint >= 0x2066 && codePoint <= 0x2069)
+      );
+    })
+  );
 }

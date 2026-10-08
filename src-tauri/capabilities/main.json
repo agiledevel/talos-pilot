@@ -3,5 +3,13 @@
   "identifier": "main",
   "description": "Main-window access to the safe helper status projection.",
   "windows": ["main"],
-  "permissions": ["allow-get-helper-status"]
+  "permissions": [
+    "allow-get-helper-status",
+    "allow-get-appearance-settings",
+    "allow-set-appearance-settings",
+    "allow-get-credential-storage-status",
+    "allow-use-session-only-storage",
+    "allow-retry-persistent-storage",
+    "allow-import-kubeconfig"
+  ]
 }

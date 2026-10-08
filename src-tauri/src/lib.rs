@@ -4,12 +4,36 @@ pub mod contracts;
 pub mod helper;
 pub mod storage;
 
-use std::path::PathBuf;
+use std::{
+    fs::File,
+    io::Read,
+    path::PathBuf,
+    sync::{Arc, Mutex, MutexGuard},
+};
 
-use tauri::Manager;
+use secrecy::{ExposeSecret, SecretBox};
+use tauri::{Manager, State};
+use tauri_plugin_dialog::DialogExt;
+use zeroize::Zeroizing;
 
-use contracts::{ApplicationErrorDto, HelperStatusDto};
+use contracts::{
+    AppearanceDensity, AppearanceSettingsDto, AppearanceTheme, ApplicationErrorDto,
+    CredentialImportResultDto, CredentialStorageModeDto, CredentialStorageStatusDto,
+    HelperStatusDto,
+};
 use helper::service::HelperService;
+use storage::{
+    CredentialStorageMode, EncryptionError, KubeconfigError, StorageError, StorageRuntime,
+    validate_kubeconfig,
+};
+
+const MAX_IMPORT_FILE_BYTES: u64 = 4 * 1024 * 1024;
+
+#[derive(Clone)]
+struct AppStorage {
+    runtime: Arc<Mutex<StorageRuntime>>,
+    import_gate: Arc<tokio::sync::Mutex<()>>,
+}
 
 /// Reads the helper handshake status through the application's private process owner.
 ///
@@ -52,27 +76,375 @@ fn helper_path_error() -> ApplicationErrorDto {
     }
 }
 
+#[tauri::command]
+fn get_appearance_settings(
+    storage: State<'_, AppStorage>,
+) -> Result<AppearanceSettingsDto, ApplicationErrorDto> {
+    let storage = lock_storage(&storage.runtime, "get_appearance_settings")?;
+    let theme = storage
+        .preference("appearance-theme")
+        .map_err(|error| storage_error("get_appearance_settings", error))?;
+    let density = storage
+        .preference("appearance-density")
+        .map_err(|error| storage_error("get_appearance_settings", error))?;
+    let theme = match theme.as_deref().unwrap_or("system") {
+        "system" => AppearanceTheme::System,
+        "light" => AppearanceTheme::Light,
+        "dark" => AppearanceTheme::Dark,
+        _ => {
+            return Err(storage_error(
+                "get_appearance_settings",
+                StorageError::InvalidMetadata,
+            ));
+        }
+    };
+    let density = match density.as_deref().unwrap_or("comfortable") {
+        "comfortable" => AppearanceDensity::Comfortable,
+        "compact" => AppearanceDensity::Compact,
+        _ => {
+            return Err(storage_error(
+                "get_appearance_settings",
+                StorageError::InvalidMetadata,
+            ));
+        }
+    };
+    Ok(AppearanceSettingsDto { theme, density })
+}
+
+#[tauri::command]
+fn set_appearance_settings(
+    storage: State<'_, AppStorage>,
+    settings: AppearanceSettingsDto,
+) -> Result<(), ApplicationErrorDto> {
+    let mut storage = lock_storage(&storage.runtime, "set_appearance_settings")?;
+    let theme = match settings.theme {
+        AppearanceTheme::System => "system",
+        AppearanceTheme::Light => "light",
+        AppearanceTheme::Dark => "dark",
+    };
+    let density = match settings.density {
+        AppearanceDensity::Comfortable => "comfortable",
+        AppearanceDensity::Compact => "compact",
+    };
+    storage
+        .set_appearance_preferences(theme, density)
+        .map_err(|error| storage_error("set_appearance_settings", error))
+}
+
+#[tauri::command]
+fn get_credential_storage_status(
+    storage: State<'_, AppStorage>,
+) -> Result<CredentialStorageStatusDto, ApplicationErrorDto> {
+    let storage = lock_storage(&storage.runtime, "get_credential_storage_status")?;
+    Ok(CredentialStorageStatusDto {
+        mode: credential_mode_dto(storage.credential_mode()),
+    })
+}
+
+#[tauri::command]
+fn use_session_only_storage(
+    storage: State<'_, AppStorage>,
+) -> Result<CredentialStorageStatusDto, ApplicationErrorDto> {
+    let mut storage = lock_storage(&storage.runtime, "use_session_only_storage")?;
+    storage
+        .use_session_only()
+        .map_err(|error| storage_error("use_session_only_storage", error))?;
+    Ok(CredentialStorageStatusDto {
+        mode: credential_mode_dto(storage.credential_mode()),
+    })
+}
+
+#[tauri::command]
+async fn retry_persistent_storage(
+    storage: State<'_, AppStorage>,
+) -> Result<CredentialStorageStatusDto, ApplicationErrorDto> {
+    let storage = Arc::clone(&storage.runtime);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut storage = lock_storage(&storage, "retry_persistent_storage")?;
+        storage
+            .retry_persistent()
+            .map_err(|error| storage_error("retry_persistent_storage", error))?;
+        Ok(CredentialStorageStatusDto {
+            mode: credential_mode_dto(storage.credential_mode()),
+        })
+    })
+    .await
+    .map_err(|_| {
+        application_error(
+            "STORAGE_UNAVAILABLE",
+            "retry_persistent_storage",
+            "Persistent storage could not be retried.",
+            true,
+        )
+    })?
+}
+
+#[tauri::command]
+async fn import_kubeconfig(
+    app: tauri::AppHandle,
+    storage: State<'_, AppStorage>,
+) -> Result<Option<CredentialImportResultDto>, ApplicationErrorDto> {
+    let _import_guard = Arc::clone(&storage.import_gate)
+        .try_lock_owned()
+        .map_err(|_| {
+            application_error(
+                "IMPORT_IN_PROGRESS",
+                "import_kubeconfig",
+                "Another credential import is already in progress.",
+                true,
+            )
+        })?;
+    let selected = pick_kubeconfig_file(&app).await?;
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    let path = selected.into_path().map_err(|_| {
+        application_error(
+            "IMPORT_UNAVAILABLE",
+            "import_kubeconfig",
+            "The selected file could not be opened.",
+            false,
+        )
+    })?;
+    let storage = Arc::clone(&storage.runtime);
+    tauri::async_runtime::spawn_blocking(move || {
+        let source =
+            read_selected_file(&path).map_err(|error| import_error("import_kubeconfig", error))?;
+        let metadata = validate_kubeconfig(source.expose_secret())
+            .map_err(|error| kubeconfig_error("import_kubeconfig", error))?;
+        let mut storage = lock_storage(&storage, "import_kubeconfig")?;
+        let mode = storage
+            .store_kubeconfig(&metadata, source)
+            .map_err(|error| storage_error("import_kubeconfig", error))?;
+        Ok(Some(CredentialImportResultDto {
+            context_name: metadata.context_name,
+            storage_mode: credential_mode_dto(mode),
+        }))
+    })
+    .await
+    .map_err(|_| {
+        application_error(
+            "IMPORT_UNAVAILABLE",
+            "import_kubeconfig",
+            "The selected file could not be imported.",
+            false,
+        )
+    })?
+}
+
+async fn pick_kubeconfig_file(
+    app: &tauri::AppHandle,
+) -> Result<Option<tauri_plugin_dialog::FilePath>, ApplicationErrorDto> {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .add_filter("Kubeconfig YAML", &["yaml", "yml", "conf"])
+        .pick_file(move |selected| {
+            if let Err(unclaimed_path) = sender.send(selected) {
+                drop(unclaimed_path);
+            }
+        });
+    receiver.await.map_err(|_| {
+        application_error(
+            "IMPORT_UNAVAILABLE",
+            "import_kubeconfig",
+            "The native file dialog could not be completed.",
+            true,
+        )
+    })
+}
+
+fn lock_storage<'a>(
+    storage: &'a Mutex<StorageRuntime>,
+    action: &str,
+) -> Result<MutexGuard<'a, StorageRuntime>, ApplicationErrorDto> {
+    storage.lock().map_err(|_| {
+        application_error(
+            "STORAGE_UNAVAILABLE",
+            action,
+            "Local storage is unavailable.",
+            true,
+        )
+    })
+}
+
+fn credential_mode_dto(mode: CredentialStorageMode) -> CredentialStorageModeDto {
+    match mode {
+        CredentialStorageMode::VaultNotChecked => CredentialStorageModeDto::VaultNotChecked,
+        CredentialStorageMode::Persistent => CredentialStorageModeDto::Persistent,
+        CredentialStorageMode::PersistentWithSessionOnly => {
+            CredentialStorageModeDto::PersistentWithSessionOnly
+        }
+        CredentialStorageMode::VaultUnavailable => CredentialStorageModeDto::VaultUnavailable,
+        CredentialStorageMode::SessionOnly => CredentialStorageModeDto::SessionOnly,
+    }
+}
+
+fn storage_error(action: &str, error: StorageError) -> ApplicationErrorDto {
+    match error {
+        StorageError::Vault(_) => application_error(
+            "CREDENTIAL_VAULT_UNAVAILABLE",
+            action,
+            "The operating system credential vault is unavailable. Choose session-only storage or retry later.",
+            true,
+        ),
+        StorageError::InvalidMode => application_error(
+            "STORAGE_MODE_INVALID",
+            action,
+            "That credential storage choice is not available now.",
+            false,
+        ),
+        StorageError::Encryption(EncryptionError::TooLarge) => application_error(
+            "STORAGE_LIMIT_EXCEEDED",
+            action,
+            "The selected credential exceeds the supported size.",
+            false,
+        ),
+        StorageError::Filesystem(_)
+        | StorageError::Database(_)
+        | StorageError::UnsupportedSchema => application_error(
+            "STORAGE_UNAVAILABLE",
+            action,
+            "Local storage is unavailable. Restart the application and try again.",
+            true,
+        ),
+        StorageError::InvalidMetadata
+        | StorageError::MissingValue
+        | StorageError::Encryption(_) => application_error(
+            "STORAGE_INVALID",
+            action,
+            "The storage request could not be completed.",
+            false,
+        ),
+    }
+}
+
+fn kubeconfig_error(action: &str, error: KubeconfigError) -> ApplicationErrorDto {
+    let (code, message) = match error {
+        KubeconfigError::TooLarge => (
+            "IMPORT_LIMIT_EXCEEDED",
+            "The selected file exceeds the 4 MiB import limit.",
+        ),
+        KubeconfigError::ExecAuthentication => (
+            "IMPORT_EXEC_AUTH_UNSUPPORTED",
+            "Kubeconfig exec authentication is not supported.",
+        ),
+        KubeconfigError::AuthProvider => (
+            "IMPORT_AUTH_PROVIDER_UNSUPPORTED",
+            "Kubeconfig auth-provider authentication is not supported.",
+        ),
+        KubeconfigError::ExternalFileReference => (
+            "IMPORT_EXTERNAL_FILE_UNSUPPORTED",
+            "Kubeconfig file references must contain inline credential data.",
+        ),
+        KubeconfigError::InvalidEndpoint => (
+            "IMPORT_ENDPOINT_INVALID",
+            "The kubeconfig must use a valid TLS cluster endpoint.",
+        ),
+        KubeconfigError::MissingCredentials => (
+            "IMPORT_CREDENTIALS_MISSING",
+            "The selected kubeconfig context has no supported inline credentials.",
+        ),
+        KubeconfigError::InvalidDocument => (
+            "IMPORT_KUBECONFIG_INVALID",
+            "The selected file is not a supported kubeconfig.",
+        ),
+    };
+    application_error(code, action, message, false)
+}
+
+fn import_error(action: &str, error: std::io::Error) -> ApplicationErrorDto {
+    if error.kind() == std::io::ErrorKind::FileTooLarge {
+        application_error(
+            "IMPORT_LIMIT_EXCEEDED",
+            action,
+            "The selected file exceeds the 4 MiB import limit.",
+            false,
+        )
+    } else {
+        application_error(
+            "IMPORT_FILE_UNAVAILABLE",
+            action,
+            "The selected file could not be read.",
+            false,
+        )
+    }
+}
+
+fn application_error(
+    code: &str,
+    action: &str,
+    message: &str,
+    retryable: bool,
+) -> ApplicationErrorDto {
+    ApplicationErrorDto {
+        code: code.to_owned(),
+        action: action.to_owned(),
+        target: None,
+        retryable,
+        message: message.to_owned(),
+    }
+}
+
+fn read_selected_file(path: &std::path::Path) -> Result<SecretBox<[u8]>, std::io::Error> {
+    let file = File::open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.is_file() {
+        return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
+    }
+    if metadata.len() > MAX_IMPORT_FILE_BYTES {
+        return Err(std::io::Error::from(std::io::ErrorKind::FileTooLarge));
+    }
+    let mut bytes = Zeroizing::new(Vec::with_capacity(metadata.len() as usize));
+    file.take(MAX_IMPORT_FILE_BYTES + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_IMPORT_FILE_BYTES {
+        return Err(std::io::Error::from(std::io::ErrorKind::FileTooLarge));
+    }
+    Ok(SecretBox::new(
+        std::mem::take(&mut *bytes).into_boxed_slice(),
+    ))
+}
+
 /// Starts the Tauri desktop application.
 pub fn run() {
-    let builder = tauri::Builder::default().manage(HelperService::default());
+    let builder = tauri::Builder::default()
+        .manage(HelperService::default())
+        .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            let storage = open_storage_runtime(app.handle())?;
+            app.manage(AppStorage {
+                runtime: Arc::new(Mutex::new(storage)),
+                import_gate: Arc::new(tokio::sync::Mutex::new(())),
+            });
+            #[cfg(feature = "native-test")]
+            {
+                use tauri::{WebviewUrl, WebviewWindowBuilder};
+
+                WebviewWindowBuilder::new(
+                    app,
+                    "unauthorized",
+                    WebviewUrl::App("index.html#native-test-unauthorized".into()),
+                )
+                .title("Talos Pilot native IPC permission test")
+                .build()?;
+            }
+            Ok(())
+        });
     #[cfg(feature = "native-test")]
     let builder = builder
         .plugin(tauri_plugin_wdio::init())
-        .plugin(tauri_plugin_wdio_webdriver::init())
-        .setup(|app| {
-            use tauri::{WebviewUrl, WebviewWindowBuilder};
-
-            WebviewWindowBuilder::new(
-                app,
-                "unauthorized",
-                WebviewUrl::App("index.html#native-test-unauthorized".into()),
-            )
-            .title("Talos Pilot native IPC permission test")
-            .build()?;
-            Ok(())
-        });
+        .plugin(tauri_plugin_wdio_webdriver::init());
     let application = builder
-        .invoke_handler(tauri::generate_handler![get_helper_status])
+        .invoke_handler(tauri::generate_handler![
+            get_helper_status,
+            get_appearance_settings,
+            set_appearance_settings,
+            get_credential_storage_status,
+            use_session_only_storage,
+            retry_persistent_storage,
+            import_kubeconfig
+        ])
         .build(tauri::generate_context!());
     match application {
         Ok(application) => application.run(|handle, event| {
@@ -86,4 +458,19 @@ pub fn run() {
             std::process::exit(1);
         }
     }
+}
+
+#[cfg(feature = "native-test")]
+fn open_storage_runtime(_app: &tauri::AppHandle) -> Result<StorageRuntime, StorageError> {
+    StorageRuntime::open_native_test()
+}
+
+#[cfg(not(feature = "native-test"))]
+fn open_storage_runtime(app: &tauri::AppHandle) -> Result<StorageRuntime, StorageError> {
+    let directory = app.path().app_data_dir().map_err(|_| {
+        StorageError::Filesystem(std::io::Error::other(
+            "application data directory unavailable",
+        ))
+    })?;
+    StorageRuntime::open(&directory)
 }

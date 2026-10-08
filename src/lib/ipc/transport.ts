@@ -1,13 +1,23 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import type { ApplicationErrorDto } from "./generated/ApplicationErrorDto";
+import type { AppearanceSettingsDto } from "./generated/AppearanceSettingsDto";
+import type { CredentialImportResultDto } from "./generated/CredentialImportResultDto";
+import type { CredentialStorageStatusDto } from "./generated/CredentialStorageStatusDto";
 import type { HelperStatusDto } from "./generated/HelperStatusDto";
-import { parseApplicationErrorDto, parseHelperStatusDto } from "./validation";
+import {
+  IpcContractError,
+  parseApplicationErrorDto,
+  parseHelperStatusDto,
+  parseAppearanceSettingsDto,
+  parseCredentialImportResultDto,
+  parseCredentialStorageStatusDto,
+} from "./validation";
 
-/** Supplies the one native read currently exposed to the renderer. */
+/** Supplies validated native commands to application use cases. */
 export interface IpcTransport {
-  /** Requests a helper status payload that is validated by the IPC adapter. */
-  getHelperStatus(): Promise<unknown>;
+  /** Invokes a registered native command with its typed argument record. */
+  invoke(command: string, args?: Record<string, unknown>): Promise<unknown>;
 }
 
 /** Signals that a native transport was requested from an ordinary browser. */
@@ -48,23 +58,29 @@ export function createNativeIpcTransport(): IpcTransport {
     throw new IpcTransportUnavailableError();
   }
   return {
-    getHelperStatus: () => invoke<unknown>("get_helper_status"),
+    invoke: (command, args) =>
+      args === undefined ? invoke<unknown>(command) : invoke<unknown>(command, args),
   };
 }
 
 /**
- * Reads helper status through an explicitly supplied transport and validates
- * the untrusted response before returning the generated DTO.
+ * Invokes a command through an explicitly supplied transport and validates
+ * the untrusted response before returning its generated DTO.
  *
  * @param transport Native IPC or an explicitly selected test transport.
  * @throws {@link IpcContractError} for malformed successful responses.
  * @throws {@link IpcApplicationError} for valid structured backend errors.
  * @throws {@link IpcTransportError} for all unstructured transport failures.
  */
-export async function getHelperStatus(transport: IpcTransport): Promise<HelperStatusDto> {
+async function invokeValidated<T>(
+  transport: IpcTransport,
+  command: string,
+  parse: (value: unknown) => T,
+  args?: Record<string, unknown>,
+): Promise<T> {
   let response: unknown;
   try {
-    response = await transport.getHelperStatus();
+    response = await transport.invoke(command, args);
   } catch (error: unknown) {
     let detail: ApplicationErrorDto;
     try {
@@ -74,5 +90,61 @@ export async function getHelperStatus(transport: IpcTransport): Promise<HelperSt
     }
     throw new IpcApplicationError(detail);
   }
-  return parseHelperStatusDto(response);
+  return parse(response);
+}
+
+/** Reads and validates the helper status projection from the native backend. */
+export function getHelperStatus(transport: IpcTransport): Promise<HelperStatusDto> {
+  return invokeValidated(transport, "get_helper_status", parseHelperStatusDto);
+}
+
+/** Reads persisted theme and density settings from the native backend. */
+export function getAppearanceSettings(transport: IpcTransport): Promise<AppearanceSettingsDto> {
+  return invokeValidated(transport, "get_appearance_settings", parseAppearanceSettingsDto);
+}
+
+/** Persists theme and density together, then confirms the native unit result. */
+export async function setAppearanceSettings(
+  transport: IpcTransport,
+  settings: AppearanceSettingsDto,
+): Promise<void> {
+  const response = await invokeValidated(transport, "set_appearance_settings", (value) => value, {
+    settings,
+  });
+  if (response !== null) {
+    throw new IpcContractError();
+  }
+}
+
+/** Reads the nonsensitive persistent or session-only credential mode. */
+export function getCredentialStorageStatus(
+  transport: IpcTransport,
+): Promise<CredentialStorageStatusDto> {
+  return invokeValidated(
+    transport,
+    "get_credential_storage_status",
+    parseCredentialStorageStatusDto,
+  );
+}
+
+/** Selects explicitly requested, process-memory-only credential storage. */
+export function useSessionOnlyStorage(
+  transport: IpcTransport,
+): Promise<CredentialStorageStatusDto> {
+  return invokeValidated(transport, "use_session_only_storage", parseCredentialStorageStatusDto);
+}
+
+/** Retries access to the native vault without discarding active session data. */
+export function retryPersistentStorage(
+  transport: IpcTransport,
+): Promise<CredentialStorageStatusDto> {
+  return invokeValidated(transport, "retry_persistent_storage", parseCredentialStorageStatusDto);
+}
+
+/** Opens the native kubeconfig picker and returns only safe import metadata. */
+export async function importKubeconfig(
+  transport: IpcTransport,
+): Promise<CredentialImportResultDto | null> {
+  const response = await invokeValidated(transport, "import_kubeconfig", (value) => value);
+  return response === null ? null : parseCredentialImportResultDto(response);
 }

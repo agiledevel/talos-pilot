@@ -25,7 +25,7 @@ export function createBrowserMockTransport(
   outcome: BrowserMockOutcome = DEFAULT_STATUS,
 ): IpcTransport {
   return {
-    getHelperStatus: async () => {
+    invoke: async () => {
       if (outcome.kind === "reject") {
         throw outcome.reason;
       }

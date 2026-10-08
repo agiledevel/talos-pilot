@@ -13,9 +13,21 @@ import {
   IpcTransportError,
   IpcTransportUnavailableError,
   createNativeIpcTransport,
+  getAppearanceSettings,
+  getCredentialStorageStatus,
   getHelperStatus,
+  importKubeconfig,
+  setAppearanceSettings,
+  useSessionOnlyStorage,
 } from "./transport";
-import { IpcContractError, parseApplicationErrorDto, parseHelperStatusDto } from "./validation";
+import {
+  IpcContractError,
+  parseApplicationErrorDto,
+  parseAppearanceSettingsDto,
+  parseCredentialImportResultDto,
+  parseCredentialStorageStatusDto,
+  parseHelperStatusDto,
+} from "./validation";
 
 describe("runtime-validated IPC transport", () => {
   beforeEach(() => {
@@ -49,6 +61,56 @@ describe("runtime-validated IPC transport", () => {
         build_identity: null,
         protocol_major: null,
         capabilities: [],
+      }),
+    ).toThrow(IpcContractError);
+  });
+
+  it("validates appearance, storage mode, and safe import metadata DTOs", () => {
+    expect(parseAppearanceSettingsDto({ theme: "system", density: "compact" })).toEqual({
+      theme: "system",
+      density: "compact",
+    });
+    expect(parseCredentialStorageStatusDto({ mode: "vault_unavailable" })).toEqual({
+      mode: "vault_unavailable",
+    });
+    expect(parseCredentialStorageStatusDto({ mode: "persistent_with_session_only" })).toEqual({
+      mode: "persistent_with_session_only",
+    });
+    expect(
+      parseCredentialImportResultDto({ context_name: "synthetic", storage_mode: "session_only" }),
+    ).toEqual({ context_name: "synthetic", storage_mode: "session_only" });
+    expect(
+      parseCredentialImportResultDto({
+        context_name: "synthetic",
+        storage_mode: "persistent_with_session_only",
+      }),
+    ).toEqual({
+      context_name: "synthetic",
+      storage_mode: "persistent_with_session_only",
+    });
+    expect(() => parseAppearanceSettingsDto({ theme: "night", density: "compact" })).toThrow(
+      IpcContractError,
+    );
+    expect(() => parseCredentialStorageStatusDto({ mode: "fallback_file" })).toThrow(
+      IpcContractError,
+    );
+    expect(() =>
+      parseCredentialImportResultDto({
+        context_name: "x".repeat(129),
+        storage_mode: "persistent",
+        secret: "must-not-be-returned",
+      }),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseCredentialImportResultDto({
+        context_name: "synthetic\nspoofed",
+        storage_mode: "persistent",
+      }),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseCredentialImportResultDto({
+        context_name: "synthetic",
+        storage_mode: "vault_unavailable",
       }),
     ).toThrow(IpcContractError);
   });
@@ -147,6 +209,34 @@ describe("runtime-validated IPC transport", () => {
 
     expect(tauriApi.invoke).toHaveBeenCalledExactlyOnceWith("get_helper_status");
     expect(status.build_identity).toBe("native-build");
+  });
+
+  it("invokes settings and storage commands with runtime-validated responses", async () => {
+    tauriApi.isTauri.mockReturnValue(true);
+    tauriApi.invoke
+      .mockResolvedValueOnce({ theme: "dark", density: "comfortable" })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ mode: "vault_unavailable" })
+      .mockResolvedValueOnce({ mode: "session_only" })
+      .mockResolvedValueOnce({ context_name: "synthetic", storage_mode: "session_only" });
+    const transport = createNativeIpcTransport();
+
+    await expect(getAppearanceSettings(transport)).resolves.toEqual({
+      theme: "dark",
+      density: "comfortable",
+    });
+    await setAppearanceSettings(transport, { theme: "dark", density: "comfortable" });
+    await expect(getCredentialStorageStatus(transport)).resolves.toEqual({
+      mode: "vault_unavailable",
+    });
+    await expect(useSessionOnlyStorage(transport)).resolves.toEqual({ mode: "session_only" });
+    await expect(importKubeconfig(transport)).resolves.toEqual({
+      context_name: "synthetic",
+      storage_mode: "session_only",
+    });
+    expect(tauriApi.invoke).toHaveBeenNthCalledWith(2, "set_appearance_settings", {
+      settings: { theme: "dark", density: "comfortable" },
+    });
   });
 
   it("rejects missing and oversized application error fields", () => {

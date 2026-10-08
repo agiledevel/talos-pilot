@@ -32,8 +32,12 @@ operation. That choice is represented by constructing `SessionOnlyStore`,
 which retains at most 256 values and 64 MiB of payload only in zeroizing
 process memory and has no database handle. A caller that requires persistence
 must stop on a vault failure and ask for the explicit session-only choice in
-the later UI packet. First-key creation goes through an immediate SQLite
-transaction so app instances sharing a database serialize their vault access.
+the later UI packet. The app does not access the vault at startup; the first
+import or explicit retry triggers key creation under an immediate SQLite
+transaction, so app instances sharing a database serialize their vault access.
+When the vault becomes available while session values remain, the backend
+keeps those values in memory, persists future imports, and reports the combined
+state until shutdown.
 
 ## Alternatives considered
 

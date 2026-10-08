@@ -33,7 +33,7 @@ pub enum VaultError {
 /// vault responses or key material. A caller that receives [`VaultError`]
 /// must stop persistent credential operations until the user selects an
 /// explicit session-only mode.
-pub trait MasterKeyVault {
+pub trait MasterKeyVault: Send + Sync {
     /// Reads the existing application key or creates it in the native vault.
     ///
     /// # Errors
@@ -49,6 +49,7 @@ pub trait MasterKeyVault {
 /// builds use Credential Manager. Cargo features disable every implicit mock
 /// provider. The single application key is serialized across threads because
 /// RPC-backed stores may reject overlapping access to the same credential.
+#[derive(Clone, Copy)]
 pub struct PlatformVault;
 
 impl PlatformVault {

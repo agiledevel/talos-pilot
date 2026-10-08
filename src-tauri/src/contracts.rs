@@ -38,6 +38,69 @@ pub struct HelperStatusDto {
     pub capabilities: Vec<HelperCapability>,
 }
 
+/// Selects the renderer-visible appearance algorithm.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum AppearanceTheme {
+    /// Follow the operating system's light/dark preference.
+    System,
+    /// Always use the light color algorithm.
+    Light,
+    /// Always use the dark color algorithm.
+    Dark,
+}
+
+/// Selects comfortable or compact component spacing independently of theme.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum AppearanceDensity {
+    /// Use standard component spacing.
+    Comfortable,
+    /// Use Ant Design's compact component spacing.
+    Compact,
+}
+
+/// Nonsensitive appearance settings persisted by the native backend.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+pub struct AppearanceSettingsDto {
+    /// Selected system/light/dark theme.
+    pub theme: AppearanceTheme,
+    /// Selected component density.
+    pub density: AppearanceDensity,
+}
+
+/// Credential handling state, including untested and combined persistence modes.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum CredentialStorageModeDto {
+    /// The OS vault has not been accessed; an import will try it before writing.
+    VaultNotChecked,
+    /// Credentials are encrypted with a master key held by the OS vault.
+    Persistent,
+    /// Encrypted imports are active, with earlier session values still in memory.
+    PersistentWithSessionOnly,
+    /// The OS vault is unavailable and the user has not selected session-only.
+    VaultUnavailable,
+    /// Credentials are held only in zeroizing process memory.
+    SessionOnly,
+}
+
+/// Nonsensitive summary of the active credential storage mode.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+pub struct CredentialStorageStatusDto {
+    /// Current credential persistence state.
+    pub mode: CredentialStorageModeDto,
+}
+
+/// Safe metadata returned after a kubeconfig import.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+pub struct CredentialImportResultDto {
+    /// Bounded current-context label from the imported kubeconfig.
+    pub context_name: String,
+    /// Whether the imported value is persistent or session-only.
+    pub storage_mode: CredentialStorageModeDto,
+}
+
 /// A stable, nonsensitive error returned over application IPC.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
 pub struct ApplicationErrorDto {
@@ -55,7 +118,10 @@ pub struct ApplicationErrorDto {
 
 #[cfg(test)]
 mod tests {
-    use super::{ApplicationErrorDto, HelperState};
+    use super::{
+        AppearanceDensity, AppearanceSettingsDto, AppearanceTheme, ApplicationErrorDto,
+        CredentialStorageModeDto, HelperState,
+    };
 
     #[test]
     fn ipc_dtos_use_explicit_null_and_snake_case_values() {
@@ -73,6 +139,23 @@ mod tests {
             serde_json::to_value(HelperState::Ready)
                 .unwrap_or_else(|_| panic!("state must serialize")),
             "ready"
+        );
+    }
+
+    #[test]
+    fn appearance_and_storage_dtos_use_stable_snake_case_values() {
+        assert_eq!(
+            serde_json::to_value(AppearanceSettingsDto {
+                theme: AppearanceTheme::System,
+                density: AppearanceDensity::Comfortable,
+            })
+            .unwrap_or_else(|_| panic!("appearance DTO must serialize")),
+            serde_json::json!({"theme": "system", "density": "comfortable"})
+        );
+        assert_eq!(
+            serde_json::to_value(CredentialStorageModeDto::VaultUnavailable)
+                .unwrap_or_else(|_| panic!("storage mode must serialize")),
+            "vault_unavailable"
         );
     }
 }

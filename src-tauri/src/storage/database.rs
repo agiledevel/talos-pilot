@@ -80,6 +80,12 @@ pub enum StorageError {
     /// The native credential vault could not provide a persistent key.
     #[error(transparent)]
     Vault(#[from] VaultError),
+    /// The selected application database directory or file is inaccessible.
+    #[error("storage files are unavailable")]
+    Filesystem(#[from] std::io::Error),
+    /// The requested credential mode is not available from the current state.
+    #[error("the requested credential storage mode is unavailable")]
+    InvalidMode,
 }
 
 /// Owns a single SQLite connection and applies versioned migrations atomically.
@@ -129,7 +135,7 @@ impl Database {
     /// vault is missing, locked, unavailable, or contains invalid key data.
     pub fn load_or_create_master_key(
         &mut self,
-        vault: &impl MasterKeyVault,
+        vault: &dyn MasterKeyVault,
     ) -> Result<EncryptionKey, StorageError> {
         let transaction = self
             .connection
@@ -163,6 +169,69 @@ impl Database {
         Ok(())
     }
 
+    /// Persists or replaces a bounded nonsensitive preference.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StorageError::InvalidMetadata`] for invalid bounds or a safe
+    /// SQLite error when the value cannot be committed.
+    pub fn set_preference(&self, name: &str, value: &str) -> Result<(), StorageError> {
+        if !bounded_text(name, 64) || !bounded_text(value, 256) {
+            return Err(StorageError::InvalidMetadata);
+        }
+        self.connection.execute(
+            "INSERT INTO preferences(name, value) VALUES (?1, ?2) \
+             ON CONFLICT(name) DO UPDATE SET value = excluded.value",
+            params![name, value],
+        )?;
+        Ok(())
+    }
+
+    /// Atomically updates a bounded group of nonsensitive preferences.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StorageError::InvalidMetadata`] for invalid bounds or a safe
+    /// SQLite error; on failure none of the supplied values are changed.
+    pub fn set_preferences(&mut self, preferences: &[(&str, &str)]) -> Result<(), StorageError> {
+        if preferences
+            .iter()
+            .any(|(name, value)| !bounded_text(name, 64) || !bounded_text(value, 256))
+        {
+            return Err(StorageError::InvalidMetadata);
+        }
+        let transaction = self.connection.transaction()?;
+        for (name, value) in preferences {
+            transaction.execute(
+                "INSERT INTO preferences(name, value) VALUES (?1, ?2) \
+                 ON CONFLICT(name) DO UPDATE SET value = excluded.value",
+                params![name, value],
+            )?;
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+
+    /// Loads a bounded nonsensitive preference, if one has been stored.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StorageError::InvalidMetadata`] for an invalid name or a safe
+    /// SQLite error when the value cannot be read.
+    pub fn get_preference(&self, name: &str) -> Result<Option<String>, StorageError> {
+        if !bounded_text(name, 64) {
+            return Err(StorageError::InvalidMetadata);
+        }
+        Ok(self
+            .connection
+            .query_row(
+                "SELECT value FROM preferences WHERE name = ?1",
+                [name],
+                |row| row.get(0),
+            )
+            .optional()?)
+    }
+
     /// Stores an encrypted value and its reference in one transaction.
     ///
     /// The AEAD associated data binds the ciphertext to `profile_id`,
@@ -189,25 +258,65 @@ impl Database {
         }
         let envelope = encrypt(key, profile_id, reference_id, value_kind, plaintext)?;
         let transaction = self.connection.transaction()?;
-        transaction.execute(
-            "INSERT INTO credential_references(reference_id, profile_id, value_kind) \
-             VALUES (?1, ?2, ?3) \
-             ON CONFLICT(reference_id) DO UPDATE SET \
-               profile_id = excluded.profile_id, value_kind = excluded.value_kind",
-            params![reference_id, profile_id, value_kind],
+        store_envelope_rows(
+            &transaction,
+            profile_id,
+            reference_id,
+            value_kind,
+            &envelope,
         )?;
+        transaction.commit()?;
+        Ok(())
+    }
+
+    /// Inserts a new profile and its encrypted value in one transaction.
+    ///
+    /// Import workflows use this method so a failed credential write cannot
+    /// leave an orphan profile or credential reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for invalid metadata, oversized plaintext, random
+    /// source failure, database constraints, or cryptographic failure.
+    pub fn store_profile_encrypted_value(
+        &mut self,
+        profile: &ProfileMetadata,
+        reference_id: &str,
+        value_kind: &str,
+        key: &EncryptionKey,
+        plaintext: &SecretBox<[u8]>,
+    ) -> Result<(), StorageError> {
+        if !bounded_text(&profile.profile_id, MAX_IDENTIFIER_BYTES)
+            || !bounded_text(&profile.display_name, MAX_DISPLAY_NAME_BYTES)
+            || profile.created_at_unix < 0
+            || !bounded_text(reference_id, MAX_IDENTIFIER_BYTES)
+            || !bounded_text(value_kind, MAX_IDENTIFIER_BYTES)
+        {
+            return Err(StorageError::InvalidMetadata);
+        }
+        let envelope = encrypt(
+            key,
+            &profile.profile_id,
+            reference_id,
+            value_kind,
+            plaintext,
+        )?;
+        let transaction = self.connection.transaction()?;
         transaction.execute(
-            "INSERT INTO encrypted_values(reference_id, envelope_version, nonce, ciphertext) \
-             VALUES (?1, ?2, ?3, ?4) \
-             ON CONFLICT(reference_id) DO UPDATE SET \
-               envelope_version = excluded.envelope_version, \
-               nonce = excluded.nonce, ciphertext = excluded.ciphertext",
+            "INSERT INTO profiles(profile_id, display_name, created_at_unix) \
+             VALUES (?1, ?2, ?3)",
             params![
-                reference_id,
-                i64::from(envelope.version),
-                envelope.nonce,
-                envelope.ciphertext
+                profile.profile_id,
+                profile.display_name,
+                profile.created_at_unix
             ],
+        )?;
+        store_envelope_rows(
+            &transaction,
+            &profile.profile_id,
+            reference_id,
+            value_kind,
+            &envelope,
         )?;
         transaction.commit()?;
         Ok(())
@@ -266,6 +375,73 @@ impl Database {
             .connection
             .pragma_query_value(None, "user_version", |row| row.get(0))?)
     }
+
+    #[cfg(test)]
+    pub(super) fn test_storage_counts(&self) -> Result<(i64, i64, i64), StorageError> {
+        let profiles = self
+            .connection
+            .query_row("SELECT COUNT(*) FROM profiles", [], |row| row.get(0))?;
+        let references =
+            self.connection
+                .query_row("SELECT COUNT(*) FROM credential_references", [], |row| {
+                    row.get(0)
+                })?;
+        let values =
+            self.connection
+                .query_row("SELECT COUNT(*) FROM encrypted_values", [], |row| {
+                    row.get(0)
+                })?;
+        Ok((profiles, references, values))
+    }
+
+    #[cfg(test)]
+    pub(super) fn test_load_only_secret(
+        &self,
+        key: &EncryptionKey,
+    ) -> Result<SecretBox<[u8]>, StorageError> {
+        let (profile_id, reference_id, value_kind) = self.connection.query_row(
+            "SELECT profile_id, reference_id, value_kind FROM credential_references LIMIT 1",
+            [],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
+        )?;
+        self.load_encrypted_value(&profile_id, &reference_id, &value_kind, key)
+    }
+}
+
+fn store_envelope_rows(
+    transaction: &rusqlite::Transaction<'_>,
+    profile_id: &str,
+    reference_id: &str,
+    value_kind: &str,
+    envelope: &EncryptedEnvelope,
+) -> Result<(), rusqlite::Error> {
+    transaction.execute(
+        "INSERT INTO credential_references(reference_id, profile_id, value_kind) \
+             VALUES (?1, ?2, ?3) \
+             ON CONFLICT(reference_id) DO UPDATE SET \
+               profile_id = excluded.profile_id, value_kind = excluded.value_kind",
+        params![reference_id, profile_id, value_kind],
+    )?;
+    transaction.execute(
+        "INSERT INTO encrypted_values(reference_id, envelope_version, nonce, ciphertext) \
+             VALUES (?1, ?2, ?3, ?4) \
+             ON CONFLICT(reference_id) DO UPDATE SET \
+               envelope_version = excluded.envelope_version, \
+               nonce = excluded.nonce, ciphertext = excluded.ciphertext",
+        params![
+            reference_id,
+            i64::from(envelope.version),
+            envelope.nonce,
+            envelope.ciphertext
+        ],
+    )?;
+    Ok(())
 }
 
 fn migrate(connection: &mut Connection) -> Result<(), StorageError> {
@@ -424,6 +600,90 @@ mod tests {
             |row| row.get(0),
         ));
         assert_eq!(preference, "dark");
+    }
+
+    #[test]
+    fn persists_bounded_appearance_preferences() {
+        let (_directory, path) = temporary_database();
+        let database = must(Database::open(&path));
+        assert_eq!(must(database.get_preference("theme")), None);
+        must(database.set_preference("theme", "system"));
+        must(database.set_preference("density", "compact"));
+        must(database.set_preference("theme", "dark"));
+        assert_eq!(
+            must(database.get_preference("theme")),
+            Some("dark".to_owned())
+        );
+        assert_eq!(
+            must(database.get_preference("density")),
+            Some("compact".to_owned())
+        );
+        assert!(matches!(
+            database.set_preference("theme", &"x".repeat(257)),
+            Err(StorageError::InvalidMetadata)
+        ));
+    }
+
+    #[test]
+    fn appearance_preference_group_updates_atomically() {
+        let (_directory, path) = temporary_database();
+        let mut database = must(Database::open(&path));
+        must(database.set_preferences(&[
+            ("appearance-theme", "system"),
+            ("appearance-density", "comfortable"),
+        ]));
+        must(database.connection.execute_batch(
+            "CREATE TRIGGER reject_compact BEFORE INSERT ON preferences \
+             WHEN NEW.name = 'appearance-density' \
+             BEGIN SELECT RAISE(ABORT, 'synthetic preference failure'); END;",
+        ));
+        assert!(matches!(
+            database.set_preferences(&[
+                ("appearance-theme", "dark"),
+                ("appearance-density", "compact"),
+            ]),
+            Err(StorageError::Database(_))
+        ));
+        assert_eq!(
+            must(database.get_preference("appearance-theme")),
+            Some("system".into())
+        );
+        assert_eq!(
+            must(database.get_preference("appearance-density")),
+            Some("comfortable".into())
+        );
+    }
+
+    #[test]
+    fn failed_import_write_rolls_back_profile_reference_and_envelope() {
+        let (_directory, path) = temporary_database();
+        let mut database = must(Database::open(&path));
+        must(database.connection.execute_batch(
+            "CREATE TRIGGER reject_import BEFORE INSERT ON encrypted_values \
+             BEGIN SELECT RAISE(ABORT, 'synthetic import failure'); END;",
+        ));
+        assert!(matches!(
+            database.store_profile_encrypted_value(
+                &profile(),
+                "credential-import",
+                "kubeconfig",
+                &test_key(33),
+                &SecretBox::new(PLAINTEXT_SENTINEL.to_vec().into_boxed_slice()),
+            ),
+            Err(StorageError::Database(_))
+        ));
+        let profiles: i64 = must(database.connection.query_row(
+            "SELECT COUNT(*) FROM profiles",
+            [],
+            |row| row.get(0),
+        ));
+        let references: i64 = must(database.connection.query_row(
+            "SELECT COUNT(*) FROM credential_references",
+            [],
+            |row| row.get(0),
+        ));
+        assert_eq!(profiles, 0);
+        assert_eq!(references, 0);
     }
 
     #[test]

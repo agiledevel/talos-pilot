@@ -1,6 +1,7 @@
 import { execFileSync, spawn } from "node:child_process";
-import { readFileSync, readdirSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { createServer, Socket } from "node:net";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import process from "node:process";
 
@@ -56,8 +57,22 @@ function assertProductionConfig(): void {
   }
 }
 
-function isProductionPermissions(value: unknown): value is ["allow-get-helper-status"] {
-  return Array.isArray(value) && value.length === 1 && value[0] === "allow-get-helper-status";
+const PRODUCTION_PERMISSIONS = [
+  "allow-get-helper-status",
+  "allow-get-appearance-settings",
+  "allow-set-appearance-settings",
+  "allow-get-credential-storage-status",
+  "allow-use-session-only-storage",
+  "allow-retry-persistent-storage",
+  "allow-import-kubeconfig",
+] as const;
+
+function isProductionPermissions(value: unknown): value is typeof PRODUCTION_PERMISSIONS {
+  return (
+    Array.isArray(value) &&
+    value.length === PRODUCTION_PERMISSIONS.length &&
+    PRODUCTION_PERMISSIONS.every((permission, index) => value[index] === permission)
+  );
 }
 
 function assertDefaultCargoGraph(): void {
@@ -170,9 +185,19 @@ async function assertNoDriverListener(port: number): Promise<void> {
   const useVirtualDisplay = process.platform === "linux" && process.env.DISPLAY === undefined;
   const command = useVirtualDisplay ? "xvfb-run" : application;
   const args = useVirtualDisplay ? ["-a", application] : [];
+  const isolatedHome = mkdtempSync(join(tmpdir(), "talos-pilot-production-check-"));
+  const isolatedAppData = join(isolatedHome, "app-data");
   const applicationProcess = spawn(command, args, {
     detached: !isWindows,
-    env: { ...process.env, TAURI_WEBDRIVER_PORT: String(port) },
+    env: {
+      ...process.env,
+      TAURI_WEBDRIVER_PORT: String(port),
+      XDG_DATA_HOME: isolatedAppData,
+      XDG_CONFIG_HOME: join(isolatedHome, "config"),
+      HOME: isolatedHome,
+      APPDATA: join(isolatedHome, "roaming"),
+      LOCALAPPDATA: join(isolatedHome, "local"),
+    },
     stdio: "ignore",
   });
   const spawned = new Promise<void>((resolveSpawn, rejectSpawn) => {
@@ -195,7 +220,11 @@ async function assertNoDriverListener(port: number): Promise<void> {
       await new Promise<void>((resolveDelay) => setTimeout(resolveDelay, 100));
     }
   } finally {
-    await terminateApplication(applicationProcess);
+    try {
+      await terminateApplication(applicationProcess);
+    } finally {
+      rmSync(isolatedHome, { recursive: true, force: true });
+    }
   }
 }
 

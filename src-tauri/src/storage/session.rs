@@ -143,6 +143,14 @@ impl SessionOnlyStore {
             Ok(false)
         }
     }
+
+    #[cfg(test)]
+    pub(super) fn credential_count(&self) -> Result<usize, SessionStoreError> {
+        self.values
+            .lock()
+            .map(|values| values.credentials.len())
+            .map_err(|_| SessionStoreError::Unavailable)
+    }
 }
 
 impl Default for SessionOnlyStore {
