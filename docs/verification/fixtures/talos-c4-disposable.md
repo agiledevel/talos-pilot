@@ -15,9 +15,9 @@ use of any other Docker, libvirt, Talos, or Kubernetes cluster.
 | Kubernetes version | `v1.36.5` |
 | Topology | 3 control planes and 1 worker |
 | Cluster CIDR | `10.79.0.0/24` |
-| Talos config destination | `/tmp/talos-pilot-c4-20261009/talosconfig` |
-| Kubernetes config destination | `/tmp/talos-pilot-c4-20261009/kubeconfig` via `KUBECONFIG` |
-| Talos state directory | `/tmp/talos-pilot-c4-20261009/talosctl-state` |
+| Talos config destination | `/tmp/tpc4/talosconfig` |
+| Kubernetes config destination | `/tmp/tpc4/kubeconfig` via `KUBECONFIG` |
+| Talos state directory | `/tmp/tpc4/state` |
 | Credentials | Synthetic Talos-generated CA and client certificate; derive a separate `os:reader` config for read/stream tests |
 | Mutations | No Talos or Kubernetes mutations after fixture provisioning; C4 probes are read-only |
 
@@ -29,20 +29,31 @@ use wildcard endpoint or node entries.
 
 ## Provision and teardown
 
-The fixture will be created with the pinned binary and isolated destinations:
+The host's QEMU network setup requires root, so the pinned CLI runs with
+`sudo -E`. It uses a short isolated state root because QEMU Unix monitor socket
+paths must remain below the kernel's 108-byte socket-path limit. A first
+unprivileged attempt stopped before creating any QEMU processes due to the
+host-network permission requirement. A privileged attempt using the longer
+`/tmp/talos-pilot-c4-20261009` root created machine files but QEMU could not
+start because its monitor socket path exceeded the limit. That exact fixture
+state/network was destroyed with its unique cluster name, and the shorter
+`/tmp/tpc4` root was reserved before retry. The corrected invocation is:
 
 ```sh
-TALOSCONFIG=/tmp/talos-pilot-c4-20261009/talosconfig \
-KUBECONFIG=/tmp/talos-pilot-c4-20261009/kubeconfig \
-talosctl --state /tmp/talos-pilot-c4-20261009/talosctl-state \
-  cluster create qemu \
-  --name talos-pilot-c4-20261009 \
-  --cidr 10.79.0.0/24 \
-  --talos-version v1.14.1 \
-  --kubernetes-version v1.36.5 \
-  --controlplanes 3 \
-  --workers 1 \
-  --presets iso
+sudo -n -E sh -c 'umask 077; cd /tmp/tpc4; \
+  TALOSCONFIG=/tmp/tpc4/talosconfig \
+  KUBECONFIG=/tmp/tpc4/kubeconfig \
+  /developer/ifjkt/talos-pilot/src-tauri/.local-tools/talosctl \
+    --state /tmp/tpc4/state \
+    cluster create qemu \
+    --name talos-pilot-c4-20261009 \
+    --cidr 10.79.0.0/24 \
+    --talos-version v1.14.1 \
+    --kubernetes-version v1.36.5 \
+    --controlplanes 3 \
+    --workers 1 \
+    --presets iso \
+    --talosconfig-destination /tmp/tpc4/talosconfig'
 ```
 
 The exact provisioner output, endpoint allowlist, image digests, and client
@@ -52,12 +63,13 @@ outside the repository and must be removed after the cluster is destroyed.
 Teardown is restricted to this fixture name and state path:
 
 ```sh
-talosctl --state /tmp/talos-pilot-c4-20261009/talosctl-state \
-  cluster destroy --name talos-pilot-c4-20261009
+sudo -n -E /developer/ifjkt/talos-pilot/src-tauri/.local-tools/talosctl \
+  --state /tmp/tpc4/state \
+  cluster destroy --name talos-pilot-c4-20261009 --force
 ```
 
 After teardown, verify the exact QEMU domains, network, and state directory are
-gone. If provisioning partially fails, inspect only names beginning with
+gone, then remove `/tmp/tpc4`. If provisioning partially fails, inspect only names beginning with
 `talos-pilot-c4-20261009` and clean only those resources.
 
 ## Pending host-issued identities
