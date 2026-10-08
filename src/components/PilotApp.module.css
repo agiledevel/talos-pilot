@@ -1,0 +1,29 @@
+.shell {
+  min-height: 100vh;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  height: auto;
+  padding: 20px 32px;
+  background: transparent;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+}
+.content {
+  padding: 32px;
+}
+.footer {
+  text-align: center;
+}
+@media (max-width: 640px) {
+  .header {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 20px;
+  }
+  .content {
+    padding: 20px;
+  }
+}

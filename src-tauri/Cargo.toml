@@ -1,0 +1,21 @@
+[package]
+name = "talos-pilot"
+version = "0.1.0"
+description = "Talos and Kubernetes desktop management"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "=2.7.1", features = [] }
+
+[dependencies]
+tauri = { version = "=2.12.1", features = [] }
+
+[lints.rust]
+missing_docs = "deny"
+unsafe_code = "forbid"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"

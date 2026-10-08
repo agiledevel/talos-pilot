@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "The initial shell has no application commands or plugin permissions.",
+  "windows": ["main"],
+  "permissions": []
+}

@@ -1,0 +1,17 @@
+{
+  "ignorePatterns": [
+    "pnpm-lock.yaml",
+    "dist",
+    "coverage",
+    "playwright-report",
+    "test-results",
+    "AGENTS.md",
+    ".agents",
+    "docs/design.md",
+    "docs/quality.md",
+    "src-tauri/target",
+    "src-tauri/gen",
+    "src-tauri/icons",
+    "src-tauri/Cargo.lock"
+  ]
+}
