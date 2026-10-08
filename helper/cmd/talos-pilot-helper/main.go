@@ -3,20 +3,46 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/agiledevel/talos-pilot/helper/internal/protocol"
 	protocolv1 "github.com/agiledevel/talos-pilot/helper/internal/protocol/helper/v1"
+	"github.com/agiledevel/talos-pilot/helper/internal/talosprobe"
 	"google.golang.org/protobuf/proto"
 )
 
-const protocolMajor uint32 = 1
+const (
+	protocolMajor      uint32 = 1
+	maxSubscriptions          = 4
+	probeStartDeadline        = 15 * time.Second
+)
 
 var buildIdentity = "development"
+
+type probeSession interface {
+	ReadVersion(context.Context, string) (string, error)
+	WatchMachineStatus(context.Context, string, func(talosprobe.Status) error) error
+	Close() error
+}
+
+type probeFactory func(context.Context, []byte, []string) (probeSession, error)
+
+type inbound struct {
+	message *protocolv1.Envelope
+	err     error
+}
+
+type frameWriter struct {
+	mu     sync.Mutex
+	output io.Writer
+}
 
 func main() {
 	if err := serve(os.Stdin, os.Stdout); err != nil {
@@ -26,36 +52,329 @@ func main() {
 }
 
 func serve(input io.Reader, output io.Writer) error {
-	reader := bufio.NewReader(input)
-	writer := bufio.NewWriter(output)
+	return serveWithProbe(input, output, func(ctx context.Context, config []byte, endpoints []string) (probeSession, error) {
+		return talosprobe.Open(ctx, config, endpoints)
+	})
+}
+
+func serveWithProbe(input io.Reader, output io.Writer, openProbe probeFactory) error {
+	writer := &frameWriter{output: output}
+	incoming := make(chan inbound, 1)
+	stopReader := make(chan struct{})
+	go readMessages(input, incoming, stopReader)
+
+	active := make(map[string]context.CancelFunc, maxSubscriptions)
+	finished := make(chan string, maxSubscriptions)
+	var streams sync.WaitGroup
 	handshakeComplete := false
+
+	stopStreams := func() {
+		for _, cancel := range active {
+			cancel()
+		}
+		streams.Wait()
+	}
+	defer close(stopReader)
+	defer stopStreams()
+
+	for {
+		select {
+		case result, ok := <-incoming:
+			if !ok {
+				stopStreams()
+				return nil
+			}
+			if result.err != nil {
+				stopStreams()
+				if errors.Is(result.err, protocol.ErrCleanEOF) {
+					return nil
+				}
+				return result.err
+			}
+			request := result.message
+			if request == nil || request.ProtocolMajor != protocolMajor || !validRequestID(request.RequestId) {
+				clearTalosConfig(request)
+				if err := writer.send(errorResponse(request, "invalid_request", "The helper request is invalid.", false)); err != nil {
+					return err
+				}
+				continue
+			}
+			var probeRequest *protocolv1.TalosProbeRequest
+			if request.Kind == protocolv1.MessageKind_MESSAGE_KIND_TALOS_PROBE_REQUEST {
+				if payload, ok := request.Payload.(*protocolv1.Envelope_TalosProbeRequest); ok && payload.TalosProbeRequest != nil {
+					owned := &protocolv1.TalosProbeRequest{
+						TalosConfig: payload.TalosProbeRequest.TalosConfig,
+						Endpoints:   payload.TalosProbeRequest.Endpoints,
+						Node:        payload.TalosProbeRequest.Node,
+					}
+					payload.TalosProbeRequest.TalosConfig = nil
+					probeRequest = owned
+				} else {
+					clearTalosConfig(request)
+				}
+			} else {
+				clearTalosConfig(request)
+			}
+
+			switch request.Kind {
+			case protocolv1.MessageKind_MESSAGE_KIND_TALOS_PROBE_REQUEST:
+				if !handshakeComplete {
+					if probeRequest != nil {
+						clear(probeRequest.TalosConfig)
+					}
+					if err := writer.send(errorResponse(request, "handshake_required", "The helper handshake must succeed before Talos probes.", false)); err != nil {
+						return err
+					}
+					continue
+				}
+				if len(active) >= maxSubscriptions || active[request.RequestId] != nil {
+					if probeRequest != nil {
+						clear(probeRequest.TalosConfig)
+					}
+					if err := writer.send(errorResponse(request, "subscription_limit", "The Talos probe limit has been reached.", true)); err != nil {
+						return err
+					}
+					continue
+				}
+				if probeRequest == nil {
+					if err := writer.send(errorResponse(request, "invalid_message", "The Talos probe request is invalid.", false)); err != nil {
+						return err
+					}
+					continue
+				}
+				streamContext, cancel := context.WithCancel(context.Background())
+				active[request.RequestId] = cancel
+				streams.Add(1)
+				go runProbe(streamContext, request, probeRequest, writer, openProbe, &streams, finished)
+			case protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_REQUEST:
+				payload, ok := request.Payload.(*protocolv1.Envelope_TalosCancelRequest)
+				if !handshakeComplete || !ok || payload.TalosCancelRequest == nil || !validRequestID(payload.TalosCancelRequest.SubscriptionRequestId) {
+					if err := writer.send(errorResponse(request, "invalid_cancel", "The Talos cancellation request is invalid.", false)); err != nil {
+						return err
+					}
+					continue
+				}
+				cancel, exists := active[payload.TalosCancelRequest.SubscriptionRequestId]
+				if !exists {
+					if err := writer.send(errorResponse(request, "unknown_subscription", "The Talos subscription is no longer active.", false)); err != nil {
+						return err
+					}
+					continue
+				}
+				if err := writer.send(&protocolv1.Envelope{
+					ProtocolMajor: protocolMajor,
+					Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_RESPONSE,
+					RequestId:     request.RequestId,
+					Payload:       &protocolv1.Envelope_TalosCancelResponse{TalosCancelResponse: &protocolv1.TalosCancelResponse{}},
+				}); err != nil {
+					return err
+				}
+				cancel()
+			case protocolv1.MessageKind_MESSAGE_KIND_HANDSHAKE_REQUEST,
+				protocolv1.MessageKind_MESSAGE_KIND_STATUS_REQUEST,
+				protocolv1.MessageKind_MESSAGE_KIND_SHUTDOWN_REQUEST:
+				response, shutdown, accepted := handle(request, handshakeComplete)
+				if shutdown {
+					stopStreams()
+				}
+				if err := writer.send(response); err != nil {
+					return err
+				}
+				handshakeComplete = handshakeComplete || accepted
+				if shutdown {
+					return nil
+				}
+			default:
+				if err := writer.send(errorResponse(request, "unsupported_message", "The helper message is not supported.", false)); err != nil {
+					return err
+				}
+			}
+		case requestID := <-finished:
+			if cancel, exists := active[requestID]; exists {
+				cancel()
+				delete(active, requestID)
+			}
+		}
+	}
+}
+
+func readMessages(input io.Reader, incoming chan<- inbound, stop <-chan struct{}) {
+	reader := bufio.NewReader(input)
 	for {
 		payload, err := protocol.ReadFrame(reader)
-		if errors.Is(err, protocol.ErrCleanEOF) {
-			return nil
-		}
 		if err != nil {
-			return err
+			select {
+			case incoming <- inbound{err: err}:
+			case <-stop:
+			}
+			return
 		}
-
 		request := new(protocolv1.Envelope)
-		if err := proto.Unmarshal(payload, request); err != nil {
-			return errors.New("helper received malformed protocol message")
+		decodeErr := proto.Unmarshal(payload, request)
+		clear(payload)
+		if decodeErr != nil {
+			select {
+			case incoming <- inbound{err: errors.New("helper received malformed protocol message")}:
+			case <-stop:
+			}
+			return
 		}
-		response, shutdown, handshakeAccepted := handle(request, handshakeComplete)
-		encoded, err := proto.Marshal(response)
-		if err != nil {
-			return errors.New("helper could not encode protocol response")
+		select {
+		case incoming <- inbound{message: request}:
+		case <-stop:
+			return
 		}
-		if err := protocol.WriteFrame(writer, encoded); err != nil {
-			return err
-		}
-		if err := writer.Flush(); err != nil {
-			return err
-		}
-		handshakeComplete = handshakeComplete || handshakeAccepted
-		if shutdown {
+	}
+}
+
+func (writer *frameWriter) send(response *protocolv1.Envelope) error {
+	encoded, err := proto.Marshal(response)
+	if err != nil {
+		return errors.New("helper could not encode protocol response")
+	}
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+	if err := protocol.WriteFrame(writer.output, encoded); err != nil {
+		return err
+	}
+	return nil
+}
+
+func runProbe(
+	ctx context.Context,
+	request *protocolv1.Envelope,
+	probe *protocolv1.TalosProbeRequest,
+	writer *frameWriter,
+	openProbe probeFactory,
+	streams *sync.WaitGroup,
+	finished chan<- string,
+) {
+	defer streams.Done()
+	defer func() { finished <- request.RequestId }()
+	defer clear(probe.TalosConfig)
+
+	startupContext, cancelStartup := context.WithTimeout(ctx, probeStartDeadline)
+	defer cancelStartup()
+	session, err := openProbe(ctx, probe.TalosConfig, probe.Endpoints)
+	if err != nil {
+		_ = writer.send(errorResponse(request, "talos_probe_failed", "The Talos probe could not be initialized.", false))
+		return
+	}
+	defer func() { _ = session.Close() }()
+
+	version, err := session.ReadVersion(startupContext, probe.Node)
+	if err != nil {
+		_ = writer.send(errorResponse(request, "talos_read_failed", "The authenticated Talos version read failed.", true))
+		return
+	}
+
+	firstStatus := make(chan talosprobe.Status, 1)
+	allowStream := make(chan struct{})
+	watchDone := make(chan error, 1)
+	watchContext, cancelWatch := context.WithCancel(ctx)
+	defer cancelWatch()
+	var sequence uint64
+	go func() {
+		first := true
+		watchDone <- session.WatchMachineStatus(watchContext, probe.Node, func(status talosprobe.Status) error {
+			if first {
+				first = false
+				firstStatus <- status
+				select {
+				case <-allowStream:
+					return nil
+				case <-watchContext.Done():
+					return watchContext.Err()
+				}
+			}
+			if sequence == ^uint64(0) {
+				return errors.New("Talos status sequence limit reached")
+			}
+			nextSequence := sequence + 1
+			if err := writer.send(&protocolv1.Envelope{
+				ProtocolMajor: protocolMajor,
+				Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_STATUS_EVENT,
+				RequestId:     request.RequestId,
+				Sequence:      nextSequence,
+				Payload: &protocolv1.Envelope_TalosStatusEvent{TalosStatusEvent: &protocolv1.TalosStatusEvent{
+					Stage: status.Stage, Ready: status.Ready, Deleted: status.Deleted,
+				}},
+			}); err != nil {
+				return err
+			}
+			sequence = nextSequence
 			return nil
+		})
+	}()
+
+	var initial talosprobe.Status
+	select {
+	case initial = <-firstStatus:
+	case err = <-watchDone:
+		_ = err
+		_ = writer.send(errorResponse(request, "talos_stream_failed", "The Talos status stream could not be started.", true))
+		return
+	case <-time.After(probeStartDeadline):
+		cancelWatch()
+		select {
+		case <-watchDone:
+		case <-time.After(5 * time.Second):
+		}
+		_ = writer.send(errorResponse(request, "talos_probe_timeout", "The Talos probe exceeded its startup deadline.", true))
+		return
+	case <-ctx.Done():
+		cancelWatch()
+		select {
+		case <-watchDone:
+		case <-time.After(5 * time.Second):
+		}
+		return
+	}
+
+	if err := writer.send(&protocolv1.Envelope{
+		ProtocolMajor: protocolMajor,
+		Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_PROBE_RESPONSE,
+		RequestId:     request.RequestId,
+		Payload: &protocolv1.Envelope_TalosProbeResponse{TalosProbeResponse: &protocolv1.TalosProbeResponse{
+			Version: version, Stage: initial.Stage, Ready: initial.Ready,
+		}},
+	}); err != nil {
+		return
+	}
+	close(allowStream)
+
+	select {
+	case err := <-watchDone:
+		code := "stream_complete"
+		if err != nil && !errors.Is(err, context.Canceled) {
+			code = "stream_failed"
+		}
+		_ = writer.send(&protocolv1.Envelope{
+			ProtocolMajor: protocolMajor,
+			Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_STREAM_ENDED,
+			RequestId:     request.RequestId,
+			Sequence:      sequence + 1,
+			Payload: &protocolv1.Envelope_TalosStreamEnded{TalosStreamEnded: &protocolv1.TalosStreamEnded{
+				Code: code,
+			}},
+		})
+	case <-ctx.Done():
+		select {
+		case err := <-watchDone:
+			code := "cancelled"
+			if err != nil && !errors.Is(err, context.Canceled) {
+				code = "stream_failed"
+			}
+			_ = writer.send(&protocolv1.Envelope{
+				ProtocolMajor: protocolMajor,
+				Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_STREAM_ENDED,
+				RequestId:     request.RequestId,
+				Sequence:      sequence + 1,
+				Payload: &protocolv1.Envelope_TalosStreamEnded{TalosStreamEnded: &protocolv1.TalosStreamEnded{
+					Code: code,
+				}},
+			})
+		case <-time.After(5 * time.Second):
 		}
 	}
 }
@@ -80,7 +399,7 @@ func handle(request *protocolv1.Envelope, handshakeComplete bool) (*protocolv1.E
 			Payload: &protocolv1.Envelope_HandshakeResponse{HandshakeResponse: &protocolv1.HandshakeResponse{
 				ProtocolMajor: protocolMajor,
 				BuildIdentity: buildIdentity,
-				Capabilities:  []string{"status"},
+				Capabilities:  []string{"status", "talos_probe"},
 			}},
 		}, false, true
 	case protocolv1.MessageKind_MESSAGE_KIND_STATUS_REQUEST:
@@ -96,7 +415,7 @@ func handle(request *protocolv1.Envelope, handshakeComplete bool) (*protocolv1.E
 			RequestId:     request.RequestId,
 			Payload: &protocolv1.Envelope_StatusResponse{StatusResponse: &protocolv1.StatusResponse{
 				BuildIdentity: buildIdentity,
-				Capabilities:  []string{"status"},
+				Capabilities:  []string{"status", "talos_probe"},
 			}},
 		}, false, false
 	case protocolv1.MessageKind_MESSAGE_KIND_SHUTDOWN_REQUEST:
@@ -127,10 +446,18 @@ func errorResponse(request *protocolv1.Envelope, code, message string, retryable
 		Kind:          protocolv1.MessageKind_MESSAGE_KIND_ERROR,
 		RequestId:     requestID,
 		Payload: &protocolv1.Envelope_Error{Error: &protocolv1.ProtocolError{
-			Code:        code,
-			SafeMessage: message,
-			Retryable:   retryable,
+			Code: code, SafeMessage: message, Retryable: retryable,
 		}},
+	}
+}
+
+func clearTalosConfig(request *protocolv1.Envelope) {
+	if request == nil {
+		return
+	}
+	if payload, ok := request.Payload.(*protocolv1.Envelope_TalosProbeRequest); ok && payload.TalosProbeRequest != nil {
+		clear(payload.TalosProbeRequest.TalosConfig)
+		payload.TalosProbeRequest.TalosConfig = nil
 	}
 }
 

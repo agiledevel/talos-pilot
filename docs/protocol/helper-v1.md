@@ -27,10 +27,9 @@ The parent sends `HANDSHAKE_REQUEST` first, with protocol major 1 and the exact
 expected helper build identity. The helper replies with `HANDSHAKE_RESPONSE`,
 protocol major 1, its compiled build identity, and supported capabilities. The
 parent accepts only a matching identity and the required `status` capability.
-No other request is valid before handshake succeeds. C1 exposes only the
-nonsensitive status request; reads and mutations are not part of this protocol
-increment. `SHUTDOWN_REQUEST` receives one acknowledgement before the helper
-exits. EOF also stops helper-owned work.
+C4 also negotiates `talos_probe`. No other request is valid before handshake
+succeeds. `SHUTDOWN_REQUEST` receives one acknowledgement before the helper
+exits. EOF cancels all helper-owned subscriptions and stops their tasks.
 
 Every request has a nonempty opaque request ID. IDs are not reused while an
 exchange is active. Optional session and operation IDs have explicit Protobuf
@@ -41,6 +40,21 @@ The helper emits no stdout text outside framed Protobuf. Errors use stable
 codes, safe messages, and retry classification; raw causes stay in the
 backend. Unknown or mismatched message variants fail closed. No operation
 payload is logged.
+
+`TALOS_PROBE_REQUEST` contains the in-memory talosconfig bytes, a bounded
+allowlist of API endpoints, and exactly one IP node target. The configuration
+is limited to 64 KiB and is accepted only from the private pipe; Rust must not
+put it in renderer DTOs, command arguments, environment variables, or logs.
+The helper clears its input byte buffer after parsing. A matching
+`TALOS_PROBE_RESPONSE` returns the Talos version and the first projected
+`MachineStatus` snapshot. Subsequent `TALOS_STATUS_EVENT` frames use the probe
+request ID and strictly increasing sequence values. They carry only stage,
+ready, and deletion state. `TALOS_CANCEL_REQUEST` identifies the active probe
+by request ID; the helper acknowledges cancellation and ends that stream with
+`TALOS_STREAM_ENDED`. The event queue is capped at 16 and applies backpressure
+to the COSI watch. The parent owns cancellation on view close, session close,
+and application shutdown. The helper has a 15-second initial read deadline;
+it does not automatically retry credential or authorization failures.
 
 The Tauri command `get_helper_status` starts the helper lazily and returns only
 the validated build identity, protocol major, and accepted status capability.
@@ -53,11 +67,15 @@ terminate and reap the child before returning a structured safe error.
 
 ## Bounds and ownership
 
-The maximum frame payload is 1 MiB. Chunked data, when introduced, is limited
+The maximum frame payload is 1 MiB. Talos probe config is separately limited
+to 64 KiB, endpoint allowlists to eight unique IP identities, and a stream
+event queue to 16. Chunked data, when introduced, is limited
 to 64 KiB per chunk with transfer identity, sequence, and total bounds. C1
 does not transfer snapshots or credentials. The application owns the helper
-process and all pending requests; later stream operations must add explicit
-subscription cancellation and queue limits before exposure.
+process and all pending requests and subscriptions. The helper event queue,
+configuration, endpoint identities, and projected event fields have explicit
+bounds before exposure. C1 transfers only the helper status identity; C4 adds
+only the bounded Talos probe response and events described above.
 
 ## Compatibility
 

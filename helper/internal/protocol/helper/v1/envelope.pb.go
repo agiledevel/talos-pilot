@@ -24,37 +24,55 @@ const (
 type MessageKind int32
 
 const (
-	MessageKind_MESSAGE_KIND_UNSPECIFIED        MessageKind = 0
-	MessageKind_MESSAGE_KIND_HANDSHAKE_REQUEST  MessageKind = 1
-	MessageKind_MESSAGE_KIND_HANDSHAKE_RESPONSE MessageKind = 2
-	MessageKind_MESSAGE_KIND_STATUS_REQUEST     MessageKind = 3
-	MessageKind_MESSAGE_KIND_STATUS_RESPONSE    MessageKind = 4
-	MessageKind_MESSAGE_KIND_SHUTDOWN_REQUEST   MessageKind = 5
-	MessageKind_MESSAGE_KIND_SHUTDOWN_RESPONSE  MessageKind = 6
-	MessageKind_MESSAGE_KIND_ERROR              MessageKind = 7
+	MessageKind_MESSAGE_KIND_UNSPECIFIED           MessageKind = 0
+	MessageKind_MESSAGE_KIND_HANDSHAKE_REQUEST     MessageKind = 1
+	MessageKind_MESSAGE_KIND_HANDSHAKE_RESPONSE    MessageKind = 2
+	MessageKind_MESSAGE_KIND_STATUS_REQUEST        MessageKind = 3
+	MessageKind_MESSAGE_KIND_STATUS_RESPONSE       MessageKind = 4
+	MessageKind_MESSAGE_KIND_SHUTDOWN_REQUEST      MessageKind = 5
+	MessageKind_MESSAGE_KIND_SHUTDOWN_RESPONSE     MessageKind = 6
+	MessageKind_MESSAGE_KIND_ERROR                 MessageKind = 7
+	MessageKind_MESSAGE_KIND_TALOS_PROBE_REQUEST   MessageKind = 8
+	MessageKind_MESSAGE_KIND_TALOS_PROBE_RESPONSE  MessageKind = 9
+	MessageKind_MESSAGE_KIND_TALOS_STATUS_EVENT    MessageKind = 10
+	MessageKind_MESSAGE_KIND_TALOS_CANCEL_REQUEST  MessageKind = 11
+	MessageKind_MESSAGE_KIND_TALOS_CANCEL_RESPONSE MessageKind = 12
+	MessageKind_MESSAGE_KIND_TALOS_STREAM_ENDED    MessageKind = 13
 )
 
 // Enum value maps for MessageKind.
 var (
 	MessageKind_name = map[int32]string{
-		0: "MESSAGE_KIND_UNSPECIFIED",
-		1: "MESSAGE_KIND_HANDSHAKE_REQUEST",
-		2: "MESSAGE_KIND_HANDSHAKE_RESPONSE",
-		3: "MESSAGE_KIND_STATUS_REQUEST",
-		4: "MESSAGE_KIND_STATUS_RESPONSE",
-		5: "MESSAGE_KIND_SHUTDOWN_REQUEST",
-		6: "MESSAGE_KIND_SHUTDOWN_RESPONSE",
-		7: "MESSAGE_KIND_ERROR",
+		0:  "MESSAGE_KIND_UNSPECIFIED",
+		1:  "MESSAGE_KIND_HANDSHAKE_REQUEST",
+		2:  "MESSAGE_KIND_HANDSHAKE_RESPONSE",
+		3:  "MESSAGE_KIND_STATUS_REQUEST",
+		4:  "MESSAGE_KIND_STATUS_RESPONSE",
+		5:  "MESSAGE_KIND_SHUTDOWN_REQUEST",
+		6:  "MESSAGE_KIND_SHUTDOWN_RESPONSE",
+		7:  "MESSAGE_KIND_ERROR",
+		8:  "MESSAGE_KIND_TALOS_PROBE_REQUEST",
+		9:  "MESSAGE_KIND_TALOS_PROBE_RESPONSE",
+		10: "MESSAGE_KIND_TALOS_STATUS_EVENT",
+		11: "MESSAGE_KIND_TALOS_CANCEL_REQUEST",
+		12: "MESSAGE_KIND_TALOS_CANCEL_RESPONSE",
+		13: "MESSAGE_KIND_TALOS_STREAM_ENDED",
 	}
 	MessageKind_value = map[string]int32{
-		"MESSAGE_KIND_UNSPECIFIED":        0,
-		"MESSAGE_KIND_HANDSHAKE_REQUEST":  1,
-		"MESSAGE_KIND_HANDSHAKE_RESPONSE": 2,
-		"MESSAGE_KIND_STATUS_REQUEST":     3,
-		"MESSAGE_KIND_STATUS_RESPONSE":    4,
-		"MESSAGE_KIND_SHUTDOWN_REQUEST":   5,
-		"MESSAGE_KIND_SHUTDOWN_RESPONSE":  6,
-		"MESSAGE_KIND_ERROR":              7,
+		"MESSAGE_KIND_UNSPECIFIED":           0,
+		"MESSAGE_KIND_HANDSHAKE_REQUEST":     1,
+		"MESSAGE_KIND_HANDSHAKE_RESPONSE":    2,
+		"MESSAGE_KIND_STATUS_REQUEST":        3,
+		"MESSAGE_KIND_STATUS_RESPONSE":       4,
+		"MESSAGE_KIND_SHUTDOWN_REQUEST":      5,
+		"MESSAGE_KIND_SHUTDOWN_RESPONSE":     6,
+		"MESSAGE_KIND_ERROR":                 7,
+		"MESSAGE_KIND_TALOS_PROBE_REQUEST":   8,
+		"MESSAGE_KIND_TALOS_PROBE_RESPONSE":  9,
+		"MESSAGE_KIND_TALOS_STATUS_EVENT":    10,
+		"MESSAGE_KIND_TALOS_CANCEL_REQUEST":  11,
+		"MESSAGE_KIND_TALOS_CANCEL_RESPONSE": 12,
+		"MESSAGE_KIND_TALOS_STREAM_ENDED":    13,
 	}
 )
 
@@ -104,6 +122,12 @@ type Envelope struct {
 	//	*Envelope_ShutdownRequest
 	//	*Envelope_ShutdownResponse
 	//	*Envelope_Error
+	//	*Envelope_TalosProbeRequest
+	//	*Envelope_TalosProbeResponse
+	//	*Envelope_TalosStatusEvent
+	//	*Envelope_TalosCancelRequest
+	//	*Envelope_TalosCancelResponse
+	//	*Envelope_TalosStreamEnded
 	Payload       isEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -251,6 +275,60 @@ func (x *Envelope) GetError() *ProtocolError {
 	return nil
 }
 
+func (x *Envelope) GetTalosProbeRequest() *TalosProbeRequest {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_TalosProbeRequest); ok {
+			return x.TalosProbeRequest
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetTalosProbeResponse() *TalosProbeResponse {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_TalosProbeResponse); ok {
+			return x.TalosProbeResponse
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetTalosStatusEvent() *TalosStatusEvent {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_TalosStatusEvent); ok {
+			return x.TalosStatusEvent
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetTalosCancelRequest() *TalosCancelRequest {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_TalosCancelRequest); ok {
+			return x.TalosCancelRequest
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetTalosCancelResponse() *TalosCancelResponse {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_TalosCancelResponse); ok {
+			return x.TalosCancelResponse
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetTalosStreamEnded() *TalosStreamEnded {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_TalosStreamEnded); ok {
+			return x.TalosStreamEnded
+		}
+	}
+	return nil
+}
+
 type isEnvelope_Payload interface {
 	isEnvelope_Payload()
 }
@@ -283,6 +361,30 @@ type Envelope_Error struct {
 	Error *ProtocolError `protobuf:"bytes,16,opt,name=error,proto3,oneof"`
 }
 
+type Envelope_TalosProbeRequest struct {
+	TalosProbeRequest *TalosProbeRequest `protobuf:"bytes,17,opt,name=talos_probe_request,json=talosProbeRequest,proto3,oneof"`
+}
+
+type Envelope_TalosProbeResponse struct {
+	TalosProbeResponse *TalosProbeResponse `protobuf:"bytes,18,opt,name=talos_probe_response,json=talosProbeResponse,proto3,oneof"`
+}
+
+type Envelope_TalosStatusEvent struct {
+	TalosStatusEvent *TalosStatusEvent `protobuf:"bytes,19,opt,name=talos_status_event,json=talosStatusEvent,proto3,oneof"`
+}
+
+type Envelope_TalosCancelRequest struct {
+	TalosCancelRequest *TalosCancelRequest `protobuf:"bytes,20,opt,name=talos_cancel_request,json=talosCancelRequest,proto3,oneof"`
+}
+
+type Envelope_TalosCancelResponse struct {
+	TalosCancelResponse *TalosCancelResponse `protobuf:"bytes,21,opt,name=talos_cancel_response,json=talosCancelResponse,proto3,oneof"`
+}
+
+type Envelope_TalosStreamEnded struct {
+	TalosStreamEnded *TalosStreamEnded `protobuf:"bytes,22,opt,name=talos_stream_ended,json=talosStreamEnded,proto3,oneof"`
+}
+
 func (*Envelope_HandshakeRequest) isEnvelope_Payload() {}
 
 func (*Envelope_HandshakeResponse) isEnvelope_Payload() {}
@@ -296,6 +398,18 @@ func (*Envelope_ShutdownRequest) isEnvelope_Payload() {}
 func (*Envelope_ShutdownResponse) isEnvelope_Payload() {}
 
 func (*Envelope_Error) isEnvelope_Payload() {}
+
+func (*Envelope_TalosProbeRequest) isEnvelope_Payload() {}
+
+func (*Envelope_TalosProbeResponse) isEnvelope_Payload() {}
+
+func (*Envelope_TalosStatusEvent) isEnvelope_Payload() {}
+
+func (*Envelope_TalosCancelRequest) isEnvelope_Payload() {}
+
+func (*Envelope_TalosCancelResponse) isEnvelope_Payload() {}
+
+func (*Envelope_TalosStreamEnded) isEnvelope_Payload() {}
 
 type HandshakeRequest struct {
 	state                 protoimpl.MessageState `protogen:"open.v1"`
@@ -629,11 +743,320 @@ func (x *ProtocolError) GetRetryable() bool {
 	return false
 }
 
+// TalosProbeRequest carries backend-owned credentials only over helper stdin.
+type TalosProbeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TalosConfig   []byte                 `protobuf:"bytes,1,opt,name=talos_config,json=talosConfig,proto3" json:"talos_config,omitempty"`
+	Endpoints     []string               `protobuf:"bytes,2,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
+	Node          string                 `protobuf:"bytes,3,opt,name=node,proto3" json:"node,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TalosProbeRequest) Reset() {
+	*x = TalosProbeRequest{}
+	mi := &file_helper_v1_envelope_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TalosProbeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TalosProbeRequest) ProtoMessage() {}
+
+func (x *TalosProbeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_helper_v1_envelope_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TalosProbeRequest.ProtoReflect.Descriptor instead.
+func (*TalosProbeRequest) Descriptor() ([]byte, []int) {
+	return file_helper_v1_envelope_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *TalosProbeRequest) GetTalosConfig() []byte {
+	if x != nil {
+		return x.TalosConfig
+	}
+	return nil
+}
+
+func (x *TalosProbeRequest) GetEndpoints() []string {
+	if x != nil {
+		return x.Endpoints
+	}
+	return nil
+}
+
+func (x *TalosProbeRequest) GetNode() string {
+	if x != nil {
+		return x.Node
+	}
+	return ""
+}
+
+// TalosProbeResponse contains the authenticated version and bootstrap snapshot.
+type TalosProbeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Version       string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	Stage         string                 `protobuf:"bytes,2,opt,name=stage,proto3" json:"stage,omitempty"`
+	Ready         bool                   `protobuf:"varint,3,opt,name=ready,proto3" json:"ready,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TalosProbeResponse) Reset() {
+	*x = TalosProbeResponse{}
+	mi := &file_helper_v1_envelope_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TalosProbeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TalosProbeResponse) ProtoMessage() {}
+
+func (x *TalosProbeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_helper_v1_envelope_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TalosProbeResponse.ProtoReflect.Descriptor instead.
+func (*TalosProbeResponse) Descriptor() ([]byte, []int) {
+	return file_helper_v1_envelope_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *TalosProbeResponse) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *TalosProbeResponse) GetStage() string {
+	if x != nil {
+		return x.Stage
+	}
+	return ""
+}
+
+func (x *TalosProbeResponse) GetReady() bool {
+	if x != nil {
+		return x.Ready
+	}
+	return false
+}
+
+// TalosStatusEvent is the bounded projection of one MachineStatus update.
+type TalosStatusEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Stage         string                 `protobuf:"bytes,1,opt,name=stage,proto3" json:"stage,omitempty"`
+	Ready         bool                   `protobuf:"varint,2,opt,name=ready,proto3" json:"ready,omitempty"`
+	Deleted       bool                   `protobuf:"varint,3,opt,name=deleted,proto3" json:"deleted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TalosStatusEvent) Reset() {
+	*x = TalosStatusEvent{}
+	mi := &file_helper_v1_envelope_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TalosStatusEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TalosStatusEvent) ProtoMessage() {}
+
+func (x *TalosStatusEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_helper_v1_envelope_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TalosStatusEvent.ProtoReflect.Descriptor instead.
+func (*TalosStatusEvent) Descriptor() ([]byte, []int) {
+	return file_helper_v1_envelope_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *TalosStatusEvent) GetStage() string {
+	if x != nil {
+		return x.Stage
+	}
+	return ""
+}
+
+func (x *TalosStatusEvent) GetReady() bool {
+	if x != nil {
+		return x.Ready
+	}
+	return false
+}
+
+func (x *TalosStatusEvent) GetDeleted() bool {
+	if x != nil {
+		return x.Deleted
+	}
+	return false
+}
+
+// TalosCancelRequest stops the stream identified by subscription_request_id.
+type TalosCancelRequest struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	SubscriptionRequestId string                 `protobuf:"bytes,1,opt,name=subscription_request_id,json=subscriptionRequestId,proto3" json:"subscription_request_id,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *TalosCancelRequest) Reset() {
+	*x = TalosCancelRequest{}
+	mi := &file_helper_v1_envelope_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TalosCancelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TalosCancelRequest) ProtoMessage() {}
+
+func (x *TalosCancelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_helper_v1_envelope_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TalosCancelRequest.ProtoReflect.Descriptor instead.
+func (*TalosCancelRequest) Descriptor() ([]byte, []int) {
+	return file_helper_v1_envelope_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *TalosCancelRequest) GetSubscriptionRequestId() string {
+	if x != nil {
+		return x.SubscriptionRequestId
+	}
+	return ""
+}
+
+type TalosCancelResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TalosCancelResponse) Reset() {
+	*x = TalosCancelResponse{}
+	mi := &file_helper_v1_envelope_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TalosCancelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TalosCancelResponse) ProtoMessage() {}
+
+func (x *TalosCancelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_helper_v1_envelope_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TalosCancelResponse.ProtoReflect.Descriptor instead.
+func (*TalosCancelResponse) Descriptor() ([]byte, []int) {
+	return file_helper_v1_envelope_proto_rawDescGZIP(), []int{12}
+}
+
+// TalosStreamEnded closes the event sequence for one probe request.
+type TalosStreamEnded struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TalosStreamEnded) Reset() {
+	*x = TalosStreamEnded{}
+	mi := &file_helper_v1_envelope_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TalosStreamEnded) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TalosStreamEnded) ProtoMessage() {}
+
+func (x *TalosStreamEnded) ProtoReflect() protoreflect.Message {
+	mi := &file_helper_v1_envelope_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TalosStreamEnded.ProtoReflect.Descriptor instead.
+func (*TalosStreamEnded) Descriptor() ([]byte, []int) {
+	return file_helper_v1_envelope_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *TalosStreamEnded) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
 var File_helper_v1_envelope_proto protoreflect.FileDescriptor
 
 const file_helper_v1_envelope_proto_rawDesc = "" +
 	"\n" +
-	"\x18helper/v1/envelope.proto\x12\x15talos_pilot.helper.v1\"\xda\x06\n" +
+	"\x18helper/v1/envelope.proto\x12\x15talos_pilot.helper.v1\"\x88\v\n" +
 	"\bEnvelope\x12%\n" +
 	"\x0eprotocol_major\x18\x01 \x01(\rR\rprotocolMajor\x126\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\".talos_pilot.helper.v1.MessageKindR\x04kind\x12\x1d\n" +
@@ -650,7 +1073,13 @@ const file_helper_v1_envelope_proto_rawDesc = "" +
 	"\x0fstatus_response\x18\r \x01(\v2%.talos_pilot.helper.v1.StatusResponseH\x00R\x0estatusResponse\x12S\n" +
 	"\x10shutdown_request\x18\x0e \x01(\v2&.talos_pilot.helper.v1.ShutdownRequestH\x00R\x0fshutdownRequest\x12V\n" +
 	"\x11shutdown_response\x18\x0f \x01(\v2'.talos_pilot.helper.v1.ShutdownResponseH\x00R\x10shutdownResponse\x12<\n" +
-	"\x05error\x18\x10 \x01(\v2$.talos_pilot.helper.v1.ProtocolErrorH\x00R\x05errorB\t\n" +
+	"\x05error\x18\x10 \x01(\v2$.talos_pilot.helper.v1.ProtocolErrorH\x00R\x05error\x12Z\n" +
+	"\x13talos_probe_request\x18\x11 \x01(\v2(.talos_pilot.helper.v1.TalosProbeRequestH\x00R\x11talosProbeRequest\x12]\n" +
+	"\x14talos_probe_response\x18\x12 \x01(\v2).talos_pilot.helper.v1.TalosProbeResponseH\x00R\x12talosProbeResponse\x12W\n" +
+	"\x12talos_status_event\x18\x13 \x01(\v2'.talos_pilot.helper.v1.TalosStatusEventH\x00R\x10talosStatusEvent\x12]\n" +
+	"\x14talos_cancel_request\x18\x14 \x01(\v2).talos_pilot.helper.v1.TalosCancelRequestH\x00R\x12talosCancelRequest\x12`\n" +
+	"\x15talos_cancel_response\x18\x15 \x01(\v2*.talos_pilot.helper.v1.TalosCancelResponseH\x00R\x13talosCancelResponse\x12W\n" +
+	"\x12talos_stream_ended\x18\x16 \x01(\v2'.talos_pilot.helper.v1.TalosStreamEndedH\x00R\x10talosStreamEndedB\t\n" +
 	"\apayloadB\r\n" +
 	"\v_session_idB\x0f\n" +
 	"\r_operation_id\"q\n" +
@@ -670,7 +1099,24 @@ const file_helper_v1_envelope_proto_rawDesc = "" +
 	"\rProtocolError\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12!\n" +
 	"\fsafe_message\x18\x02 \x01(\tR\vsafeMessage\x12\x1c\n" +
-	"\tretryable\x18\x03 \x01(\bR\tretryable*\x96\x02\n" +
+	"\tretryable\x18\x03 \x01(\bR\tretryable\"h\n" +
+	"\x11TalosProbeRequest\x12!\n" +
+	"\ftalos_config\x18\x01 \x01(\fR\vtalosConfig\x12\x1c\n" +
+	"\tendpoints\x18\x02 \x03(\tR\tendpoints\x12\x12\n" +
+	"\x04node\x18\x03 \x01(\tR\x04node\"Z\n" +
+	"\x12TalosProbeResponse\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\x12\x14\n" +
+	"\x05stage\x18\x02 \x01(\tR\x05stage\x12\x14\n" +
+	"\x05ready\x18\x03 \x01(\bR\x05ready\"X\n" +
+	"\x10TalosStatusEvent\x12\x14\n" +
+	"\x05stage\x18\x01 \x01(\tR\x05stage\x12\x14\n" +
+	"\x05ready\x18\x02 \x01(\bR\x05ready\x12\x18\n" +
+	"\adeleted\x18\x03 \x01(\bR\adeleted\"L\n" +
+	"\x12TalosCancelRequest\x126\n" +
+	"\x17subscription_request_id\x18\x01 \x01(\tR\x15subscriptionRequestId\"\x15\n" +
+	"\x13TalosCancelResponse\"&\n" +
+	"\x10TalosStreamEnded\x12\x12\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code*\xfc\x03\n" +
 	"\vMessageKind\x12\x1c\n" +
 	"\x18MESSAGE_KIND_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eMESSAGE_KIND_HANDSHAKE_REQUEST\x10\x01\x12#\n" +
@@ -679,7 +1125,14 @@ const file_helper_v1_envelope_proto_rawDesc = "" +
 	"\x1cMESSAGE_KIND_STATUS_RESPONSE\x10\x04\x12!\n" +
 	"\x1dMESSAGE_KIND_SHUTDOWN_REQUEST\x10\x05\x12\"\n" +
 	"\x1eMESSAGE_KIND_SHUTDOWN_RESPONSE\x10\x06\x12\x16\n" +
-	"\x12MESSAGE_KIND_ERROR\x10\aBQZOgithub.com/agiledevel/talos-pilot/helper/internal/protocol/helper/v1;protocolv1b\x06proto3"
+	"\x12MESSAGE_KIND_ERROR\x10\a\x12$\n" +
+	" MESSAGE_KIND_TALOS_PROBE_REQUEST\x10\b\x12%\n" +
+	"!MESSAGE_KIND_TALOS_PROBE_RESPONSE\x10\t\x12#\n" +
+	"\x1fMESSAGE_KIND_TALOS_STATUS_EVENT\x10\n" +
+	"\x12%\n" +
+	"!MESSAGE_KIND_TALOS_CANCEL_REQUEST\x10\v\x12&\n" +
+	"\"MESSAGE_KIND_TALOS_CANCEL_RESPONSE\x10\f\x12#\n" +
+	"\x1fMESSAGE_KIND_TALOS_STREAM_ENDED\x10\rBQZOgithub.com/agiledevel/talos-pilot/helper/internal/protocol/helper/v1;protocolv1b\x06proto3"
 
 var (
 	file_helper_v1_envelope_proto_rawDescOnce sync.Once
@@ -694,32 +1147,44 @@ func file_helper_v1_envelope_proto_rawDescGZIP() []byte {
 }
 
 var file_helper_v1_envelope_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_helper_v1_envelope_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_helper_v1_envelope_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_helper_v1_envelope_proto_goTypes = []any{
-	(MessageKind)(0),          // 0: talos_pilot.helper.v1.MessageKind
-	(*Envelope)(nil),          // 1: talos_pilot.helper.v1.Envelope
-	(*HandshakeRequest)(nil),  // 2: talos_pilot.helper.v1.HandshakeRequest
-	(*HandshakeResponse)(nil), // 3: talos_pilot.helper.v1.HandshakeResponse
-	(*StatusRequest)(nil),     // 4: talos_pilot.helper.v1.StatusRequest
-	(*StatusResponse)(nil),    // 5: talos_pilot.helper.v1.StatusResponse
-	(*ShutdownRequest)(nil),   // 6: talos_pilot.helper.v1.ShutdownRequest
-	(*ShutdownResponse)(nil),  // 7: talos_pilot.helper.v1.ShutdownResponse
-	(*ProtocolError)(nil),     // 8: talos_pilot.helper.v1.ProtocolError
+	(MessageKind)(0),            // 0: talos_pilot.helper.v1.MessageKind
+	(*Envelope)(nil),            // 1: talos_pilot.helper.v1.Envelope
+	(*HandshakeRequest)(nil),    // 2: talos_pilot.helper.v1.HandshakeRequest
+	(*HandshakeResponse)(nil),   // 3: talos_pilot.helper.v1.HandshakeResponse
+	(*StatusRequest)(nil),       // 4: talos_pilot.helper.v1.StatusRequest
+	(*StatusResponse)(nil),      // 5: talos_pilot.helper.v1.StatusResponse
+	(*ShutdownRequest)(nil),     // 6: talos_pilot.helper.v1.ShutdownRequest
+	(*ShutdownResponse)(nil),    // 7: talos_pilot.helper.v1.ShutdownResponse
+	(*ProtocolError)(nil),       // 8: talos_pilot.helper.v1.ProtocolError
+	(*TalosProbeRequest)(nil),   // 9: talos_pilot.helper.v1.TalosProbeRequest
+	(*TalosProbeResponse)(nil),  // 10: talos_pilot.helper.v1.TalosProbeResponse
+	(*TalosStatusEvent)(nil),    // 11: talos_pilot.helper.v1.TalosStatusEvent
+	(*TalosCancelRequest)(nil),  // 12: talos_pilot.helper.v1.TalosCancelRequest
+	(*TalosCancelResponse)(nil), // 13: talos_pilot.helper.v1.TalosCancelResponse
+	(*TalosStreamEnded)(nil),    // 14: talos_pilot.helper.v1.TalosStreamEnded
 }
 var file_helper_v1_envelope_proto_depIdxs = []int32{
-	0, // 0: talos_pilot.helper.v1.Envelope.kind:type_name -> talos_pilot.helper.v1.MessageKind
-	2, // 1: talos_pilot.helper.v1.Envelope.handshake_request:type_name -> talos_pilot.helper.v1.HandshakeRequest
-	3, // 2: talos_pilot.helper.v1.Envelope.handshake_response:type_name -> talos_pilot.helper.v1.HandshakeResponse
-	4, // 3: talos_pilot.helper.v1.Envelope.status_request:type_name -> talos_pilot.helper.v1.StatusRequest
-	5, // 4: talos_pilot.helper.v1.Envelope.status_response:type_name -> talos_pilot.helper.v1.StatusResponse
-	6, // 5: talos_pilot.helper.v1.Envelope.shutdown_request:type_name -> talos_pilot.helper.v1.ShutdownRequest
-	7, // 6: talos_pilot.helper.v1.Envelope.shutdown_response:type_name -> talos_pilot.helper.v1.ShutdownResponse
-	8, // 7: talos_pilot.helper.v1.Envelope.error:type_name -> talos_pilot.helper.v1.ProtocolError
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	0,  // 0: talos_pilot.helper.v1.Envelope.kind:type_name -> talos_pilot.helper.v1.MessageKind
+	2,  // 1: talos_pilot.helper.v1.Envelope.handshake_request:type_name -> talos_pilot.helper.v1.HandshakeRequest
+	3,  // 2: talos_pilot.helper.v1.Envelope.handshake_response:type_name -> talos_pilot.helper.v1.HandshakeResponse
+	4,  // 3: talos_pilot.helper.v1.Envelope.status_request:type_name -> talos_pilot.helper.v1.StatusRequest
+	5,  // 4: talos_pilot.helper.v1.Envelope.status_response:type_name -> talos_pilot.helper.v1.StatusResponse
+	6,  // 5: talos_pilot.helper.v1.Envelope.shutdown_request:type_name -> talos_pilot.helper.v1.ShutdownRequest
+	7,  // 6: talos_pilot.helper.v1.Envelope.shutdown_response:type_name -> talos_pilot.helper.v1.ShutdownResponse
+	8,  // 7: talos_pilot.helper.v1.Envelope.error:type_name -> talos_pilot.helper.v1.ProtocolError
+	9,  // 8: talos_pilot.helper.v1.Envelope.talos_probe_request:type_name -> talos_pilot.helper.v1.TalosProbeRequest
+	10, // 9: talos_pilot.helper.v1.Envelope.talos_probe_response:type_name -> talos_pilot.helper.v1.TalosProbeResponse
+	11, // 10: talos_pilot.helper.v1.Envelope.talos_status_event:type_name -> talos_pilot.helper.v1.TalosStatusEvent
+	12, // 11: talos_pilot.helper.v1.Envelope.talos_cancel_request:type_name -> talos_pilot.helper.v1.TalosCancelRequest
+	13, // 12: talos_pilot.helper.v1.Envelope.talos_cancel_response:type_name -> talos_pilot.helper.v1.TalosCancelResponse
+	14, // 13: talos_pilot.helper.v1.Envelope.talos_stream_ended:type_name -> talos_pilot.helper.v1.TalosStreamEnded
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_helper_v1_envelope_proto_init() }
@@ -735,6 +1200,12 @@ func file_helper_v1_envelope_proto_init() {
 		(*Envelope_ShutdownRequest)(nil),
 		(*Envelope_ShutdownResponse)(nil),
 		(*Envelope_Error)(nil),
+		(*Envelope_TalosProbeRequest)(nil),
+		(*Envelope_TalosProbeResponse)(nil),
+		(*Envelope_TalosStatusEvent)(nil),
+		(*Envelope_TalosCancelRequest)(nil),
+		(*Envelope_TalosCancelResponse)(nil),
+		(*Envelope_TalosStreamEnded)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -742,7 +1213,7 @@ func file_helper_v1_envelope_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_helper_v1_envelope_proto_rawDesc), len(file_helper_v1_envelope_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   8,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

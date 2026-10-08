@@ -2,13 +2,17 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
+	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/agiledevel/talos-pilot/helper/internal/protocol"
 	protocolv1 "github.com/agiledevel/talos-pilot/helper/internal/protocol/helper/v1"
+	"github.com/agiledevel/talos-pilot/helper/internal/talosprobe"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -30,7 +34,7 @@ func TestServeHandshakeStatusAndShutdown(t *testing.T) {
 	if responses[0].GetHandshakeResponse().GetBuildIdentity() != buildIdentity {
 		t.Fatalf("handshake build = %q", responses[0].GetHandshakeResponse().GetBuildIdentity())
 	}
-	if got := responses[0].GetHandshakeResponse().GetCapabilities(); len(got) != 1 || got[0] != "status" {
+	if got := responses[0].GetHandshakeResponse().GetCapabilities(); len(got) != 2 || got[0] != "status" || got[1] != "talos_probe" {
 		t.Fatalf("handshake capabilities = %v", got)
 	}
 	if responses[1].Kind != protocolv1.MessageKind_MESSAGE_KIND_STATUS_RESPONSE {
@@ -38,6 +42,87 @@ func TestServeHandshakeStatusAndShutdown(t *testing.T) {
 	}
 	if responses[2].Kind != protocolv1.MessageKind_MESSAGE_KIND_SHUTDOWN_RESPONSE {
 		t.Fatalf("shutdown response kind = %v", responses[2].Kind)
+	}
+}
+
+func TestServeTalosProbeStreamsBoundedEventsAndCancels(t *testing.T) {
+	inputReader, inputWriter := io.Pipe()
+	outputReader, outputWriter := io.Pipe()
+	config := []byte("synthetic-taloscfg-secret")
+	outputCapture := &recordingWriter{next: outputWriter}
+	var observedConfig []byte
+	var serveError error
+	var serveDone sync.WaitGroup
+	serveDone.Add(1)
+	go func() {
+		defer serveDone.Done()
+		serveError = serveWithProbe(inputReader, outputCapture, func(_ context.Context, received []byte, _ []string) (probeSession, error) {
+			observedConfig = received
+			return fakeProbeSession{}, nil
+		})
+	}()
+
+	if err := writeRequest(inputWriter, handshake("handshake", buildIdentity)); err != nil {
+		t.Fatal(err)
+	}
+	if response := readResponse(t, outputReader); response.Kind != protocolv1.MessageKind_MESSAGE_KIND_HANDSHAKE_RESPONSE {
+		t.Fatalf("handshake response = %v", response.Kind)
+	}
+	probeRequest := &protocolv1.Envelope{
+		ProtocolMajor: protocolMajor,
+		Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_PROBE_REQUEST,
+		RequestId:     "probe-1",
+		Payload: &protocolv1.Envelope_TalosProbeRequest{TalosProbeRequest: &protocolv1.TalosProbeRequest{
+			TalosConfig: append([]byte(nil), config...), Endpoints: []string{"10.79.0.2"}, Node: "10.79.0.2",
+		}},
+	}
+	if err := writeRequest(inputWriter, probeRequest); err != nil {
+		t.Fatal(err)
+	}
+	probeResponse := readResponse(t, outputReader)
+	if probeResponse.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_PROBE_RESPONSE {
+		t.Fatalf("probe response = %v", probeResponse.Kind)
+	}
+	if got := probeResponse.GetTalosProbeResponse(); got.Version != "v1.14.1" || got.Stage != "running" || !got.Ready {
+		t.Fatalf("probe projection = %#v", got)
+	}
+	streamEvent := readResponse(t, outputReader)
+	if streamEvent.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_STATUS_EVENT || streamEvent.Sequence != 1 {
+		t.Fatalf("stream event = %#v", streamEvent)
+	}
+	if got := streamEvent.GetTalosStatusEvent(); got.Stage != "rebooting" || got.Ready {
+		t.Fatalf("stream projection = %#v", got)
+	}
+	cancel := &protocolv1.Envelope{
+		ProtocolMajor: protocolMajor,
+		Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_REQUEST,
+		RequestId:     "cancel-1",
+		Payload: &protocolv1.Envelope_TalosCancelRequest{TalosCancelRequest: &protocolv1.TalosCancelRequest{
+			SubscriptionRequestId: "probe-1",
+		}},
+	}
+	if err := writeRequest(inputWriter, cancel); err != nil {
+		t.Fatal(err)
+	}
+	cancelResponse := readResponse(t, outputReader)
+	if cancelResponse.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_RESPONSE {
+		t.Fatalf("cancel response = %v", cancelResponse.Kind)
+	}
+	streamEnd := readResponse(t, outputReader)
+	if streamEnd.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_STREAM_ENDED || streamEnd.Sequence != 2 {
+		t.Fatalf("stream end = %#v", streamEnd)
+	}
+	_ = inputWriter.Close()
+	_ = outputReader.Close()
+	serveDone.Wait()
+	if serveError != nil {
+		t.Fatalf("serve error = %v", serveError)
+	}
+	if !bytes.Equal(observedConfig, make([]byte, len(config))) {
+		t.Fatal("helper did not clear the talosconfig bytes after cancellation")
+	}
+	if bytes.Contains(outputCapture.bytes.Bytes(), config) {
+		t.Fatal("helper output contained the private talosconfig bytes")
 	}
 }
 
@@ -152,6 +237,56 @@ func shutdown(requestID string) *protocolv1.Envelope {
 		RequestId:     requestID,
 		Payload:       &protocolv1.Envelope_ShutdownRequest{ShutdownRequest: &protocolv1.ShutdownRequest{}},
 	}
+}
+
+type fakeProbeSession struct{}
+
+func (fakeProbeSession) ReadVersion(context.Context, string) (string, error) {
+	return "v1.14.1", nil
+}
+
+func (fakeProbeSession) WatchMachineStatus(ctx context.Context, _ string, emit func(talosprobe.Status) error) error {
+	if err := emit(talosprobe.Status{Stage: "running", Ready: true}); err != nil {
+		return err
+	}
+	if err := emit(talosprobe.Status{Stage: "rebooting"}); err != nil {
+		return err
+	}
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (fakeProbeSession) Close() error { return nil }
+
+func writeRequest(writer io.Writer, request *protocolv1.Envelope) error {
+	encoded, err := proto.Marshal(request)
+	if err != nil {
+		return err
+	}
+	return protocol.WriteFrame(writer, encoded)
+}
+
+func readResponse(t *testing.T, reader io.Reader) *protocolv1.Envelope {
+	t.Helper()
+	frame, err := protocol.ReadFrame(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := new(protocolv1.Envelope)
+	if err := proto.Unmarshal(frame, response); err != nil {
+		t.Fatal(err)
+	}
+	return response
+}
+
+type recordingWriter struct {
+	next  io.Writer
+	bytes bytes.Buffer
+}
+
+func (writer *recordingWriter) Write(data []byte) (int, error) {
+	writer.bytes.Write(data)
+	return writer.next.Write(data)
 }
 
 func encodeRequests(t *testing.T, requests ...*protocolv1.Envelope) []byte {
