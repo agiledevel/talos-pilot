@@ -12,6 +12,7 @@
     "src-tauri/target",
     "src-tauri/gen",
     "src-tauri/icons",
-    "src-tauri/Cargo.lock"
+    "src-tauri/Cargo.lock",
+    "CHANGELOG.md"
   ]
 }

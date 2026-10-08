@@ -1,0 +1,3 @@
+This is a **foundation preview**, intended for reviewing the desktop shell and packaging. Cluster connections, credentials, Talos/Helm workflows, and Kubernetes management are under development. It is not the complete v1 application.
+
+These development packages are not signed/notarized production installers (macOS uses ad-hoc signing). Review the [verification records](https://github.com/agiledevel/talos-pilot/tree/main/docs/verification) and [known foundation tasks](https://github.com/agiledevel/talos-pilot/blob/main/docs/verification/initialization.md) before use. SHA256SUMS.txt provides asset integrity hashes, not publisher authentication.

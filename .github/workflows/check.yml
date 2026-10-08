@@ -3,6 +3,12 @@ name: Foundation checks
 on:
   push:
   pull_request:
+  workflow_call:
+    inputs:
+      revision:
+        type: string
+        required: true
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -10,18 +16,29 @@ permissions:
 jobs:
   renderer:
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.revision || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
       - run: npm install --global pnpm@12.10.1
       - run: pnpm install --frozen-lockfile
+      - name: Install pinned workflow validator
+        run: |
+          curl -fsSL https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz -o "$RUNNER_TEMP/actionlint.tar.gz"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint"
       - run: pnpm check
       - run: pnpm icons:check
       - run: pnpm audit --audit-level=low
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
+      - run: pnpm test:coverage
 
   desktop:
     strategy:
@@ -31,8 +48,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       RUSTDOCFLAGS: -D warnings
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.revision || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
