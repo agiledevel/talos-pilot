@@ -1,0 +1,98 @@
+name: Security scans
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly rescan picks up newly published queries and advisories.
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      revision:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, javascript-typescript, rust]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.revision || github.sha }}
+          persist-credentials: false
+      # Rust extraction resolves build scripts and proc macros, which need the
+      # pinned toolchain from rust-toolchain.toml and the GTK/WebKit headers.
+      - name: Linux native prerequisites
+        if: matrix.language == 'rust'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libdbus-1-dev libxdo-dev build-essential pkg-config
+      - name: Rust toolchain
+        if: matrix.language == 'rust'
+        run: rustup toolchain install 1.99.0 --profile minimal
+      - uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          category: /language:${{ matrix.language }}
+          output: ${{ runner.temp }}/codeql-sarif
+          # A release revision may differ from the triggering ref, so release
+          # runs gate on the local SARIF without publishing it to code scanning.
+          upload: ${{ inputs.revision && 'never' || 'always' }}
+      - name: Require zero CodeQL results
+        env:
+          SARIF_DIR: ${{ runner.temp }}/codeql-sarif
+        run: |
+          count=$(jq -s '[.[].runs[].results[]] | length' "$SARIF_DIR"/*.sarif)
+          echo "CodeQL results: $count"
+          jq -r '.runs[].results[] | "\(.ruleId): \(.locations[0].physicalLocation.artifactLocation.uri):\(.locations[0].physicalLocation.region.startLine) \(.message.text)"' "$SARIF_DIR"/*.sarif
+          test "$count" -eq 0
+
+  trivy:
+    name: Trivy filesystem scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.revision || github.sha }}
+          persist-credentials: false
+      # The binary is pinned by digest; the trivy-action tags are not used.
+      - name: Install pinned Trivy
+        run: |
+          curl -fsSL --retry 3 --max-time 120 https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_Linux-64bit.tar.gz -o "$RUNNER_TEMP/trivy.tar.gz"
+          echo "2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a  $RUNNER_TEMP/trivy.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/trivy.tar.gz" -C "$RUNNER_TEMP" trivy
+          "$RUNNER_TEMP/trivy" --version
+      - name: Report findings to code scanning
+        if: ${{ !inputs.revision }}
+        run: >-
+          "$RUNNER_TEMP/trivy" fs --cache-dir "$RUNNER_TEMP/trivy-cache" --scanners vuln,secret,misconfig
+          --ignorefile .trivyignore.yaml --format sarif --output "$RUNNER_TEMP/trivy.sarif" .
+      - if: ${{ !inputs.revision }}
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          sarif_file: ${{ runner.temp }}/trivy.sarif
+          category: trivy
+      - name: Require zero vulnerabilities, secrets, and misconfigurations
+        run: >-
+          "$RUNNER_TEMP/trivy" fs --cache-dir "$RUNNER_TEMP/trivy-cache" --scanners vuln,secret,misconfig
+          --ignorefile .trivyignore.yaml --exit-code 1 .

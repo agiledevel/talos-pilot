@@ -165,6 +165,8 @@ Planned package scripts:
 | `lint:fix` | `oxlint --type-aware --fix` |
 | `format` | `oxfmt` |
 | `format:check` | `oxfmt --check` |
+| `format:rust` | `cargo fmt` over the Tauri crate, using `src-tauri/rustfmt.toml` |
+| `format:rust:check` | `cargo fmt --check` over the Tauri crate |
 | `test:run` | Vitest and React Testing Library in non-watch mode |
 | `test:e2e` | Playwright renderer flows with the explicit mock transport |
 | `test:native` | WebdriverIO with the Tauri service against an actual test build |

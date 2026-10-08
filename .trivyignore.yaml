@@ -1,0 +1,11 @@
+# Each exception names one finding and path, explains why it is accepted, and
+# expires. After expiry Trivy reports the finding again and the gate fails.
+vulnerabilities:
+  - id: GHSA-wrw7-89jp-8q8g
+    paths:
+      - src-tauri/Cargo.lock
+    statement: >-
+      RUSTSEC-2024-0429, glib 0.18.5 VariantStrIter unsoundness, reached only through
+      Tauri's Linux GTK3 stack. The fixed 0.20 line is incompatible with gtk 0.18.
+      Applicability or remediation is owned by FND-007; this is not a reachability claim.
+    expired_at: 2026-11-30

@@ -47,19 +47,18 @@ jobs:
     with:
       revision: ${{ needs.source.outputs.revision }}
 
-  sonar:
+  security:
     needs: source
     permissions:
       contents: read
-    uses: ./.github/workflows/sonar.yml
+      security-events: write
+    uses: ./.github/workflows/security.yml
     with:
       revision: ${{ needs.source.outputs.revision }}
-    secrets:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   assets:
     name: Build ${{ matrix.target }} assets
-    needs: [source, qa, sonar]
+    needs: [source, qa, security]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -117,7 +116,7 @@ jobs:
 
   draft:
     name: Create draft prerelease
-    needs: [source, qa, sonar, assets]
+    needs: [source, qa, security, assets]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

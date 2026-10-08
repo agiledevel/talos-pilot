@@ -5,7 +5,7 @@
 
 <a href="https://github.com/agiledevel/talos-pilot/blob/main/package.json"><img src="https://img.shields.io/github/package-json/v/agiledevel/talos-pilot?label=version" alt="Project version" /></a>
 <a href="https://github.com/agiledevel/talos-pilot/actions/workflows/check.yml"><img src="https://github.com/agiledevel/talos-pilot/actions/workflows/check.yml/badge.svg?branch=main" alt="Foundation QA status" /></a>
-<a href="https://github.com/agiledevel/talos-pilot/actions/workflows/sonar.yml"><img src="https://github.com/agiledevel/talos-pilot/actions/workflows/sonar.yml/badge.svg?branch=main" alt="SonarCloud quality gate status" /></a>
+<a href="https://github.com/agiledevel/talos-pilot/actions/workflows/security.yml"><img src="https://github.com/agiledevel/talos-pilot/actions/workflows/security.yml/badge.svg?branch=main" alt="Security scan status" /></a>
 <a href="https://github.com/agiledevel/talos-pilot/actions/workflows/release.yml"><img src="https://github.com/agiledevel/talos-pilot/actions/workflows/release.yml/badge.svg" alt="Release pipeline status" /></a>
 </div>
 
@@ -54,6 +54,7 @@ Use `pnpm dev` for the browser shell at `http://127.0.0.1:1420`. Appearance pref
 
 ```sh
 pnpm check                         # format, lint/types, unit tests, frontend build
+pnpm format:rust:check             # rustfmt check (pnpm format:rust applies it)
 pnpm test:coverage                 # coverage reports, including LCOV
 pnpm exec playwright install chromium
 pnpm test:e2e                      # browser appearance and accessibility
@@ -61,13 +62,13 @@ pnpm icons:check                   # deterministic desktop icon conversion
 pnpm desktop:build                 # native release executable
 ```
 
-[GitHub Actions](.github/workflows/check.yml) runs renderer checks and Rust formatting, Clippy, tests, rustdoc, builds, and dependency scans across the desktop build matrix. The [SonarCloud gate](.github/workflows/sonar.yml) runs SonarQube Cloud CI-based analysis with renderer/automation coverage on the exact commit and fails unless the quality gate passes. Badges above report live checks; they are not a claim that every planned feature is qualified.
+[GitHub Actions](.github/workflows/check.yml) runs renderer checks and Rust formatting, Clippy, tests, rustdoc, builds, and dependency scans across the desktop build matrix. The [security scans](.github/workflows/security.yml) run CodeQL on the workflows, TypeScript, and Rust, and Trivy on dependencies, secrets, and misconfigurations. Each fails on any finding. Badges above report live checks; they are not a claim that every planned feature is qualified.
 
-See the [initialization evidence](docs/verification/initialization.md) and [automation evidence](docs/verification/automation.md) for executed environments and limitations. The existing GLib/macro dependency advisory findings remain tracked foundation work. SonarCloud does not replace the Rust checks above; Rust formatting, Clippy, tests, and rustdoc remain enforced separately. Setup is in [CI/release](docs/ci-release.md).
+See the [initialization evidence](docs/verification/initialization.md) and [automation evidence](docs/verification/automation.md) for executed environments and limitations. The existing GLib/macro dependency advisory findings remain tracked foundation work. Trivy has one exception, for the tracked GLib advisory, and it expires on 2026-11-30. Setup is in [CI/release](docs/ci-release.md).
 
 ## Preview releases
 
-The [release workflow](.github/workflows/release.yml) starts when a version tag is pushed or when an existing tag is selected through **Actions → Release preview → Run workflow**. It validates matching npm/Tauri/Cargo versions and main-branch ancestry, runs QA and the exact-commit SonarCloud gate, builds packages for all four desktop targets, generates Angular-commit release notes, and creates a **draft prerelease** with SHA-256 asset hashes.
+The [release workflow](.github/workflows/release.yml) starts when a version tag is pushed or when an existing tag is selected through **Actions → Release preview → Run workflow**. It validates matching npm/Tauri/Cargo versions and main-branch ancestry, runs QA and the CodeQL/Trivy security scans on the exact commit, builds packages for all four desktop targets, generates Angular-commit release notes, and creates a **draft prerelease** with SHA-256 asset hashes.
 
 Linux assets are AppImage, DEB, and RPM; macOS assets are separate Apple Silicon and Intel DMGs; Windows uses an NSIS installer. Current previews are development packages without production signing/notarization. Full production releases require the complete release qualification in [quality.md](docs/quality.md).
 

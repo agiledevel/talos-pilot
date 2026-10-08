@@ -41,7 +41,7 @@ The foundation milestone must provide the following scripts and document exact n
 | Frontend aggregate | `pnpm check` executes format, lint/types, renderer tests, and build, failing on any failed command |
 | Browser flows | `pnpm test:e2e` runs Playwright against the explicit mock-transport harness |
 | Native flows | `pnpm test:native` runs WebdriverIO with the Tauri service against an actual test-built application |
-| Rust format | `cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check` |
+| Rust format | `pnpm format:rust:check` runs `cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check` using `src-tauri/rustfmt.toml`; `pnpm format:rust` applies it |
 | Rust lint | `cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings` for the supported feature configurations |
 | Rust tests | `cargo test --manifest-path src-tauri/Cargo.toml --locked --all-targets` and `cargo test --manifest-path src-tauri/Cargo.toml --locked --doc` for crates exposing examples |
 | Rust documentation | `cargo doc --manifest-path src-tauri/Cargo.toml --locked --no-deps` with `RUSTDOCFLAGS="-D warnings"`; deny broken links and require documentation on public application APIs |
