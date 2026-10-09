@@ -10,7 +10,13 @@ const protoDir = join(root, "proto");
 const generatedGo = join(helperDir, "internal/protocol/helper/v1/envelope.pb.go");
 const schema = "helper/v1/envelope.proto";
 const protoVersion = "libprotoc 36.2";
-const goVersionPrefix = "go version go1.27.1 ";
+// The Go pin of record is helper/go.mod, which CI also reads through setup-go's
+// go-version-file; deriving it here keeps the contract gate from drifting.
+const goDirective = /^go\s+(\S+)$/mu.exec(readFileSync(join(helperDir, "go.mod"), "utf8"))?.[1];
+if (goDirective === undefined) {
+  throw new Error("helper/go.mod does not record a go directive.");
+}
+const goVersionPrefix = `go version go${goDirective} `;
 const pluginVersion = "protoc-gen-go v1.36.12";
 const goPluginModule = "google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12";
 const checkOnly = process.argv.includes("--check");

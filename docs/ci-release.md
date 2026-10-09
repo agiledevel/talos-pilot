@@ -51,7 +51,7 @@ Build matrix:
 
 These are build runners; Windows Server compilation does not qualify Windows 11 runtime behavior, and macOS 15 does not prove the macOS 13 minimum. A separate release-only [Tauri configuration](../.github/tauri.release.conf.json) enables bundling. macOS previews are ad-hoc signed and not notarized; Windows previews are not publisher-signed. Production signing credentials and updater artifacts are not simulated.
 
-The desktop QA and release asset jobs install Go **1.27.1** from `helper/go.mod`
+The desktop QA and release asset jobs install Go **1.27.2** from `helper/go.mod`
 with `actions/setup-go` **v6.5.0**, pinned to commit
 `924ae3a1cded613372ab5595356fb5720e22ba16`. The Tauri build hook cross-compiles
 the Go helper for the selected Rust target triple with cgo disabled, embeds the

@@ -111,7 +111,7 @@ SerDe application DTOs in `src-tauri/src/contracts.rs` are exported by the
 `export_ipc_types` binary into `src/lib/ipc/generated/`; those declarations
 are formatted with the pinned Oxfmt tool and are never edited by hand.
 
-The generator requires Go 1.27.1 and `protoc` 36.2 on `PATH`. The helper
+The generator requires the Go toolchain recorded in `helper/go.mod` (1.27.2) and `protoc` 36.2 on `PATH`. The helper
 module's `go.mod` pins the tool directive and protobuf runtime. The generator
 installs the exact Go plugin into a temporary directory, checks all tool
 versions, generates Go into a temporary directory, and compares generated
