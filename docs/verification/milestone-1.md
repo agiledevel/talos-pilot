@@ -13,7 +13,7 @@ This is the active evidence record for [milestone 1](../plans/milestone-1-flash.
 | C1 helper and contracts          | In progress (C8 packaged runtime)     | Deterministically generate documented Rust/Go/TypeScript protocol and DTO outputs; reject malformed, oversized, unknown, and incompatible frames; exercise actual packaged Rust↔Go handshake, bounded supervision, failure cleanup, and safe status IPC. |
 | C2 native IPC harness            | In progress (C8 macOS/Windows runs)   | Runtime-validate renderer DTOs; use an explicit browser mock; run Tauri/WebdriverIO allowed and denied IPC flows; demonstrate cleanup and prove production excludes mock/driver/test commands.                                                           |
 | C3 encrypted storage             | Complete on Linux (C8 OS matrix open) | Verify schema/migration atomicity, AEAD integrity and redaction, actual OS-vault success/failure, encrypted restart, explicit session-only behavior, and native credential import with exec-auth rejection.                                              |
-| C4 Talos probe                   | In progress (fixture network open)    | On an allowlisted disposable Talos 1.14 fixture, demonstrate authenticated nonsensitive read and bounded COSI stream, TLS/authorization failures, cancellation/reconnect, and native shutdown cleanup.                                                   |
+| C4 Talos probe                   | In progress (live read/stream proven) | On an allowlisted disposable Talos 1.14 fixture, demonstrate authenticated nonsensitive read and bounded COSI stream, TLS/authorization failures, cancellation/reconnect, and native shutdown cleanup.                                                   |
 | C5 Kubernetes probe              | Pending                               | On disposable Kubernetes 1.36, demonstrate scoped paginated Rust reads and watch/relist behavior with RBAC/TLS/scope faults and cleanup; run affected read/watch cases on 1.35 and 1.37.                                                                 |
 | C6 UI, workers, and CSP          | Pending                               | Qualify system/light/dark and density behavior, accessible feasibility states, lazy offline editor workers, bounded terminal/chart wrappers and disposal, restrictive CSP, and packaged asset behavior.                                                  |
 | C7 advisories and inventory      | In progress (inventory/notices open)  | Resolve or record applicability for each advisory without silent exclusions; generate/review dependency inventory and notices; preserve exact-revision security automation.                                                                              |
@@ -136,7 +136,7 @@ The real GTK native file picker was manually exercised under X11/Xvfb in the `na
 
 - **FND-002 / C1:** implement and check in the researched protocol/generator source and outputs; test malformed, oversized, incompatible, unknown, and mismatched messages; run actual helper supervision and packaged handshake.
 - **FND-003 / C3:** C3.1–C3.3 storage, native Linux vault, session-only behavior, kubeconfig import, and appearance settings are implemented and verified on Linux. macOS Keychain, Windows Credential Manager/ACL, and cross-platform native dialog runtime qualification remain open for C8.
-- **FND-004 / C4–C5:** choose compatible Kubernetes/Tokio/TLS pins and provision an allowlisted disposable Talos fixture. No owner cluster may be used implicitly.
+- **FND-004 / C4–C5:** the allowlisted disposable Talos fixture now provisions, verifies, and destroys cleanly on Linux with the C4.3 live evidence; the `os:reader` denial, reconnect/resync, packaged-installer cases, and the C5 Kubernetes/Tokio/TLS pin selection remain open. No owner cluster may be used implicitly.
 - **FND-005 / C2/C6:** complete typed runtime IPC validation, true native driver suite, production exclusion, and packaged CSP/worker validation.
 - **FND-006 / C8/C9:** qualify Linux package rendering and all declared OS runtimes, then measure performance and derive numeric limits. Existing openSUSE AppImage render failure remains open.
 - **FND-007 / C7:** both recorded advisories now carry a verified applicability decision with linked evidence and an enforcing gate ([decision 0006](../decisions/0006-gtk3-advisory-applicability.md)). Dependency/license inventory regeneration, redistributed notices, a Go helper vulnerability scan, and a real exact-revision CodeQL/Trivy run remain open.
@@ -146,7 +146,7 @@ The real GTK native file picker was manually exercised under X11/Xvfb in the `na
 
 C4 extends only the private Rust-to-Go helper protocol and backend application service. A Rust-owned authenticated Talos session sends the synthetic talosconfig over stdin framing; no command argument, environment variable, renderer payload, or log contains it. API endpoints, node targets, and Kubernetes API endpoint remain separate identities. The Go helper must use upstream `github.com/siderolabs/talos/pkg/machinery` APIs pinned to Talos 1.14.1, perform one authenticated `Version` read, and watch the nonsensitive COSI `MachineStatus` resource. The Rust projection contains only Talos version, resource stage, ready state, and bounded lifecycle status; it omits addresses, certificates, config, and raw resource bodies.
 
-The only registered fixture is allowlisted in [talos-c4-disposable.md](fixtures/talos-c4-disposable.md) before provisioning. It is scoped to a local three-control-plane/one-worker Talos 1.14.1 QEMU cluster running Kubernetes 1.36.5, with a unique cluster name, isolated talosctl state and config paths, endpoint and node allowlists, synthetic credentials, and an exact destroy command. Provisioning started the four QEMU VMs, but Talos DHCP requests on `enp0s6` received no offers; talosctl timed out at `10.79.0.2:50000`. The exact fixture was destroyed, so no endpoint is currently authorized and no API call succeeded. Do not retry until the host bridge/DHCP path is understood. Tests must never select or mutate other Docker, libvirt, Talos, or Kubernetes clusters.
+The only registered fixture is allowlisted in [talos-c4-disposable.md](fixtures/talos-c4-disposable.md) before provisioning. It is scoped to a local three-control-plane/one-worker Talos 1.14.1 QEMU cluster running Kubernetes 1.36.5, with a unique cluster name, isolated talosctl state and config paths, endpoint and node allowlists, synthetic credentials, and an exact destroy command. The first attempts failed before any API call because guests received no DHCP offer and never synced time; the diagnosis, the owner-approved host remediation, the issued identities, the harness command, and the restoration checklist are recorded in that allowlist, and the successful run is evidenced in C4.3 below. Tests must never select or mutate other Docker, libvirt, Talos, or Kubernetes clusters.
 
 Acceptance requires a real packaged-helper handshake to the fixture, authenticated version read, initial `MachineStatus` snapshot plus bounded COSI stream, valid TLS verification, endpoint failover, invalid target/RBAC/TLS/unavailable-node failures, rejected sensitive resource subscription, slow-consumer queue bound, stream cancellation, helper exit, reconnect/deadline handling, and resource counts returning to baseline. Frontend-facing tests validate only bounded DTOs; helper IPC tests use deterministic faults for each failure class. C4 is not complete if only mocks or `talosctl` CLI output pass.
 
@@ -177,9 +177,95 @@ Commands on this final revision, openSUSE Tumbleweed Linux x86_64 with Rust 1.99
 
 `pnpm test:native` and `pnpm desktop:build` both write `src-tauri/target/release/talos-pilot`, so `pnpm production:check` must follow a default-feature `pnpm desktop:build`; after `pnpm test:native` it correctly failed on the WebDriver markers left in that shared artifact until the default release binary was rebuilt. The gates were re-run in that order for this record.
 
-Not established by this increment: any real Talos API contact. The authenticated `Version` read and `MachineStatus` stream against the allowlisted fixture, TLS verification against a live endpoint, endpoint failover, denied-role and unavailable-node faults, reconnect, and packaged-installer helper startup remain open until the fixture in [talos-c4-disposable.md](fixtures/talos-c4-disposable.md) is provisioned. The Rust↔Go stream path is proven against the `helper/testdata/probehelper` fixture process over real frames and pipes, not against Talos; renderer and channel behavior is proven in Vitest and in the real Tauri test app with the fixture. The 683.33 kB minified / 221.14 kB gzip initial chunk warning persists. macOS and Windows remain unexecuted.
+Not established by the pre-fixture increment: real Talos API contact. That gap closed in the C4.3 run below; the packaged-installer helper startup, the macOS/Windows fixture matrix, denied-role (`os:reader`) faults, and reconnect/resync behavior remain open. The 683.33 kB minified / 221.14 kB gzip initial chunk warning persists.
 
-C4 source verification pinned `github.com/siderolabs/talos/pkg/machinery` v1.14.1 and `github.com/cosi-project/runtime` v1.16.3. In the pinned Talos source, `client.New`, `WithConfig`, `WithEndpoints`, `WithNodes`, and `Client.Version` implement the authenticated read; `safe.StateWatchKind` watches `resources/runtime.MachineStatusType` with bootstrap contents. A Go adapter validates IP endpoint/node identities, clears the input config byte buffer, and projects only version/stage/ready/deleted fields. The private protocol now carries config only over stdin, emits a projected version/snapshot and sequenced status events, and supports explicit cancellation plus EOF cleanup. Its injected fake-client test confirms config clearing/redaction and cancellation ordering. `go test -race ./...`, `go vet ./...`, `go mod verify`, and `go build ./...` pass locally on Go 1.27.1. Rust transport/session ownership and the renderer projection landed in the increment above; actual Talos API calls, live TLS/failover/RBAC faults, and reconnect remain pending on the blocked fixture.
+### C4.3 real fixture evidence
+
+Trigger: the owner approved the dedicated fixture zone described in
+[talos-c4-disposable.md](fixtures/talos-c4-disposable.md) after the read-only
+diagnosis identified `firewalld`'s `public` default zone (no `dhcp` service) plus
+Docker's legacy `-P FORWARD DROP` as the reason guests never received a DHCP
+offer and never synced time.
+
+Provisioned fixture: `talosctl cluster create qemu` v1.14.1 with
+`--name talos-pilot-c4-20261009 --cidr 10.79.0.0/24 --talos-version v1.14.1
+--kubernetes-version v1.36.5 --controlplanes 3 --workers 1 --presets iso --state
+/tmp/tpc4/state`. All four guests obtained leases, installed Talos, and reached
+`MachineStatus stage: running`; `cluster create` still timed out inside its own
+bootstrap window, so bootstrap was completed against `10.79.0.2` and the cluster
+was confirmed with `get members` listing three control planes and the worker.
+Issued identities, the applied host remediation, and the restoration checklist are
+recorded in the fixture allowlist.
+
+Harness: `pnpm talos:fixture -- --manifest tests/fixtures/talos-c4.json
+--talosconfig /tmp/tpc4/talosconfig` rebuilds the packaged helper through
+`pnpm helper:build`, verifies the manifest identity, version pins, and literal
+endpoint/node allowlists, rejects a credential file inside the repository, and
+runs `src-tauri/tests/talos_fixture.rs` with file references only. Result:
+`3 passed; 0 failed` in 24.17s, with the harness printing
+`fixture read: Talos v1.14.1, stage "running", ready true`,
+`worker node 10.79.0.5 read: stage "running", ready true`, and
+`failover read with a dead leading endpoint: stage "running", ready true`.
+
+Proven against the live cluster through the production path (`TalosSessionStore`
+→ `HelperService` → packaged helper → official Talos client):
+
+- authenticated `Version` read over the validated endpoint allowlist, returning `v1.14.1`;
+- node-pinned `MachineStatus` projection of stage/ready only, with strictly
+  ordered sequences from the probe response onward;
+- session-scoped cancellation of a live COSI stream, acknowledged inside the
+  two-second bound, followed by helper shutdown and reaping;
+- endpoint/node identity separation: the worker `10.79.0.5` is a selectable target
+  while not being an API endpoint;
+- endpoint failover: a read still succeeds when an unreachable allowlisted
+  address leads the endpoint list;
+- fail-closed validation: a node absent from the imported context and an unknown
+  session are rejected before any helper work;
+- TLS verification: an unrelated but structurally valid authority yields
+  non-retryable `TALOS_CERTIFICATE_INVALID`, never a trusted connection;
+- unreachable target: retryable `TALOS_UNAVAILABLE` rather than a hang.
+
+Real-fixture run also found and fixed a genuine defect. The original adapter
+pinned the stream by adding `client.WithNodes` to the COSI watch, which Talos
+rejects — `one-2-many proxying is not supported for method
+/cosi.resource.State/Watch` — for both by-kind and by-resource watches, so every
+fixture probe failed with `TALOS_PROBE_FAILED` and only real-cluster testing could
+have shown it. The adapter now keeps a failover connection for the read and a
+second connection pinned to the selected node for the stream, recorded in
+[decision 0007](../decisions/0007-pin-talos-streams-to-the-node-api.md) and in
+[helper-v1.md](../protocol/helper-v1.md); the offline helper tests were updated
+with the new session shape, including node-target rejection with config clearing.
+`helper/go.mod` now lists `google.golang.org/grpc` as the direct requirement it
+already was, because `go mod tidy` reflects the adapter's `codes`/`status` usage.
+
+Checks re-run on the final revision after the adapter change: Go
+`gofmt`/`vet`/`test`/`test -race`/`mod verify`/`build`; `cargo fmt --check`;
+default and `native-test` Clippy with `-D warnings`; `cargo test --locked
+--all-targets` (62 passed, 1 vault test ignored, 3 fixture tests ignored by
+default); rustdoc with warnings denied; `pnpm check` (55 tests, production
+build); `pnpm test:coverage` (90.19% statements); `pnpm contracts:check`;
+`pnpm test:e2e`; `pnpm icons:check`; `pnpm desktop:build` then
+`pnpm production:check` ("Production artifacts exclude WebDriver, and runtime
+exposes no driver listener"); `pnpm advisories:check`; and `pnpm test:native`,
+which passed 11 cases including the real Rust-to-Go handshake with the
+`talos_probe` capability and returned the helper process count to baseline after
+shutdown.
+
+Still open for C4: an `os:reader`-role denial case (the fixture issues an admin
+config; the adapter has no resource selector, so a sensitive subscription is not
+expressible in protocol v1), reconnect/resync after a mid-stream gap, live
+multi-event stream volume (the stable fixture projected one event inside the
+12-second settle window, so ordering is asserted on whatever arrives and is
+additionally exercised by `helper/testdata/probehelper`, which emits several
+sequenced events over real frames), and packaged-installer helper startup, which
+belongs to C8 together with the macOS/Windows matrix. After the run the fixture
+was destroyed and the host verified back to its pre-attempt state: no `10.79.0`
+or bridge rules in `filter-FORWARD` or `nat/POSTROUTING`, no
+`talos-pilot-c4` zone, `--get-zones`/`--get-active-zones`/`--get-default-zone`
+matching the recorded baseline, no QEMU process or `talos*` bridge, and no
+synthetic credential file left behind.
+
+C4 source verification pinned `github.com/siderolabs/talos/pkg/machinery` v1.14.1 and `github.com/cosi-project/runtime` v1.16.3. In the pinned Talos source, `client.New`, `WithConfig`, `WithEndpoints`, `WithNodes`, and `Client.Version` implement the authenticated read; `safe.StateWatchKind` watches `resources/runtime.MachineStatusType` with bootstrap contents. A Go adapter validates IP endpoint/node identities, clears the input config byte buffer, and projects only version/stage/ready/deleted fields. The private protocol now carries config only over stdin, emits a projected version/snapshot and sequenced status events, and supports explicit cancellation plus EOF cleanup. Its injected fake-client test confirms config clearing/redaction and cancellation ordering. `go test -race ./...`, `go vet ./...`, `go mod verify`, and `go build ./...` pass locally on Go 1.27.1. Rust transport/session ownership and the renderer projection landed in the increment above; the live Talos API calls, TLS and failover faults, and cancellation ran in the C4.3 fixture run below, and only the `os:reader` denial, reconnect/resync, and packaged-installer cases remain.
 
 ### C7.1 completed evidence
 

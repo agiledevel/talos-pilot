@@ -108,21 +108,124 @@ reached the bridge, but UDP/67 replies were filtered by the `public` zone, so no
 offer arrived and `10.79.0.2:50000` was unreachable. It also means the earlier
 attempts did not exercise any Talos or Kubernetes API.
 
-Concrete resolution requiring an owner decision (it changes host firewall state,
-which is outside the repository and was deliberately not modified):
-
-1. Before provisioning, bind the fixture bridge to a dedicated firewalld zone that
-   allows only `dhcp` for its own subnet, for example
-   `sudo -n firewall-cmd --permanent --new-zone=talos-pilot-c4`,
-   `--zone=talos-pilot-c4 --permanent --add-service=dhcp`, then
-   `--zone=talos-pilot-c4 --add-interface=<provisioner bridge>` and reload.
-2. Provision the documented command unchanged, record the issued addresses in the
-   pending fields above, and run the C4/C5 gates.
-3. Destroy the fixture with the allowlisted teardown, then
-   `sudo -n firewall-cmd --permanent --delete-zone=talos-pilot-c4` and reload, and
-   verify `--get-active-zones` matches the pre-attempt state recorded here.
-
 An alternative of adding `dhcp` to the `public` zone was rejected: it would widen
-exposure on the host's default zone for every future interface. Until the owner
-approves a firewall change, C4 integration evidence stays blocked and the fixture
-must not be retried.
+exposure on the host's default zone for every future interface.
+
+## Applied host remediation (owner-approved, 2026-10-09)
+
+The owner approved a dedicated temporary zone for this fixture only. Both steps
+below are reverted by the restoration checklist, and only interfaces created by
+this provisioning command were ever placed in the zone.
+
+1. A firewalld zone scoped to the fixture interfaces. `--add-forward` and
+   `--add-masquerade` are required in addition to the `dhcp` service: Talos boots
+   from an ISO that fetches the installer from the Image Factory, so guests need
+   forwarded egress, not only a lease.
+
+   ```sh
+   sudo -n firewall-cmd --permanent --new-zone=talos-pilot-c4
+   sudo -n firewall-cmd --permanent --zone=talos-pilot-c4 --add-service=dhcp
+   sudo -n firewall-cmd --permanent --zone=talos-pilot-c4 --add-forward
+   sudo -n firewall-cmd --permanent --zone=talos-pilot-c4 --add-masquerade
+   sudo -n firewall-cmd --permanent --zone=talos-pilot-c4 --set-target=ACCEPT
+   sudo -n firewall-cmd --reload
+   ```
+
+   As the bridge and its veth pair appear, bind them:
+   `sudo -n firewall-cmd --zone=talos-pilot-c4 --change-interface=<name>`. The
+   provisioner names the bridge deterministically from the cluster name, and on
+   this host it was `talosb8c871e1`.
+
+2. The legacy `iptables` FORWARD chain also has to be opened. Docker leaves
+   `-P FORWARD DROP` in the legacy table, which drops forwarded guest traffic
+   even though firewalld's nft ruleset accepts it, and the provisioner's own
+   per-VM `CNI-*` chains are removed when `cluster create` exits early. The
+   fixture-scoped rules used were:
+
+   ```sh
+   sudo -n iptables -I FORWARD -o talosb8c871e1 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+   sudo -n iptables -I FORWARD -i talosb8c871e1 -j ACCEPT
+   sudo -n iptables -I FORWARD -s 10.79.0.0/24 ! -o talosb8c871e1 -j ACCEPT
+   sudo -n iptables -I FORWARD -d 10.79.0.0/24 ! -i talosb8c871e1 -j ACCEPT
+   sudo -n iptables -t nat -A POSTROUTING -s 10.79.0.0/24 ! -o talosb8c871e1 -j MASQUERADE
+   ```
+
+With both steps applied, guests obtained leases, synced time, installed Talos,
+and reached `stage: running`. Two further facts are recorded because they cost a
+full provisioning cycle each:
+
+- `cluster create qemu` can time out on its own bootstrap wait while etcd is
+  still starting. The fixture is then healthy but unbootstrapped; complete it
+  with `sudo -n -E <talosctl> --talosconfig /tmp/tpc4/talosconfig --nodes
+  10.79.0.2 bootstrap` and wait until `get members` lists the worker.
+- The issued talosconfig selects one context and lists API endpoints only, while
+  the C4 contract needs the node allowlist too. Add the recorded node addresses
+  under that context's `nodes:` key before running the harness. This edits the
+  client's target selection outside the repository and changes nothing in the
+  cluster. A leftover config file from an earlier attempt makes talosctl rename
+  the new context with a `-1` suffix, which then fails the harness identity gate;
+  start from an empty state root.
+
+## Host-issued identities (2026-10-09 run)
+
+- QEMU bridge: `talosb8c871e1` on `10.79.0.1/24`, four guests
+- Talos API endpoints: `10.79.0.2`, `10.79.0.3`, `10.79.0.4` (control planes)
+- Node targets: `10.79.0.2`, `10.79.0.3`, `10.79.0.4` (controlplane),
+  `10.79.0.5` (worker, deliberately not an API endpoint)
+- Unassigned in-CIDR address used only for the failure cases: `10.79.0.250`
+- Talos version reported by the API: `v1.14.1`; hostnames
+  `talos-pilot-c4-20261009-controlplane-1..3` and `...-worker-1`
+- Final talosconfig: one context named `talos-pilot-c4-20261009`, inline
+  base64 `ca`/`crt`/`key`, admin role, 1,771 bytes, kept outside the repository
+- Immutable image digests: not captured; the ISO preset resolved through the
+  Image Factory, and the machine identity is pinned by `--talos-version v1.14.1`
+  plus `--kubernetes-version v1.36.5`
+
+These values are mirrored in machine-readable form in
+[`tests/fixtures/talos-c4.json`](../../../tests/fixtures/talos-c4.json), which
+the harness verifies.
+
+## Harness command
+
+Run from a repository checkout while the fixture above is provisioned:
+
+```sh
+pnpm talos:fixture -- --manifest tests/fixtures/talos-c4.json \
+  --talosconfig /tmp/tpc4/talosconfig
+```
+
+[`scripts/talos-fixture.ts`](../../../scripts/talos-fixture.ts) takes file
+*references* only — credential content never appears in an argument or an
+environment value — rejects a talosconfig inside the repository, requires the
+manifest identity, version pins, and non-empty literal endpoint/node allowlists,
+rejects wildcard entries, rebuilds the packaged helper, then runs the ignored
+Rust fixture tests. It fails if the manifest names anything other than
+`talos-pilot-c4-20261009`, if the imported context's endpoints are not exactly
+the recorded allowlist, or if a node is outside it.
+[`src-tauri/tests/talos_fixture.rs`](../../../src-tauri/tests/talos_fixture.rs)
+then proves the authenticated `Version` read, the node-pinned `MachineStatus`
+projection, session-scoped cancellation of a live stream, a worker target that is
+not an API endpoint, a read that fails over past an unreachable leading
+endpoint, rejection of an out-of-allowlist node and an unknown session without
+any helper work, `TALOS_CERTIFICATE_INVALID` for an unrelated authority, and
+retryable `TALOS_UNAVAILABLE` for an unreachable endpoint. The helper process is
+then shut down and reaped by the same service the application uses.
+
+## Teardown and restoration checklist
+
+1. Destroy only this fixture: the command in the section above.
+2. Remove exactly the rules added for it: the five `iptables -D` counterparts of
+   the rules above, then `sudo -n iptables -S FORWARD | grep -c 10.79.0` and the
+   matching `nat` query must both report `0`.
+3. `sudo -n firewall-cmd --permanent --delete-zone=talos-pilot-c4` and reload;
+   `--get-zones` must return to
+   `block dmz docker drop external home internal libvirt libvirt-routed nm-shared public trusted work`,
+   `--get-active-zones` to `docker`/`libvirt`/`public (default)`, and
+   `--get-default-zone` to `public`.
+4. Remove `/tmp/tpc4` and any `/tmp/talos-pilot-c4-20261009` state directory, so
+   no synthetic credential file outlives the cluster; verify no `qemu-system`
+   process and no `talos*` bridge remain.
+
+Executed on 2026-10-09 after the harness run: all four steps were verified, with
+zero fixture rules left, the zone list and active zones back to the state
+recorded above, and no QEMU process or bridge.
