@@ -27,6 +27,7 @@ import {
 } from "../lib/ipc/transport";
 import { IpcContractError } from "../lib/ipc/validation";
 import styles from "./PilotApp.module.css";
+import { TalosProbePanel } from "./TalosProbePanel";
 
 const DEFAULT_APPEARANCE: AppearanceSettingsDto = {
   theme: "system",
@@ -265,8 +266,11 @@ export function PilotApp({ transport }: { readonly transport?: IpcTransport }) {
             <Typography.Paragraph
               style={{ textAlign: "center", maxWidth: 480, margin: "24px auto" }}
             >
-              Connection setup is under development. This foundation build does not access clusters.
+              Workload and cluster management are under development. The read-only Talos probe below
+              checks an authenticated API connection and status stream.
             </Typography.Paragraph>
+
+            <TalosProbePanel transport={transport} />
 
             <section className={styles.credentials} aria-labelledby="credentials-title">
               <Typography.Title id="credentials-title" level={3}>

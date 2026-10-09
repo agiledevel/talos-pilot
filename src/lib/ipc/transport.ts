@@ -1,10 +1,12 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 
 import type { ApplicationErrorDto } from "./generated/ApplicationErrorDto";
 import type { AppearanceSettingsDto } from "./generated/AppearanceSettingsDto";
 import type { CredentialImportResultDto } from "./generated/CredentialImportResultDto";
 import type { CredentialStorageStatusDto } from "./generated/CredentialStorageStatusDto";
 import type { HelperStatusDto } from "./generated/HelperStatusDto";
+import type { TalosCredentialSessionDto } from "./generated/TalosCredentialSessionDto";
+import type { TalosProbeEventDto } from "./generated/TalosProbeEventDto";
 import {
   IpcContractError,
   parseApplicationErrorDto,
@@ -12,12 +14,20 @@ import {
   parseAppearanceSettingsDto,
   parseCredentialImportResultDto,
   parseCredentialStorageStatusDto,
+  parseTalosCredentialSessionDto,
+  parseTalosProbeEventDto,
 } from "./validation";
 
 /** Supplies validated native commands to application use cases. */
 export interface IpcTransport {
   /** Invokes a registered native command with its typed argument record. */
   invoke(command: string, args?: Record<string, unknown>): Promise<unknown>;
+  /** Invokes a native command that streams untrusted messages over a Tauri channel. */
+  invokeChannel?(
+    command: string,
+    args: Record<string, unknown>,
+    onMessage: (message: unknown) => void,
+  ): Promise<unknown>;
 }
 
 /** Signals that a native transport was requested from an ordinary browser. */
@@ -60,6 +70,15 @@ export function createNativeIpcTransport(): IpcTransport {
   return {
     invoke: (command, args) =>
       args === undefined ? invoke<unknown>(command) : invoke<unknown>(command, args),
+    invokeChannel: async (command, args, onMessage) => {
+      const channel = new Channel<unknown>();
+      channel.onmessage = onMessage;
+      try {
+        return await invoke<unknown>(command, { ...args, channel });
+      } finally {
+        channel.onmessage = () => undefined;
+      }
+    },
   };
 }
 
@@ -147,4 +166,82 @@ export async function importKubeconfig(
 ): Promise<CredentialImportResultDto | null> {
   const response = await invokeValidated(transport, "import_kubeconfig", (value) => value);
   return response === null ? null : parseCredentialImportResultDto(response);
+}
+
+/** Opens the native talosconfig picker and retains its mTLS context in memory. */
+export async function importTalosconfig(
+  transport: IpcTransport,
+): Promise<TalosCredentialSessionDto | null> {
+  const response = await invokeValidated(transport, "import_talosconfig", (value) => value);
+  return response === null ? null : parseTalosCredentialSessionDto(response);
+}
+
+/** Starts the bounded Talos read and validates every native channel event. */
+export async function startTalosProbe(
+  transport: IpcTransport,
+  sessionId: string,
+  node: string,
+  onEvent: (event: TalosProbeEventDto) => void,
+): Promise<void> {
+  if (transport.invokeChannel === undefined) {
+    throw new IpcTransportUnavailableError();
+  }
+  let callbackError: unknown;
+  let response: unknown;
+  try {
+    response = await transport.invokeChannel(
+      "start_talos_probe",
+      { sessionId, node },
+      (message) => {
+        if (callbackError !== undefined) {
+          return;
+        }
+        try {
+          onEvent(parseTalosProbeEventDto(message));
+        } catch (error: unknown) {
+          callbackError = error;
+          void stopTalosProbe(transport, sessionId).catch(() => undefined);
+        }
+      },
+    );
+  } catch (error: unknown) {
+    let detail: ApplicationErrorDto;
+    try {
+      detail = parseApplicationErrorDto(error);
+    } catch {
+      throw new IpcTransportError();
+    }
+    throw new IpcApplicationError(detail);
+  }
+  if (callbackError !== undefined) {
+    throw callbackError;
+  }
+  if (response !== null) {
+    throw new IpcContractError();
+  }
+}
+
+/** Requests cancellation of the Talos subscription owned by one session. */
+export async function stopTalosProbe(transport: IpcTransport, sessionId: string): Promise<boolean> {
+  const result = await invokeValidated(transport, "stop_talos_probe", (value) => value, {
+    sessionId,
+  });
+  if (typeof result !== "boolean") {
+    throw new IpcContractError();
+  }
+  return result;
+}
+
+/** Closes and zeroizes a session-only Talos credential context. */
+export async function closeTalosSession(
+  transport: IpcTransport,
+  sessionId: string,
+): Promise<boolean> {
+  const result = await invokeValidated(transport, "close_talos_session", (value) => value, {
+    sessionId,
+  });
+  if (typeof result !== "boolean") {
+    throw new IpcContractError();
+  }
+  return result;
 }

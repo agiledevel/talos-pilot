@@ -8,14 +8,26 @@ import type { CredentialStorageStatusDto } from "./generated/CredentialStorageSt
 import type { HelperCapability } from "./generated/HelperCapability";
 import type { HelperState } from "./generated/HelperState";
 import type { HelperStatusDto } from "./generated/HelperStatusDto";
+import type { TalosCredentialSessionDto } from "./generated/TalosCredentialSessionDto";
+import type { TalosProbeEventDto } from "./generated/TalosProbeEventDto";
+import type { TalosProbeState } from "./generated/TalosProbeState";
 
 const HELPER_STATES: ReadonlySet<string> = new Set(["stopped", "starting", "ready", "failed"]);
-const HELPER_CAPABILITIES: ReadonlySet<string> = new Set(["status"]);
+const HELPER_CAPABILITIES: ReadonlySet<string> = new Set(["status", "talos_probe"]);
 const MAX_BUILD_ID_LENGTH = 128;
 const MAX_ERROR_FIELD_LENGTH = 256;
 const MAX_ERROR_MESSAGE_LENGTH = 1024;
 const MAX_CAPABILITY_COUNT = 8;
 const MAX_CONTEXT_NAME_LENGTH = 128;
+const TALOS_PROBE_STATES: ReadonlySet<string> = new Set([
+  "connecting",
+  "healthy",
+  "stale",
+  "unauthorized",
+  "certificate_invalid",
+  "unavailable",
+  "unsupported",
+]);
 
 /** Describes a malformed value received across the native IPC boundary. */
 export class IpcContractError extends Error {
@@ -157,6 +169,57 @@ export function parseCredentialImportResultDto(value: unknown): CredentialImport
   };
 }
 
+/** Validates safe metadata returned after importing a native Talos context. */
+export function parseTalosCredentialSessionDto(value: unknown): TalosCredentialSessionDto {
+  if (
+    !isRecord(value) ||
+    !isTalosSessionId(value.session_id) ||
+    !isSafeContextLabel(value.context_name) ||
+    value.storage_mode !== "session_only" ||
+    !isSafeIdentityArray(value.endpoints, 8) ||
+    !isSafeIdentityArray(value.nodes, 64)
+  ) {
+    throw new IpcContractError();
+  }
+  return {
+    session_id: value.session_id,
+    context_name: value.context_name,
+    endpoints: value.endpoints,
+    nodes: value.nodes,
+    storage_mode: "session_only",
+  };
+}
+
+/** Validates one bounded, sequenced Talos probe event from the native channel. */
+export function parseTalosProbeEventDto(value: unknown): TalosProbeEventDto {
+  if (
+    !isRecord(value) ||
+    !isTalosSessionId(value.session_id) ||
+    !isTalosProbeState(value.state) ||
+    !(value.version === null || isSafeTalosVersion(value.version)) ||
+    !(value.stage === null || isSafeTalosStage(value.stage)) ||
+    !(value.ready === null || typeof value.ready === "boolean") ||
+    typeof value.deleted !== "boolean" ||
+    typeof value.sequence !== "string" ||
+    !/^(0|[1-9][0-9]{0,2})$/u.test(value.sequence) ||
+    Number(value.sequence) > 256
+  ) {
+    throw new IpcContractError();
+  }
+  if (value.state === "connecting" && (value.version !== null || value.stage !== null)) {
+    throw new IpcContractError();
+  }
+  return {
+    session_id: value.session_id,
+    state: value.state,
+    version: value.version,
+    stage: value.stage,
+    ready: value.ready,
+    deleted: value.deleted,
+    sequence: value.sequence,
+  };
+}
+
 function isAppearanceTheme(value: unknown): value is AppearanceTheme {
   return value === "system" || value === "light" || value === "dark";
 }
@@ -173,6 +236,40 @@ function isCredentialStorageMode(value: unknown): value is CredentialStorageMode
     value === "vault_unavailable" ||
     value === "session_only"
   );
+}
+
+function isTalosProbeState(value: unknown): value is TalosProbeState {
+  return typeof value === "string" && TALOS_PROBE_STATES.has(value);
+}
+
+function isTalosSessionId(value: unknown): value is string {
+  return typeof value === "string" && /^talos-session-[0-9]+$/u.test(value);
+}
+
+function isSafeIdentityArray(value: unknown, maximum: number): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.length <= maximum &&
+    value.every(
+      (item: unknown) =>
+        typeof item === "string" &&
+        item.length > 0 &&
+        item.length <= 253 &&
+        Array.from(item).every(
+          (character) => /[A-Za-z0-9]/u.test(character) || ":._[]-".includes(character),
+        ),
+    ) &&
+    new Set(value).size === value.length
+  );
+}
+
+function isSafeTalosVersion(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 64 && /^[A-Za-z0-9._+-]+$/u.test(value);
+}
+
+function isSafeTalosStage(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 32 && /^[A-Za-z0-9_]+$/u.test(value);
 }
 
 function isBoundedString(value: unknown, maxLength: number): value is string {

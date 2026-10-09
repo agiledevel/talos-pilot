@@ -52,9 +52,16 @@ request ID and strictly increasing sequence values. They carry only stage,
 ready, and deletion state. `TALOS_CANCEL_REQUEST` identifies the active probe
 by request ID; the helper acknowledges cancellation and ends that stream with
 `TALOS_STREAM_ENDED`. The event queue is capped at 16 and applies backpressure
-to the COSI watch. The parent owns cancellation on view close, session close,
-and application shutdown. The helper has a 15-second initial read deadline;
-it does not automatically retry credential or authorization failures.
+to the COSI watch. Rust forwards at most 256 status updates on one native
+channel before requesting cancellation, which bounds Tauri's queued channel
+data even if a view stops consuming callbacks. After Rust sends
+`TALOS_CANCEL_REQUEST` it waits at most two seconds for the acknowledgement and
+the matching `TALOS_STREAM_ENDED`; a helper that misses that deadline is
+terminated and reaped rather than awaited. The parent owns cancellation on
+view close, session close, and application shutdown, and cancels only the
+subscription whose backend session issued the request. The helper has a
+15-second initial read deadline; it does not automatically retry credential
+or authorization failures.
 
 The Tauri command `get_helper_status` starts the helper lazily and returns only
 the validated build identity, protocol major, and accepted status capability.
@@ -68,14 +75,14 @@ terminate and reap the child before returning a structured safe error.
 ## Bounds and ownership
 
 The maximum frame payload is 1 MiB. Talos probe config is separately limited
-to 64 KiB, endpoint allowlists to eight unique IP identities, and a stream
-event queue to 16. Chunked data, when introduced, is limited
-to 64 KiB per chunk with transfer identity, sequence, and total bounds. C1
-does not transfer snapshots or credentials. The application owns the helper
-process and all pending requests and subscriptions. The helper event queue,
-configuration, endpoint identities, and projected event fields have explicit
-bounds before exposure. C1 transfers only the helper status identity; C4 adds
-only the bounded Talos probe response and events described above.
+to 64 KiB, endpoint allowlists to eight unique IP identities, the helper's COSI
+event queue to 16, and each native channel to 256 status updates. Chunked data,
+when introduced, is limited to 64 KiB per chunk with transfer identity,
+sequence, and total bounds. The application owns the helper process and all
+pending requests and subscriptions. The helper event queue, configuration,
+endpoint identities, and projected event fields have explicit bounds before
+exposure. C1 transfers only the helper status identity; C4 adds only the
+bounded Talos probe response and events described above.
 
 ## Compatibility
 

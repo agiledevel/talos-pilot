@@ -3,6 +3,7 @@
 pub mod contracts;
 pub mod helper;
 pub mod storage;
+pub mod talos;
 
 use std::{
     fs::File,
@@ -19,13 +20,14 @@ use zeroize::Zeroizing;
 use contracts::{
     AppearanceDensity, AppearanceSettingsDto, AppearanceTheme, ApplicationErrorDto,
     CredentialImportResultDto, CredentialStorageModeDto, CredentialStorageStatusDto,
-    HelperStatusDto,
+    HelperStatusDto, TalosCredentialSessionDto, TalosProbeEventDto,
 };
 use helper::service::HelperService;
 use storage::{
     CredentialStorageMode, EncryptionError, KubeconfigError, StorageError, StorageRuntime,
     validate_kubeconfig,
 };
+use talos::{TalosConfigError, TalosSessionStore, read_talosconfig};
 
 const MAX_IMPORT_FILE_BYTES: u64 = 4 * 1024 * 1024;
 
@@ -46,6 +48,74 @@ async fn get_helper_status(
 ) -> Result<HelperStatusDto, ApplicationErrorDto> {
     let executable = helper_executable(&app)?;
     service.status(&executable).await
+}
+
+/// Imports one mTLS talosconfig context through the native file picker.
+#[tauri::command]
+async fn import_talosconfig(
+    app: tauri::AppHandle,
+    sessions: State<'_, TalosSessionStore>,
+) -> Result<Option<TalosCredentialSessionDto>, ApplicationErrorDto> {
+    let Some(selected) = pick_talosconfig_file(&app).await? else {
+        return Ok(None);
+    };
+    let path = selected
+        .into_path()
+        .map_err(|_| talos_config_error("import_talosconfig", TalosConfigError::Invalid))?;
+    let config =
+        read_talosconfig(&path).map_err(|error| talos_config_error("import_talosconfig", error))?;
+    sessions
+        .insert(config)
+        .map(Some)
+        .map_err(|error| talos_config_error("import_talosconfig", error))
+}
+
+/// Starts a bounded authenticated Talos read and forwards typed native events.
+#[tauri::command]
+async fn start_talos_probe(
+    app: tauri::AppHandle,
+    service: State<'_, HelperService>,
+    sessions: State<'_, TalosSessionStore>,
+    session_id: String,
+    node: String,
+    channel: tauri::ipc::Channel<TalosProbeEventDto>,
+) -> Result<(), ApplicationErrorDto> {
+    let input = sessions
+        .probe_input(&session_id, &node)
+        .map_err(|error| talos_config_error("start_talos_probe", error))?;
+    let executable = helper_executable(&app)?;
+    service
+        .talos_probe(
+            &executable,
+            input.config,
+            input.endpoints,
+            input.node,
+            input.session_id,
+            move |event| channel.send(event).map_err(|_| ()),
+        )
+        .await
+}
+
+/// Cancels the Talos status stream owned by one backend session.
+#[tauri::command]
+fn stop_talos_probe(
+    service: State<'_, HelperService>,
+    session_id: String,
+) -> Result<bool, ApplicationErrorDto> {
+    Ok(service.stop_talos_probe(&session_id))
+}
+
+/// Removes a session-only Talos credential and stops its current probe.
+#[tauri::command]
+fn close_talos_session(
+    service: State<'_, HelperService>,
+    sessions: State<'_, TalosSessionStore>,
+    session_id: String,
+) -> Result<bool, ApplicationErrorDto> {
+    let _ = service.stop_talos_probe(&session_id);
+    sessions
+        .remove(&session_id)
+        .map_err(|error| talos_config_error("close_talos_session", error))
 }
 
 fn helper_executable(app: &tauri::AppHandle) -> Result<PathBuf, ApplicationErrorDto> {
@@ -254,6 +324,28 @@ async fn pick_kubeconfig_file(
     })
 }
 
+async fn pick_talosconfig_file(
+    app: &tauri::AppHandle,
+) -> Result<Option<tauri_plugin_dialog::FilePath>, ApplicationErrorDto> {
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .add_filter("Talos config", &["yaml", "yml"])
+        .pick_file(move |selected| {
+            if let Err(unclaimed_path) = sender.send(selected) {
+                drop(unclaimed_path);
+            }
+        });
+    receiver.await.map_err(|_| {
+        application_error(
+            "IMPORT_UNAVAILABLE",
+            "import_talosconfig",
+            "The native file dialog could not be completed.",
+            true,
+        )
+    })
+}
+
 fn lock_storage<'a>(
     storage: &'a Mutex<StorageRuntime>,
     action: &str,
@@ -353,6 +445,36 @@ fn kubeconfig_error(action: &str, error: KubeconfigError) -> ApplicationErrorDto
     application_error(code, action, message, false)
 }
 
+fn talos_config_error(action: &str, error: TalosConfigError) -> ApplicationErrorDto {
+    let (code, message) = match error {
+        TalosConfigError::TooLarge => (
+            "TALOS_CONFIG_LIMIT_EXCEEDED",
+            "The talosconfig exceeds the 64 KiB session import limit.",
+        ),
+        TalosConfigError::UnsupportedAuthentication => (
+            "TALOS_AUTH_UNSUPPORTED",
+            "Talos probes require a selected context with inline mTLS credentials and no proxy or alternate auth provider.",
+        ),
+        TalosConfigError::SessionLimit => (
+            "TALOS_SESSION_LIMIT",
+            "Close an existing Talos session before importing another context.",
+        ),
+        TalosConfigError::UnknownTarget => (
+            "TALOS_TARGET_INVALID",
+            "The selected Talos session or node target is unavailable.",
+        ),
+        TalosConfigError::Invalid => (
+            "TALOS_CONFIG_INVALID",
+            "The selected file does not contain a supported Talos mTLS context.",
+        ),
+        TalosConfigError::Unavailable => (
+            "TALOS_SESSION_UNAVAILABLE",
+            "The in-memory Talos session could not be accessed.",
+        ),
+    };
+    application_error(code, action, message, false)
+}
+
 fn import_error(action: &str, error: std::io::Error) -> ApplicationErrorDto {
     if error.kind() == std::io::ErrorKind::FileTooLarge {
         application_error(
@@ -410,6 +532,7 @@ fn read_selected_file(path: &std::path::Path) -> Result<SecretBox<[u8]>, std::io
 pub fn run() {
     let builder = tauri::Builder::default()
         .manage(HelperService::default())
+        .manage(TalosSessionStore::default())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let storage = open_storage_runtime(app.handle())?;
@@ -443,7 +566,11 @@ pub fn run() {
             get_credential_storage_status,
             use_session_only_storage,
             retry_persistent_storage,
-            import_kubeconfig
+            import_kubeconfig,
+            import_talosconfig,
+            start_talos_probe,
+            stop_talos_probe,
+            close_talos_session
         ])
         .build(tauri::generate_context!());
     match application {

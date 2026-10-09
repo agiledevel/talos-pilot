@@ -23,6 +23,8 @@ pub enum HelperState {
 pub enum HelperCapability {
     /// Reports nonsensitive helper build and protocol status.
     Status,
+    /// Performs the bounded authenticated Talos version and status probe.
+    TalosProbe,
 }
 
 /// Bounded, nonsensitive projection of the supervised helper status.
@@ -36,6 +38,60 @@ pub struct HelperStatusDto {
     pub protocol_major: Option<u32>,
     /// Capabilities accepted by the native backend.
     pub capabilities: Vec<HelperCapability>,
+}
+
+/// Describes the safe result state of the authenticated Talos read probe.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum TalosProbeState {
+    /// The helper is establishing the authenticated Talos connection.
+    Connecting,
+    /// The authenticated read and status stream are active.
+    Healthy,
+    /// The previous probe data is retained while a reconnect is attempted.
+    Stale,
+    /// Talos rejected the caller's role or permissions.
+    Unauthorized,
+    /// TLS validation rejected the peer or client certificate.
+    CertificateInvalid,
+    /// The endpoint or target node could not be reached.
+    Unavailable,
+    /// The selected client configuration or target cannot be used by this probe.
+    Unsupported,
+}
+
+/// Bounded Talos probe projection sent over native IPC.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+pub struct TalosProbeEventDto {
+    /// Backend session that owns the Talos credentials.
+    pub session_id: String,
+    /// Connection state independent of any Kubernetes session.
+    pub state: TalosProbeState,
+    /// Authenticated Talos version when the read succeeded.
+    pub version: Option<String>,
+    /// Safe COSI MachineStatus stage.
+    pub stage: Option<String>,
+    /// Readiness from the COSI MachineStatus resource.
+    pub ready: Option<bool>,
+    /// Whether the source resource was removed.
+    pub deleted: bool,
+    /// Per-subscription sequence encoded as a decimal string.
+    pub sequence: String,
+}
+
+/// Safe metadata for a native-imported, session-only Talos credential context.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+pub struct TalosCredentialSessionDto {
+    /// Process-local identifier for the backend-owned credential.
+    pub session_id: String,
+    /// Bounded label of the selected talosconfig context.
+    pub context_name: String,
+    /// API endpoint identities used only for Talos client failover.
+    pub endpoints: Vec<String>,
+    /// Explicit node targets; kept separate from API endpoints.
+    pub nodes: Vec<String>,
+    /// Talos credential lifetime for this probe session.
+    pub storage_mode: CredentialStorageModeDto,
 }
 
 /// Selects the renderer-visible appearance algorithm.

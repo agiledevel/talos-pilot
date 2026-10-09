@@ -257,14 +257,16 @@ func runProbe(
 	defer cancelStartup()
 	session, err := openProbe(ctx, probe.TalosConfig, probe.Endpoints)
 	if err != nil {
-		_ = writer.send(errorResponse(request, "talos_probe_failed", "The Talos probe could not be initialized.", false))
+		code := talosprobe.FailureCode(err)
+		_ = writer.send(errorResponse(request, code, talosFailureMessage(code), talosFailureRetryable(code)))
 		return
 	}
 	defer func() { _ = session.Close() }()
 
 	version, err := session.ReadVersion(startupContext, probe.Node)
 	if err != nil {
-		_ = writer.send(errorResponse(request, "talos_read_failed", "The authenticated Talos version read failed.", true))
+		code := talosprobe.FailureCode(err)
+		_ = writer.send(errorResponse(request, code, talosFailureMessage(code), talosFailureRetryable(code)))
 		return
 	}
 
@@ -311,8 +313,8 @@ func runProbe(
 	select {
 	case initial = <-firstStatus:
 	case err = <-watchDone:
-		_ = err
-		_ = writer.send(errorResponse(request, "talos_stream_failed", "The Talos status stream could not be started.", true))
+		code := talosprobe.FailureCode(err)
+		_ = writer.send(errorResponse(request, code, talosFailureMessage(code), talosFailureRetryable(code)))
 		return
 	case <-time.After(probeStartDeadline):
 		cancelWatch()
@@ -345,9 +347,10 @@ func runProbe(
 
 	select {
 	case err := <-watchDone:
-		code := "stream_complete"
 		if err != nil && !errors.Is(err, context.Canceled) {
-			code = "stream_failed"
+			code := talosprobe.FailureCode(err)
+			_ = writer.send(errorResponse(request, code, talosFailureMessage(code), talosFailureRetryable(code)))
+			return
 		}
 		_ = writer.send(&protocolv1.Envelope{
 			ProtocolMajor: protocolMajor,
@@ -355,7 +358,7 @@ func runProbe(
 			RequestId:     request.RequestId,
 			Sequence:      sequence + 1,
 			Payload: &protocolv1.Envelope_TalosStreamEnded{TalosStreamEnded: &protocolv1.TalosStreamEnded{
-				Code: code,
+				Code: "stream_complete",
 			}},
 		})
 	case <-ctx.Done():
@@ -363,7 +366,9 @@ func runProbe(
 		case err := <-watchDone:
 			code := "cancelled"
 			if err != nil && !errors.Is(err, context.Canceled) {
-				code = "stream_failed"
+				failureCode := talosprobe.FailureCode(err)
+				_ = writer.send(errorResponse(request, failureCode, talosFailureMessage(failureCode), talosFailureRetryable(failureCode)))
+				return
 			}
 			_ = writer.send(&protocolv1.Envelope{
 				ProtocolMajor: protocolMajor,
@@ -459,6 +464,27 @@ func clearTalosConfig(request *protocolv1.Envelope) {
 		clear(payload.TalosProbeRequest.TalosConfig)
 		payload.TalosProbeRequest.TalosConfig = nil
 	}
+}
+
+func talosFailureMessage(code string) string {
+	switch code {
+	case "talos_config_invalid":
+		return "The Talos client configuration is invalid."
+	case "talos_invalid_target":
+		return "The Talos node target is invalid."
+	case "talos_unauthorized":
+		return "Talos rejected the configured permissions."
+	case "talos_certificate_invalid":
+		return "Talos TLS verification failed."
+	case "talos_unavailable":
+		return "The selected Talos endpoint or node is unavailable."
+	default:
+		return "The authenticated Talos read probe failed."
+	}
+}
+
+func talosFailureRetryable(code string) bool {
+	return code == "talos_unavailable" || code == "talos_probe_failed"
 }
 
 func validRequestID(value string) bool {

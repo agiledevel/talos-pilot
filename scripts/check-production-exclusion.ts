@@ -65,6 +65,10 @@ const PRODUCTION_PERMISSIONS = [
   "allow-use-session-only-storage",
   "allow-retry-persistent-storage",
   "allow-import-kubeconfig",
+  "allow-import-talosconfig",
+  "allow-start-talos-probe",
+  "allow-stop-talos-probe",
+  "allow-close-talos-session",
 ] as const;
 
 function isProductionPermissions(value: unknown): value is typeof PRODUCTION_PERMISSIONS {

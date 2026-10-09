@@ -14,7 +14,7 @@ describe("native helper status command", () => {
     assert.ok(isRecord(status));
     assert.equal(status.state, "ready");
     assert.equal(status.protocol_major, 1);
-    assert.deepEqual(status.capabilities, ["status"]);
+    assert.deepEqual(status.capabilities, ["status", "talos_probe"]);
     assert.equal(typeof status.build_identity, "string");
     if (typeof status.build_identity === "string") {
       assert.match(status.build_identity, /^[a-f0-9]{40}$/u);
@@ -116,5 +116,61 @@ describe("native storage and appearance commands", () => {
       withExecuteOptions({ windowLabel: "unauthorized" }),
     );
     assert.equal(result, "denied");
+  });
+});
+
+describe("native Talos probe commands", () => {
+  it("reports the Talos probe capability from the real helper handshake", async () => {
+    const status = await browser.tauri.execute(({ core }) => core.invoke("get_helper_status"));
+    assert.ok(isRecord(status));
+    assert.equal(status.state, "ready");
+    assert.deepEqual(status.capabilities, ["status", "talos_probe"]);
+  });
+
+  it("releases no helper work for a session the main window never imported", async () => {
+    const stopped = await browser.tauri.execute(({ core }) =>
+      core.invoke("stop_talos_probe", { sessionId: "talos-session-999" }),
+    );
+    assert.equal(stopped, false);
+    const closed = await browser.tauri.execute(({ core }) =>
+      core.invoke("close_talos_session", { sessionId: "talos-session-999" }),
+    );
+    assert.equal(closed, false);
+    const repeated = await browser.tauri.execute(({ core }) =>
+      core.invoke("stop_talos_probe", { sessionId: "talos-session-999" }),
+    );
+    assert.equal(repeated, false);
+  });
+
+  it("denies every Talos probe command from the webview without its capability", async () => {
+    const result = await browser.tauri.execute(
+      async ({ core }) => {
+        const attempts: string[] = [];
+        for (const invocation of [
+          { command: "import_talosconfig", args: [] as unknown[] },
+          { command: "start_talos_probe", args: [{ sessionId: "s", node: "10.79.0.2" }] },
+          { command: "stop_talos_probe", args: [{ sessionId: "s" }] },
+          { command: "close_talos_session", args: [{ sessionId: "s" }] },
+        ]) {
+          try {
+            await core.invoke(invocation.command, ...invocation.args);
+            attempts.push(`${invocation.command}:allowed`);
+          } catch (error: unknown) {
+            const reason = typeof error === "string" ? error : "";
+            attempts.push(
+              reason.includes("not allowed")
+                ? `${invocation.command}:denied`
+                : `${invocation.command}:${reason.slice(0, 40)}`,
+            );
+          }
+        }
+        return attempts.join(",");
+      },
+      withExecuteOptions({ windowLabel: "unauthorized" }),
+    );
+    assert.equal(
+      result,
+      "import_talosconfig:denied,start_talos_probe:denied,stop_talos_probe:denied,close_talos_session:denied",
+    );
   });
 });

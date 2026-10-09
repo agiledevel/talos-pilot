@@ -4,4 +4,4 @@
 /**
  * Identifies a read-only helper capability available in this build.
  */
-export type HelperCapability = "status";
+export type HelperCapability = "status" | "talos_probe";

@@ -1,6 +1,7 @@
 //! Validates message identity and kind/payload agreement after protobuf decode.
 
 use super::generated::{Envelope, MessageKind, envelope};
+use std::{net::IpAddr, str::FromStr};
 
 /// Safe protocol validation failures that never include message payloads.
 #[derive(Debug, thiserror::Error, Eq, PartialEq)]
@@ -17,6 +18,12 @@ pub enum EnvelopeError {
     /// The oneof payload does not match the message kind.
     #[error("helper message kind and payload do not match")]
     PayloadMismatch,
+    /// The Talos probe request exceeds a size or target bound.
+    #[error("Talos probe request is invalid")]
+    InvalidTalosProbe,
+    /// A Talos version, stage, or stream marker is invalid.
+    #[error("Talos probe projection is invalid")]
+    InvalidTalosProjection,
 }
 
 /// Validates the stable envelope header and oneof relationship.
@@ -60,11 +67,127 @@ pub fn validate_envelope(envelope: &Envelope) -> Result<MessageKind, EnvelopeErr
             Some(envelope::Payload::ShutdownResponse(_)),
             MessageKind::ShutdownResponse
         ) | (Some(envelope::Payload::Error(_)), MessageKind::Error)
+            | (
+                Some(envelope::Payload::TalosProbeRequest(_)),
+                MessageKind::TalosProbeRequest
+            )
+            | (
+                Some(envelope::Payload::TalosProbeResponse(_)),
+                MessageKind::TalosProbeResponse
+            )
+            | (
+                Some(envelope::Payload::TalosStatusEvent(_)),
+                MessageKind::TalosStatusEvent
+            )
+            | (
+                Some(envelope::Payload::TalosCancelRequest(_)),
+                MessageKind::TalosCancelRequest
+            )
+            | (
+                Some(envelope::Payload::TalosCancelResponse(_)),
+                MessageKind::TalosCancelResponse
+            )
+            | (
+                Some(envelope::Payload::TalosStreamEnded(_)),
+                MessageKind::TalosStreamEnded
+            )
     );
     if !matches {
         return Err(EnvelopeError::PayloadMismatch);
     }
+    validate_talos_payload(envelope, kind)?;
     Ok(kind)
+}
+
+fn validate_talos_payload(envelope: &Envelope, kind: MessageKind) -> Result<(), EnvelopeError> {
+    match (&envelope.payload, kind) {
+        (Some(envelope::Payload::TalosProbeRequest(request)), MessageKind::TalosProbeRequest) => {
+            if request.talos_config.is_empty()
+                || request.talos_config.len() > 64 * 1024
+                || request.endpoints.is_empty()
+                || request.endpoints.len() > 8
+                || !valid_ip(&request.node)
+                || request
+                    .endpoints
+                    .iter()
+                    .any(|endpoint| !valid_endpoint(endpoint))
+            {
+                return Err(EnvelopeError::InvalidTalosProbe);
+            }
+            for (index, endpoint) in request.endpoints.iter().enumerate() {
+                if request.endpoints[..index].contains(endpoint) {
+                    return Err(EnvelopeError::InvalidTalosProbe);
+                }
+            }
+        }
+        (
+            Some(envelope::Payload::TalosProbeResponse(response)),
+            MessageKind::TalosProbeResponse,
+        ) => {
+            if !valid_label(&response.version, 64) || !valid_stage(&response.stage) {
+                return Err(EnvelopeError::InvalidTalosProjection);
+            }
+        }
+        (Some(envelope::Payload::TalosStatusEvent(event)), MessageKind::TalosStatusEvent) => {
+            if envelope.sequence == 0 || !valid_stage(&event.stage) {
+                return Err(EnvelopeError::InvalidTalosProjection);
+            }
+        }
+        (Some(envelope::Payload::TalosCancelRequest(request)), MessageKind::TalosCancelRequest) => {
+            if !valid_request_id(&request.subscription_request_id) {
+                return Err(EnvelopeError::InvalidRequestId);
+            }
+        }
+        (Some(envelope::Payload::TalosStreamEnded(ended)), MessageKind::TalosStreamEnded)
+            if !matches!(
+                ended.code.as_str(),
+                "cancelled" | "stream_complete" | "stream_failed"
+            ) || envelope.sequence == 0 =>
+        {
+            return Err(EnvelopeError::InvalidTalosProjection);
+        }
+        _ => {}
+    }
+
+    Ok(())
+}
+
+fn valid_ip(value: &str) -> bool {
+    IpAddr::from_str(value).is_ok_and(|address| !address.is_unspecified())
+}
+
+fn valid_endpoint(value: &str) -> bool {
+    if valid_ip(value) {
+        return true;
+    }
+    let Some((host, port)) = value.rsplit_once(':') else {
+        return false;
+    };
+    let host = host
+        .strip_prefix('[')
+        .and_then(|host| host.strip_suffix(']'))
+        .unwrap_or(host);
+    let Ok(address) = IpAddr::from_str(host) else {
+        return false;
+    };
+
+    port.parse::<u16>().is_ok_and(|port| port > 0) && !address.is_unspecified()
+}
+
+fn valid_label(value: &str, maximum: usize) -> bool {
+    !value.is_empty()
+        && value.len() <= maximum
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b'+'))
+}
+
+fn valid_stage(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 32
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
 }
 
 fn valid_request_id(request_id: &str) -> bool {
@@ -80,7 +203,10 @@ mod tests {
     use prost::Message;
 
     use super::{EnvelopeError, validate_envelope};
-    use crate::helper::protocol::generated::{Envelope, HandshakeRequest, MessageKind, envelope};
+    use crate::helper::protocol::generated::{
+        Envelope, HandshakeRequest, MessageKind, TalosProbeRequest, TalosProbeResponse,
+        TalosStatusEvent, envelope,
+    };
 
     fn valid_request() -> Envelope {
         Envelope {
@@ -155,6 +281,77 @@ mod tests {
     #[test]
     fn rejects_malformed_protobuf() {
         assert!(Envelope::decode([0x0f, 0xff].as_slice()).is_err());
+    }
+
+    #[test]
+    fn validates_talos_probe_targets_and_bounds() {
+        let mut valid = Envelope {
+            protocol_major: 1,
+            kind: MessageKind::TalosProbeRequest as i32,
+            request_id: "probe-1".to_owned(),
+            payload: Some(envelope::Payload::TalosProbeRequest(TalosProbeRequest {
+                talos_config: vec![1, 2, 3],
+                endpoints: vec!["10.79.0.2".to_owned(), "10.79.0.3:50000".to_owned()],
+                node: "10.79.0.4".to_owned(),
+            })),
+            ..Envelope::default()
+        };
+        assert_eq!(
+            validate_envelope(&valid),
+            Ok(MessageKind::TalosProbeRequest)
+        );
+
+        let Some(envelope::Payload::TalosProbeRequest(request)) = valid.payload.as_mut() else {
+            panic!("Talos request payload must exist");
+        };
+        request.node = "node.example".to_owned();
+        assert_eq!(
+            validate_envelope(&valid),
+            Err(EnvelopeError::InvalidTalosProbe)
+        );
+    }
+
+    #[test]
+    fn rejects_unbounded_talos_projection_and_invalid_sequences() {
+        let mut response = Envelope {
+            protocol_major: 1,
+            kind: MessageKind::TalosProbeResponse as i32,
+            request_id: "probe-1".to_owned(),
+            payload: Some(envelope::Payload::TalosProbeResponse(TalosProbeResponse {
+                version: "v1.14.1".to_owned(),
+                stage: "running".to_owned(),
+                ready: true,
+            })),
+            ..Envelope::default()
+        };
+        assert_eq!(
+            validate_envelope(&response),
+            Ok(MessageKind::TalosProbeResponse)
+        );
+        let Some(envelope::Payload::TalosProbeResponse(payload)) = response.payload.as_mut() else {
+            panic!("Talos response payload must exist");
+        };
+        payload.version = "v".repeat(65);
+        assert_eq!(
+            validate_envelope(&response),
+            Err(EnvelopeError::InvalidTalosProjection)
+        );
+
+        let event = Envelope {
+            protocol_major: 1,
+            kind: MessageKind::TalosStatusEvent as i32,
+            request_id: "probe-1".to_owned(),
+            payload: Some(envelope::Payload::TalosStatusEvent(TalosStatusEvent {
+                stage: "running".to_owned(),
+                ready: true,
+                deleted: false,
+            })),
+            ..Envelope::default()
+        };
+        assert_eq!(
+            validate_envelope(&event),
+            Err(EnvelopeError::InvalidTalosProjection)
+        );
     }
 
     #[test]

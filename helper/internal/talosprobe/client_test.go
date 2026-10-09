@@ -2,10 +2,13 @@ package talosprobe
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 
 	"github.com/siderolabs/talos/pkg/machinery/resources/runtime"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestOpenRejectsAndClearsInvalidConfiguration(t *testing.T) {
@@ -61,5 +64,20 @@ func TestMachineStatusProjectionOmitsUnmetConditions(t *testing.T) {
 	want := Status{Stage: "running", Ready: true}
 	if got != want {
 		t.Fatalf("projection = %#v, want %#v", got, want)
+	}
+}
+
+func TestFailureClassificationDoesNotExposeRawCauses(t *testing.T) {
+	for _, test := range []struct {
+		cause error
+		want  string
+	}{
+		{cause: status.Error(codes.PermissionDenied, "synthetic secret denial"), want: "talos_unauthorized"},
+		{cause: status.Error(codes.Unavailable, "synthetic endpoint detail"), want: "talos_unavailable"},
+		{cause: errors.New("x509: certificate signed by unknown authority"), want: "talos_certificate_invalid"},
+	} {
+		if got := FailureCode(test.cause); got != test.want {
+			t.Errorf("FailureCode() = %q, want %q", got, test.want)
+		}
 	}
 }

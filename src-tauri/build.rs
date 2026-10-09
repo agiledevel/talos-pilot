@@ -12,6 +12,10 @@ fn main() {
             "use_session_only_storage",
             "retry_persistent_storage",
             "import_kubeconfig",
+            "import_talosconfig",
+            "start_talos_probe",
+            "stop_talos_probe",
+            "close_talos_session",
         ]));
     tauri_build::try_build(attributes)
         .unwrap_or_else(|error| panic!("could not generate Tauri capabilities: {error}"));

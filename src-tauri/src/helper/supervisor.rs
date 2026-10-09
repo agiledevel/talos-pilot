@@ -4,18 +4,23 @@ use std::{io, path::Path, process::Stdio, time::Duration};
 
 use prost::Message;
 use thiserror::Error;
+use tokio::sync::watch;
+use zeroize::{Zeroize, Zeroizing};
+
+use crate::contracts::{TalosProbeEventDto, TalosProbeState};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     process::{Child, ChildStdin, ChildStdout, Command},
     task::JoinHandle,
-    time::timeout,
+    time::{Instant, timeout, timeout_at},
 };
 
 use super::protocol::{
     EnvelopeError, FrameError, MAX_FRAME_BYTES,
     generated::{
-        Envelope, HandshakeRequest, MessageKind, ShutdownRequest, StatusRequest, StatusResponse,
-        envelope,
+        Envelope, HandshakeRequest, MessageKind, ProtocolError, ShutdownRequest, StatusRequest,
+        StatusResponse, TalosCancelRequest, TalosProbeRequest, TalosProbeResponse,
+        TalosStatusEvent, TalosStreamEnded, envelope,
     },
     validate_envelope,
 };
@@ -23,6 +28,10 @@ use super::protocol::{
 const HELPER_PROTOCOL_MAJOR: u32 = 1;
 const STDERR_READ_BYTES: usize = 4096;
 const REQUIRED_CAPABILITY: &str = "status";
+const MAX_TALOS_STATUS_EVENTS: u64 = 256;
+
+/// Upper bound for a helper cancellation acknowledgement and stream-end marker.
+pub const TALOS_CANCEL_ACK_DEADLINE: Duration = Duration::from_secs(2);
 
 /// Errors reported while starting, using, or closing the helper process.
 #[derive(Debug, Error)]
@@ -66,6 +75,27 @@ pub enum SupervisorError {
     /// The helper exited before the requested response.
     #[error("the helper exited before responding")]
     ChildExited,
+    /// The helper rejected or failed an authenticated Talos probe.
+    #[error("the Talos probe failed")]
+    TalosProbeFailed(TalosProbeFailure),
+    /// A Talos stream contained an invalid sequence or projection.
+    #[error("the Talos stream is incompatible")]
+    TalosStreamInvalid,
+}
+
+/// Stable class of Talos probe failure accepted from the helper.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TalosProbeFailure {
+    /// The Talos client role was denied.
+    Unauthorized,
+    /// Peer or client certificate TLS validation failed.
+    CertificateInvalid,
+    /// The endpoint or node could not be reached before the deadline.
+    Unavailable,
+    /// A config or target invariant failed.
+    InvalidInput,
+    /// The read or stream failed for another safe reason.
+    General,
 }
 
 /// Nonsensitive status confirmed by the helper handshake.
@@ -77,6 +107,18 @@ pub struct HelperStatus {
     pub protocol_major: u32,
     /// Capabilities supported by the helper and accepted by this process.
     pub capabilities: Vec<String>,
+}
+
+/// Backend-selected Talos target and zeroizing session credential material.
+pub struct TalosProbeInput {
+    /// Inline talosconfig bytes owned by the current native session.
+    pub config: Zeroizing<Vec<u8>>,
+    /// API endpoints explicitly allowed for connection failover.
+    pub endpoints: Vec<String>,
+    /// One Talos node IP to receive the version read and COSI watch.
+    pub node: String,
+    /// Backend session identity associated with emitted projections.
+    pub session_id: String,
 }
 
 /// A single owned helper process with one outstanding exchange at a time.
@@ -164,10 +206,18 @@ impl HelperSupervisor {
             {
                 return Err(SupervisorError::CapabilityMissing);
             }
+            let mut capabilities = vec![REQUIRED_CAPABILITY.to_owned()];
+            if response
+                .capabilities
+                .iter()
+                .any(|item| item == "talos_probe")
+            {
+                capabilities.push("talos_probe".to_owned());
+            }
             supervisor.status = HelperStatus {
                 build_identity: response.build_identity,
                 protocol_major: response.protocol_major,
-                capabilities: vec![REQUIRED_CAPABILITY.to_owned()],
+                capabilities,
             };
             Ok(())
         };
@@ -233,6 +283,193 @@ impl HelperSupervisor {
             Err(error) => {
                 self.terminate().await;
                 Err(error)
+            }
+        }
+    }
+
+    /// Reads Talos version and streams bounded MachineStatus projections until
+    /// the caller cancels, the helper ends the stream, or a protocol fault occurs.
+    ///
+    /// The full talosconfig remains in zeroizing memory and crosses only the
+    /// private helper pipe. `on_event` receives no raw Talos resource fields.
+    ///
+    /// # Errors
+    ///
+    /// Returns a safe error for invalid helper responses, a failed Talos read,
+    /// stream sequence faults, pipe failures, or helper exit. Any protocol
+    /// failure terminates and reaps the helper before returning.
+    pub async fn talos_probe<F>(
+        &mut self,
+        request: TalosProbeInput,
+        mut cancellation: watch::Receiver<bool>,
+        mut on_event: F,
+        startup_deadline: Duration,
+    ) -> Result<(), SupervisorError>
+    where
+        F: FnMut(TalosProbeEventDto) -> Result<(), ()>,
+    {
+        let result = self
+            .talos_probe_inner(request, &mut cancellation, &mut on_event, startup_deadline)
+            .await;
+        if result.is_err() {
+            self.terminate().await;
+        }
+
+        result
+    }
+
+    async fn talos_probe_inner<F>(
+        &mut self,
+        request: TalosProbeInput,
+        cancellation: &mut watch::Receiver<bool>,
+        on_event: &mut F,
+        startup_deadline: Duration,
+    ) -> Result<(), SupervisorError>
+    where
+        F: FnMut(TalosProbeEventDto) -> Result<(), ()>,
+    {
+        let TalosProbeInput {
+            config,
+            endpoints,
+            node,
+            session_id,
+        } = request;
+        let request_id = self.next_request_id()?;
+        let mut request = Envelope {
+            protocol_major: HELPER_PROTOCOL_MAJOR,
+            kind: MessageKind::TalosProbeRequest as i32,
+            request_id: request_id.clone(),
+            payload: Some(envelope::Payload::TalosProbeRequest(TalosProbeRequest {
+                talos_config: config.as_slice().to_vec(),
+                endpoints,
+                node,
+            })),
+            ..Envelope::default()
+        };
+        validate_envelope(&request)?;
+        let mut encoded = Zeroizing::new(Vec::with_capacity(256));
+        let encode_result = request.encode(&mut *encoded);
+        if let Some(envelope::Payload::TalosProbeRequest(payload)) = request.payload.as_mut() {
+            payload.talos_config.zeroize();
+        }
+        encode_result.map_err(SupervisorError::Encode)?;
+        write_async_frame(&mut self.stdin, encoded.as_slice()).await?;
+        encoded.zeroize();
+
+        let initial = timeout(startup_deadline, read_envelope(&mut self.stdout)).await;
+        let initial = match initial {
+            Ok(Ok(response)) => response,
+            Ok(Err(error)) => return Err(error),
+            Err(_) => return Err(SupervisorError::Timeout),
+        };
+        if initial.request_id != request_id {
+            return Err(SupervisorError::ResponseMismatch);
+        }
+        if initial.sequence != 0 {
+            return Err(SupervisorError::TalosStreamInvalid);
+        }
+        let Some(envelope::Payload::TalosProbeResponse(TalosProbeResponse {
+            version,
+            stage,
+            ready,
+        })) = initial.payload
+        else {
+            if let Some(envelope::Payload::Error(error)) = initial.payload {
+                return Err(talos_probe_failure(error));
+            }
+            return Err(SupervisorError::ResponseMismatch);
+        };
+        let mut consumer_closed = emit_probe_event(
+            on_event,
+            TalosProbeEventDto {
+                session_id: session_id.clone(),
+                state: TalosProbeState::Healthy,
+                version: Some(version),
+                stage: Some(stage),
+                ready: Some(ready),
+                deleted: false,
+                sequence: "0".to_owned(),
+            },
+        )
+        .is_err();
+
+        let stdin = &mut self.stdin;
+        let stdout = &mut self.stdout;
+        let request_counter = &mut self.request_counter;
+        let mut last_sequence = 0_u64;
+        let mut cancel_request_id = None;
+        let mut cancel_acknowledged = false;
+        let mut cancel_deadline = None;
+        if consumer_closed {
+            cancel_request_id = Some(send_talos_cancel(stdin, request_counter, &request_id).await?);
+            cancel_deadline = Some(Instant::now() + TALOS_CANCEL_ACK_DEADLINE);
+        }
+        loop {
+            tokio::select! {
+                changed = cancellation.changed(), if cancel_request_id.is_none() => {
+                    if changed.is_err() || *cancellation.borrow_and_update() {
+                        cancel_request_id = Some(send_talos_cancel(stdin, request_counter, &request_id).await?);
+                        cancel_deadline = Some(Instant::now() + TALOS_CANCEL_ACK_DEADLINE);
+                    }
+                }
+                received = read_probe_envelope(stdout, cancel_deadline) => {
+                    let response = received?;
+                    if Some(response.request_id.as_str()) == cancel_request_id.as_deref() {
+                        if response.kind != MessageKind::TalosCancelResponse as i32 {
+                            return Err(SupervisorError::ResponseMismatch);
+                        }
+                        cancel_acknowledged = true;
+                        continue;
+                    }
+                    if response.request_id != request_id {
+                        return Err(SupervisorError::ResponseMismatch);
+                    }
+                    match response.payload {
+                        Some(envelope::Payload::TalosStatusEvent(TalosStatusEvent { stage, ready, deleted })) => {
+                            let expected = last_sequence.checked_add(1).ok_or(SupervisorError::TalosStreamInvalid)?;
+                            if response.kind != MessageKind::TalosStatusEvent as i32 || response.sequence != expected {
+                                return Err(SupervisorError::TalosStreamInvalid);
+                            }
+                            last_sequence = expected;
+                            if !consumer_closed && emit_probe_event(on_event, TalosProbeEventDto {
+                                session_id: session_id.clone(),
+                                state: TalosProbeState::Healthy,
+                                version: None,
+                                stage: Some(stage),
+                                ready: Some(ready),
+                                deleted,
+                                sequence: expected.to_string(),
+                            }).is_err() {
+                                consumer_closed = true;
+                            }
+                            if expected >= MAX_TALOS_STATUS_EVENTS {
+                                consumer_closed = true;
+                            }
+                            if consumer_closed && cancel_request_id.is_none() {
+                                cancel_request_id = Some(send_talos_cancel(stdin, request_counter, &request_id).await?);
+                                cancel_deadline = Some(Instant::now() + TALOS_CANCEL_ACK_DEADLINE);
+                            }
+                        }
+                        Some(envelope::Payload::TalosStreamEnded(TalosStreamEnded { code })) => {
+                            let expected = last_sequence.checked_add(1).ok_or(SupervisorError::TalosStreamInvalid)?;
+                            if response.kind != MessageKind::TalosStreamEnded as i32 || response.sequence != expected {
+                                return Err(SupervisorError::TalosStreamInvalid);
+                            }
+                            if cancel_request_id.is_some() && !cancel_acknowledged {
+                                return Err(SupervisorError::TalosStreamInvalid);
+                            }
+                            return match code.as_str() {
+                                "cancelled" | "stream_complete" => Ok(()),
+                                "stream_failed" => Err(SupervisorError::TalosProbeFailed(
+                                    TalosProbeFailure::General,
+                                )),
+                                _ => Err(SupervisorError::TalosStreamInvalid),
+                            };
+                        }
+                        Some(envelope::Payload::Error(error)) => return Err(talos_probe_failure(error)),
+                        _ => return Err(SupervisorError::ResponseMismatch),
+                    }
+                }
             }
         }
     }
@@ -323,6 +560,17 @@ impl HelperSupervisor {
     }
 }
 
+fn talos_probe_failure(error: ProtocolError) -> SupervisorError {
+    let failure = match error.code.as_str() {
+        "talos_unauthorized" => TalosProbeFailure::Unauthorized,
+        "talos_certificate_invalid" => TalosProbeFailure::CertificateInvalid,
+        "talos_unavailable" => TalosProbeFailure::Unavailable,
+        "talos_config_invalid" | "talos_invalid_target" => TalosProbeFailure::InvalidInput,
+        _ => TalosProbeFailure::General,
+    };
+    SupervisorError::TalosProbeFailed(failure)
+}
+
 fn status_response(response: Envelope) -> Result<HelperStatus, SupervisorError> {
     if response.kind != MessageKind::StatusResponse as i32 {
         return Err(SupervisorError::ResponseMismatch);
@@ -343,7 +591,11 @@ fn status_response(response: Envelope) -> Result<HelperStatus, SupervisorError> 
     Ok(HelperStatus {
         build_identity,
         protocol_major: HELPER_PROTOCOL_MAJOR,
-        capabilities: vec![REQUIRED_CAPABILITY.to_owned()],
+        capabilities: if capabilities.iter().any(|item| item == "talos_probe") {
+            vec![REQUIRED_CAPABILITY.to_owned(), "talos_probe".to_owned()]
+        } else {
+            vec![REQUIRED_CAPABILITY.to_owned()]
+        },
     })
 }
 
@@ -371,6 +623,62 @@ async fn read_async_frame(
         }
     })?;
     Ok(payload)
+}
+
+async fn read_envelope(reader: &mut (impl AsyncRead + Unpin)) -> Result<Envelope, SupervisorError> {
+    let bytes = read_async_frame(reader).await?;
+    let response = Envelope::decode(bytes.as_slice()).map_err(SupervisorError::Decode)?;
+    validate_envelope(&response)?;
+    Ok(response)
+}
+
+/// Reads the next Talos stream envelope, bounding the wait after cancellation.
+///
+/// Once the parent has asked the helper to stop a subscription, both the
+/// cancellation acknowledgement and the stream-end marker must arrive within
+/// [`TALOS_CANCEL_ACK_DEADLINE`]; otherwise the caller reports a timeout and the
+/// supervisor terminates and reaps the child instead of waiting forever.
+async fn read_probe_envelope(
+    reader: &mut (impl AsyncRead + Unpin),
+    cancel_deadline: Option<Instant>,
+) -> Result<Envelope, SupervisorError> {
+    match cancel_deadline {
+        Some(deadline) => timeout_at(deadline, read_envelope(reader))
+            .await
+            .map_err(|_| SupervisorError::Timeout)?,
+        None => read_envelope(reader).await,
+    }
+}
+
+async fn send_talos_cancel(
+    stdin: &mut (impl AsyncWrite + Unpin),
+    request_counter: &mut u64,
+    subscription_request_id: &str,
+) -> Result<String, SupervisorError> {
+    *request_counter = request_counter
+        .checked_add(1)
+        .ok_or(SupervisorError::ResponseMismatch)?;
+    let request_id = format!("helper-{}", *request_counter);
+    let request = Envelope {
+        protocol_major: HELPER_PROTOCOL_MAJOR,
+        kind: MessageKind::TalosCancelRequest as i32,
+        request_id: request_id.clone(),
+        payload: Some(envelope::Payload::TalosCancelRequest(TalosCancelRequest {
+            subscription_request_id: subscription_request_id.to_owned(),
+        })),
+        ..Envelope::default()
+    };
+    let encoded = request.encode_to_vec();
+    write_async_frame(stdin, &encoded).await?;
+
+    Ok(request_id)
+}
+
+fn emit_probe_event<F>(on_event: &mut F, event: TalosProbeEventDto) -> Result<(), ()>
+where
+    F: FnMut(TalosProbeEventDto) -> Result<(), ()>,
+{
+    on_event(event)
 }
 
 async fn write_async_frame(
@@ -403,7 +711,13 @@ async fn drain_stderr(mut stderr: tokio::process::ChildStderr) {
 mod tests {
     use std::{path::PathBuf, process::Command, time::Duration};
 
-    use super::{HelperSupervisor, SupervisorError};
+    use tokio::{sync::watch, time::Instant};
+    use zeroize::Zeroizing;
+
+    use super::{
+        HelperSupervisor, SupervisorError, TALOS_CANCEL_ACK_DEADLINE, TalosProbeFailure,
+        read_probe_envelope,
+    };
 
     fn build_helper(test_name: &str) -> PathBuf {
         let helper_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../helper");
@@ -447,6 +761,24 @@ mod tests {
         binary
     }
 
+    fn build_probe_fixture() -> PathBuf {
+        let helper_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../helper");
+        let binary = std::env::temp_dir().join(format!(
+            "talos-pilot-probe-fixture-test-{}{}",
+            std::process::id(),
+            std::env::consts::EXE_SUFFIX
+        ));
+        let result = Command::new("go")
+            .args(["build", "-o"])
+            .arg(&binary)
+            .arg("./testdata/probehelper")
+            .current_dir(helper_dir)
+            .output();
+        let output = result.unwrap_or_else(|_| panic!("Go stream fixture must build"));
+        assert!(output.status.success(), "Go stream fixture must build");
+        binary
+    }
+
     fn remove_helper(binary: PathBuf) {
         std::fs::remove_file(binary)
             .unwrap_or_else(|_| panic!("temporary helper binary must be removable"));
@@ -464,7 +796,7 @@ mod tests {
             .refresh_status(Duration::from_secs(5))
             .await
             .unwrap_or_else(|_| panic!("real Go helper status must succeed"));
-        assert_eq!(status.capabilities, ["status"]);
+        assert_eq!(status.capabilities, ["status", "talos_probe"]);
         supervisor
             .shutdown(Duration::from_secs(5))
             .await
@@ -508,6 +840,96 @@ mod tests {
             supervisor.refresh_status(Duration::from_secs(5)).await,
             Err(SupervisorError::ChildExited)
         ));
+        remove_helper(helper);
+    }
+
+    #[tokio::test]
+    async fn sends_talosconfig_only_over_helper_pipe_and_redacts_probe_errors() {
+        let helper = build_helper("talos-probe-redaction");
+        let mut supervisor =
+            HelperSupervisor::start(&helper, "development", Duration::from_secs(5))
+                .await
+                .unwrap_or_else(|_| panic!("real Go helper handshake must succeed"));
+        let (_cancel, cancellation) = watch::channel(false);
+        let secret = b"synthetic-taloscfg-secret".to_vec();
+        let error = supervisor
+            .talos_probe(
+                super::TalosProbeInput {
+                    config: Zeroizing::new(secret),
+                    endpoints: vec!["10.79.0.2".to_owned()],
+                    node: "10.79.0.2".to_owned(),
+                    session_id: "session-1".to_owned(),
+                },
+                cancellation,
+                |_| Ok(()),
+                Duration::from_secs(5),
+            )
+            .await;
+        assert!(matches!(
+            error,
+            Err(SupervisorError::TalosProbeFailed(
+                TalosProbeFailure::InvalidInput
+            ))
+        ));
+        assert!(
+            supervisor.child.try_wait().ok().flatten().is_some(),
+            "failed Talos exchanges must reap the helper"
+        );
+        remove_helper(helper);
+    }
+
+    #[tokio::test]
+    async fn cancellation_acknowledgement_wait_is_bounded() {
+        assert_eq!(TALOS_CANCEL_ACK_DEADLINE, Duration::from_secs(2));
+
+        // An expired cancellation deadline must fail the stream read instead of
+        // pinning the probe gate and the supervised helper forever.
+        let (mut stalled, _active) = tokio::io::duplex(64);
+        let expired = Instant::now() - Duration::from_millis(5);
+        let error = read_probe_envelope(&mut stalled, Some(expired)).await;
+        assert!(matches!(error, Err(SupervisorError::Timeout)));
+    }
+
+    #[tokio::test]
+    async fn streams_validated_status_and_cancels_the_helper_subscription() {
+        let helper = build_probe_fixture();
+        let mut supervisor =
+            HelperSupervisor::start(&helper, "development", Duration::from_secs(5))
+                .await
+                .unwrap_or_else(|_| panic!("protocol fixture handshake must succeed"));
+        let (cancel_sender, cancel_receiver) = watch::channel(false);
+        let mut events = Vec::new();
+        supervisor
+            .talos_probe(
+                super::TalosProbeInput {
+                    config: Zeroizing::new(b"synthetic-private-config".to_vec()),
+                    endpoints: vec!["10.79.0.2".to_owned()],
+                    node: "10.79.0.2".to_owned(),
+                    session_id: "session-1".to_owned(),
+                },
+                cancel_receiver,
+                |event| {
+                    let should_cancel = event.sequence == "1";
+                    events.push(event);
+                    if should_cancel {
+                        let _ = cancel_sender.send(true);
+                    }
+                    Ok(())
+                },
+                Duration::from_secs(5),
+            )
+            .await
+            .unwrap_or_else(|_| panic!("protocol fixture stream must cancel cleanly"));
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].version.as_deref(), Some("v1.14.1"));
+        assert_eq!(events[0].stage.as_deref(), Some("running"));
+        assert_eq!(events[0].sequence, "0");
+        assert_eq!(events[1].sequence, "1");
+        assert_eq!(events[1].ready, Some(true));
+        supervisor
+            .shutdown(Duration::from_secs(5))
+            .await
+            .unwrap_or_else(|_| panic!("protocol fixture helper must exit cleanly"));
         remove_helper(helper);
     }
 
