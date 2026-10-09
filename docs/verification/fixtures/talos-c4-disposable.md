@@ -195,7 +195,7 @@ pnpm talos:fixture -- --manifest tests/fixtures/talos-c4.json \
 ```
 
 [`scripts/talos-fixture.ts`](../../../scripts/talos-fixture.ts) takes file
-*references* only — credential content never appears in an argument or an
+_references_ only — credential content never appears in an argument or an
 environment value — rejects a talosconfig inside the repository, requires the
 manifest identity, version pins, and non-empty literal endpoint/node allowlists,
 rejects wildcard entries, rebuilds the packaged helper, then runs the ignored
