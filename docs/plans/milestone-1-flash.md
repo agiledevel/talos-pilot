@@ -359,10 +359,11 @@ RUSTDOCFLAGS="-D warnings" cargo doc --manifest-path src-tauri/Cargo.toml --lock
 cargo build --manifest-path src-tauri/Cargo.toml --locked
 pnpm desktop:build
 cargo audit --file src-tauri/Cargo.lock
+pnpm advisories:check
 git diff --check
 ```
 
-`pnpm desktop:build` currently builds the release executable with `--no-bundle`; it does not qualify installers. Packaging uses the target-specific Tauri command/configuration in [CI/release setup](../ci-release.md). `pnpm release:check-linux` requires generated Linux package resources. Run package/hash gates against actual build outputs, not empty directories or invented fixtures labeled as packages.
+`pnpm desktop:build` currently builds the release executable with `--no-bundle`; it does not qualify installers. Packaging uses the target-specific Tauri command/configuration in [CI/release setup](../ci-release.md). `pnpm release:check-linux` requires generated Linux package resources. Run package/hash gates against actual build outputs, not empty directories or invented fixtures labeled as packages. `pnpm test:native` builds the same release executable path with the test feature, so rerun `pnpm desktop:build` before `pnpm production:check` or `pnpm advisories:check`; both inspect that artifact.
 
 Validate changed workflows with the pinned actionlint command in CI. Regenerate icons/changelog/inventories only through their source workflow when changed. Do not manufacture a tag/release just to test documentation or a local packet.
 

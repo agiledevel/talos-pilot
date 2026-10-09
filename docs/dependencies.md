@@ -78,7 +78,21 @@ The WebdriverIO service/plugin packages are MIT; `tauri-plugin-wdio` is MIT OR A
 
 `pnpm licenses list --json` inventories installed dependencies. The initialization inventory contains MIT, MIT-0, Apache-2.0, Apache-2.0 OR MIT, BSD-2-Clause, BSD-3-Clause, ISC, CC0-1.0, BlueOak-1.0.0, and MPL-2.0 licenses. MPL code and its notices require particular attention when assembling redistributable notices; final installer notices and a release inventory remain release tasks. The [generated inventory](verification/dependency-inventory.json) records the installed npm and resolved Cargo package/license metadata. Rust dependencies include permissive and MPL-2.0 licenses, Unicode data licenses, and LLVM exceptions; the alternative LGPL options on two crates can be satisfied through their MIT/Apache alternatives. Final redistributed source/notice obligations still need release review. Cargo's lockfile is the Rust dependency inventory; `cargo metadata --locked --format-version 1` provides package license metadata for review.
 
-Use `pnpm audit` and `cargo audit --file src-tauri/Cargo.lock` for advisories. CI also runs Trivy over both lockfiles; its exceptions follow [CI/release](ci-release.md). Record any finding's applicability rather than silently excluding it. The verification record states the actual scan results.
+Use `pnpm audit`, `cargo audit --file src-tauri/Cargo.lock`, and `pnpm advisories:check` for advisories; CI also runs Trivy over both lockfiles and its exceptions follow [CI/release](ci-release.md). Record any finding's applicability rather than silently excluding it, and keep the verification record on the actual scan output.
+
+The 2026-10-09 scan used cargo-audit 0.22.2 against advisory database
+`550efd3d587a29b2e2c2b21b17a440da4fede999` (1,295 advisories, 569 locked Rust
+dependencies) and `pnpm audit --audit-level=low` on the pinned lockfile. npm
+reported no known vulnerabilities. Rust reported exactly two informational
+findings, both inherited from Tauri 2.12.1's Linux GTK3 stack: RUSTSEC-2024-0370
+(`proc-macro-error` 1.0.4, unmaintained, only behind the `glib-macros` and
+`gtk3-macros` proc-macros) and RUSTSEC-2024-0429 (`glib` 0.18.5, unsound only in
+`glib::VariantStrIter` iterator methods, whose patched 0.20 line `gtk = "0.18"`
+cannot select). `pnpm advisories:check` re-proves that record against the scanner
+report, the reverse dependency paths, and the 37,865 demangled symbols in the
+built Linux executable, where neither affected symbol appears. See [decision
+0006](decisions/0006-gtk3-advisory-applicability.md) for the accepted
+applicability decision, the alternatives, and the 2026-11-30 review date.
 
 Refresh versions deliberately from these primary sources, preserve exact direct pins, regenerate lockfiles, and rerun affected checks. CI action releases were also researched through GitHub's release/ref APIs; checkout v7.0.1, setup-node v7.1.0, and setup-go v6.5.0 are pinned by commit. The pnpm release-age exceptions list only the freshly published Vite/Playwright and WDIO 1.5.0 packages with reviewed target versions; it does not globally turn off pnpm's supply-chain policy.
 
