@@ -13,6 +13,7 @@
     "desktop:build": "tauri build --no-bundle",
     "build:native-test": "vite build --config vite.native-test.config.ts",
     "production:check": "node scripts/check-production-exclusion.ts",
+    "advisories:check": "node scripts/advisory-baseline.ts",
     "test:native": "node scripts/test-native.ts",
     "lint": "oxlint --type-aware --type-check --deny-warnings",
     "lint:fix": "oxlint --type-aware --fix",

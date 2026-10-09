@@ -50,6 +50,7 @@ The foundation milestone must provide the following scripts and document exact n
 | Go lint/tests | In `helper/`, `go vet ./...`, `go test ./...`, and `go test -race ./...` on supported race-detector targets |
 | Go build | In `helper/`, `go build ./...`; package the correct OS/architecture binary in native builds |
 | Contracts | `pnpm contracts:check` regenerates DTOs/Protobuf outputs deterministically and fails on differences, including missing or untracked generated outputs |
+| Advisory baseline | `pnpm advisories:check` compares the cargo-audit report, each recorded advisory's reverse dependency path, and the linked Linux executable against the accepted applicability record; a new, drifted, vanished, or newly linked finding fails, and a stripped or unreadable executable is an error rather than a pass |
 
 The TypeScript compiler configuration is strict, including unchecked indexed access and exact optional-property behavior. Enable relevant Oxlint correctness, React/Hooks, TypeScript, promise, import, accessibility, and test rules supported by the pinned tools. Vite transpilation does not replace type checking. Do not add a parallel default ESLint/Prettier stack. Verify the selected Oxc engine's TypeScript requirements against its [official guide](https://oxc.rs/docs/guide/usage/linter/type-aware.html).
 
