@@ -60,6 +60,8 @@ pnpm exec playwright install chromium
 pnpm test:e2e                      # browser appearance and accessibility
 pnpm production:check              # default native build excludes test-only surfaces
 pnpm advisories:check              # recorded advisory applicability still matches scan, path, binary
+pnpm audit:go                      # pinned govulncheck over the helper module graph
+pnpm inventory:check               # generated dependency/license inventory is current
 pnpm talos:fixture -- --manifest tests/fixtures/talos-c4.json --talosconfig <path>
                                    # live C4 harness against the allowlisted disposable fixture
 pnpm test:native                   # embedded WebDriver IPC, helper handshake, and denial checks
