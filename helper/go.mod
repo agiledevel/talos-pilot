@@ -7,6 +7,7 @@ tool google.golang.org/protobuf/cmd/protoc-gen-go
 require (
 	github.com/cosi-project/runtime v1.16.3
 	github.com/siderolabs/talos/pkg/machinery v1.14.1
+	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
 )
 
@@ -44,5 +45,4 @@ require (
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260810153831-ec0a7760b754 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260810153831-ec0a7760b754 // indirect
-	google.golang.org/grpc v1.83.2 // indirect
 )

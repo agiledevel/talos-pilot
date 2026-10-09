@@ -63,6 +63,15 @@ subscription whose backend session issued the request. The helper has a
 15-second initial read deadline; it does not automatically retry credential
 or authorization failures.
 
+One probe holds two authenticated connections, and the wire contract does not
+expose that split. `Version` is read on a connection across the supplied
+endpoint allowlist with the node target applied, so the read keeps ordinary
+endpoint failover. The `MachineStatus` watch runs on a second connection whose
+only endpoint is the selected node, because Talos rejects a node-proxied watch
+(`one-2-many proxying is not supported for method /cosi.resource.State/Watch`)
+and an endpoint-wide watch cannot attribute an event to a machine. See
+[decision 0007](../decisions/0007-pin-talos-streams-to-the-node-api.md).
+
 The Tauri command `get_helper_status` starts the helper lazily and returns only
 the validated build identity, protocol major, and accepted status capability.
 Tauri's generated app ACL enables this command only in the `main` capability.

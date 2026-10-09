@@ -56,7 +56,7 @@ func TestServeTalosProbeStreamsBoundedEventsAndCancels(t *testing.T) {
 	serveDone.Add(1)
 	go func() {
 		defer serveDone.Done()
-		serveError = serveWithProbe(inputReader, outputCapture, func(_ context.Context, received []byte, _ []string) (probeSession, error) {
+		serveError = serveWithProbe(inputReader, outputCapture, func(_ context.Context, received []byte, _ []string, _ string) (probeSession, error) {
 			observedConfig = received
 			return fakeProbeSession{}, nil
 		})
@@ -241,11 +241,11 @@ func shutdown(requestID string) *protocolv1.Envelope {
 
 type fakeProbeSession struct{}
 
-func (fakeProbeSession) ReadVersion(context.Context, string) (string, error) {
+func (fakeProbeSession) ReadVersion(context.Context) (string, error) {
 	return "v1.14.1", nil
 }
 
-func (fakeProbeSession) WatchMachineStatus(ctx context.Context, _ string, emit func(talosprobe.Status) error) error {
+func (fakeProbeSession) WatchMachineStatus(ctx context.Context, emit func(talosprobe.Status) error) error {
 	if err := emit(talosprobe.Status{Stage: "running", Ready: true}); err != nil {
 		return err
 	}

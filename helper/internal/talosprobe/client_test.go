@@ -13,11 +13,23 @@ import (
 
 func TestOpenRejectsAndClearsInvalidConfiguration(t *testing.T) {
 	config := []byte("synthetic-private-config")
-	if _, err := Open(context.Background(), config, []string{"10.79.0.2"}); err == nil {
+	if _, err := Open(context.Background(), config, []string{"10.79.0.2"}, "10.79.0.2"); err == nil {
 		t.Fatal("invalid config must be rejected")
 	}
 	if !reflect.DeepEqual(config, make([]byte, len(config))) {
 		t.Fatal("config buffer must be cleared on failure")
+	}
+}
+
+func TestOpenRejectsEveryTargetOutsideTheNodeContract(t *testing.T) {
+	for _, node := range []string{"", "node.internal", "0.0.0.0", "::", "10.79.0.2:bad"} {
+		config := []byte("synthetic-private-config")
+		if _, err := Open(context.Background(), config, []string{"10.79.0.2"}, node); err == nil {
+			t.Fatalf("invalid node target accepted: %q", node)
+		}
+		if !reflect.DeepEqual(config, make([]byte, len(config))) {
+			t.Fatalf("config buffer must be cleared for rejected node %q", node)
+		}
 	}
 }
 

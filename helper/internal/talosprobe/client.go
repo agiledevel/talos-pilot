@@ -53,15 +53,30 @@ type Status struct {
 	Deleted bool
 }
 
-// Session owns one authenticated Talos client and its connection lifecycle.
+// Session owns the two authenticated connections one probe needs.
+//
+// The read connection spans the backend-supplied API endpoint set, so the
+// version read uses ordinary endpoint failover. The stream connection is pinned
+// to exactly one node: Talos rejects a Watch that is proxied to a node with
+// "one-2-many proxying is not supported for method /cosi.resource.State/Watch",
+// and an endpoint-set watch cannot say which node produced an event. Pinning the
+// stream makes every projected MachineStatus attributable to the selected node.
 type Session struct {
-	client *client.Client
+	read   *client.Client
+	stream *client.Client
+	node   string
 }
 
-// Open parses an in-memory talosconfig and creates a client restricted to the
-// supplied API endpoints. Config bytes are cleared before this function
-// returns; the client retains only the credentials it needs for this session.
-func Open(ctx context.Context, configBytes []byte, endpoints []string) (*Session, error) {
+// Open parses an in-memory talosconfig and creates the probe connections. Config
+// bytes are cleared before this function returns; the clients retain only the
+// credentials they need for this session.
+//
+// # Errors
+//
+// Returns a Failure with a stable category when the config, the endpoint
+// allowlist, or the node target is invalid, or when either connection cannot be
+// established. The transferred config buffer is cleared on every path.
+func Open(ctx context.Context, configBytes []byte, endpoints []string, node string) (*Session, error) {
 	defer clear(configBytes)
 	if len(configBytes) == 0 || len(configBytes) > MaxConfigBytes {
 		return nil, Failure{code: "talos_config_invalid"}
@@ -69,28 +84,36 @@ func Open(ctx context.Context, configBytes []byte, endpoints []string) (*Session
 	if err := validateEndpoints(endpoints); err != nil {
 		return nil, Failure{code: "talos_config_invalid"}
 	}
+	if !validNode(node) {
+		return nil, Failure{code: "talos_invalid_target"}
+	}
 
 	config, err := clientconfig.FromBytes(configBytes)
 	if err != nil {
 		return nil, Failure{code: "talos_config_invalid"}
 	}
-	connection, err := client.New(ctx, client.WithConfig(config), client.WithEndpoints(endpoints...))
+	read, err := client.New(ctx, client.WithConfig(config), client.WithEndpoints(endpoints...))
 	if err != nil {
 		return nil, Failure{code: "talos_config_invalid"}
 	}
+	stream, err := client.New(ctx, client.WithConfig(config), client.WithEndpoints(node))
+	if err != nil {
+		_ = read.Close()
+		return nil, Failure{code: "talos_config_invalid"}
+	}
 
-	return &Session{client: connection}, nil
+	return &Session{read: read, stream: stream, node: node}, nil
 }
 
-// ReadVersion reads the Talos version from exactly one target node.
-func (session *Session) ReadVersion(ctx context.Context, node string) (string, error) {
-	if session == nil || session.client == nil {
+// ReadVersion reads the Talos version from the session's selected node.
+func (session *Session) ReadVersion(ctx context.Context) (string, error) {
+	if session == nil || session.read == nil {
 		return "", Failure{code: "talos_probe_failed"}
 	}
-	if !validNode(node) {
+	if session.node == "" {
 		return "", Failure{code: "talos_invalid_target"}
 	}
-	response, err := session.client.Version(client.WithNodes(ctx, node))
+	response, err := session.read.Version(client.WithNodes(ctx, session.node))
 	if err != nil || response == nil || len(response.GetMessages()) != 1 {
 		return "", failureFor(err)
 	}
@@ -106,20 +129,20 @@ func (session *Session) ReadVersion(ctx context.Context, node string) (string, e
 	return version, nil
 }
 
-// WatchMachineStatus subscribes to the official COSI MachineStatus resource.
-// The event queue and projection are bounded, and canceling ctx closes the
-// upstream subscription owned by the Talos client.
-func (session *Session) WatchMachineStatus(ctx context.Context, node string, emit func(Status) error) error {
-	if session == nil || session.client == nil {
+// WatchMachineStatus subscribes to the official COSI MachineStatus resource on
+// the session's node-pinned connection. The event queue and projection are
+// bounded, and canceling ctx closes the upstream subscription owned by the Talos
+// client.
+func (session *Session) WatchMachineStatus(ctx context.Context, emit func(Status) error) error {
+	if session == nil || session.stream == nil {
 		return Failure{code: "talos_probe_failed"}
 	}
-	if !validNode(node) || emit == nil {
+	if emit == nil {
 		return Failure{code: "talos_invalid_target"}
 	}
-	ctx = client.WithNodes(ctx, node)
 	events := make(chan safe.WrappedStateEvent[*runtime.MachineStatus], MaxEvents)
 	kind := resource.NewMetadata(runtime.NamespaceName, runtime.MachineStatusType, "", resource.VersionUndefined)
-	if err := safe.StateWatchKind[*runtime.MachineStatus](ctx, session.client.COSI, &kind, events, state.WithBootstrapContents(true)); err != nil {
+	if err := safe.StateWatchKind[*runtime.MachineStatus](ctx, session.stream.COSI, &kind, events, state.WithBootstrapContents(true)); err != nil {
 		return failureFor(err)
 	}
 
@@ -177,12 +200,24 @@ func classifyFailure(err error) string {
 	}
 }
 
-// Close releases client transports and credentials retained for this session.
+// Close releases both probe connections and the credentials they retain.
 func (session *Session) Close() error {
-	if session == nil || session.client == nil {
+	if session == nil {
 		return nil
 	}
-	return session.client.Close()
+	var readErr, streamErr error
+	if session.read != nil {
+		readErr = session.read.Close()
+		session.read = nil
+	}
+	if session.stream != nil {
+		streamErr = session.stream.Close()
+		session.stream = nil
+	}
+	if readErr != nil {
+		return readErr
+	}
+	return streamErr
 }
 
 func projectStatus(resource *runtime.MachineStatus) Status {

@@ -27,12 +27,12 @@ const (
 var buildIdentity = "development"
 
 type probeSession interface {
-	ReadVersion(context.Context, string) (string, error)
-	WatchMachineStatus(context.Context, string, func(talosprobe.Status) error) error
+	ReadVersion(context.Context) (string, error)
+	WatchMachineStatus(context.Context, func(talosprobe.Status) error) error
 	Close() error
 }
 
-type probeFactory func(context.Context, []byte, []string) (probeSession, error)
+type probeFactory func(context.Context, []byte, []string, string) (probeSession, error)
 
 type inbound struct {
 	message *protocolv1.Envelope
@@ -52,8 +52,8 @@ func main() {
 }
 
 func serve(input io.Reader, output io.Writer) error {
-	return serveWithProbe(input, output, func(ctx context.Context, config []byte, endpoints []string) (probeSession, error) {
-		return talosprobe.Open(ctx, config, endpoints)
+	return serveWithProbe(input, output, func(ctx context.Context, config []byte, endpoints []string, node string) (probeSession, error) {
+		return talosprobe.Open(ctx, config, endpoints, node)
 	})
 }
 
@@ -255,7 +255,7 @@ func runProbe(
 
 	startupContext, cancelStartup := context.WithTimeout(ctx, probeStartDeadline)
 	defer cancelStartup()
-	session, err := openProbe(ctx, probe.TalosConfig, probe.Endpoints)
+	session, err := openProbe(ctx, probe.TalosConfig, probe.Endpoints, probe.Node)
 	if err != nil {
 		code := talosprobe.FailureCode(err)
 		_ = writer.send(errorResponse(request, code, talosFailureMessage(code), talosFailureRetryable(code)))
@@ -263,7 +263,7 @@ func runProbe(
 	}
 	defer func() { _ = session.Close() }()
 
-	version, err := session.ReadVersion(startupContext, probe.Node)
+	version, err := session.ReadVersion(startupContext)
 	if err != nil {
 		code := talosprobe.FailureCode(err)
 		_ = writer.send(errorResponse(request, code, talosFailureMessage(code), talosFailureRetryable(code)))
@@ -278,7 +278,7 @@ func runProbe(
 	var sequence uint64
 	go func() {
 		first := true
-		watchDone <- session.WatchMachineStatus(watchContext, probe.Node, func(status talosprobe.Status) error {
+		watchDone <- session.WatchMachineStatus(watchContext, func(status talosprobe.Status) error {
 			if first {
 				first = false
 				firstStatus <- status
