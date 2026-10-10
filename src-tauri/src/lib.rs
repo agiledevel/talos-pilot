@@ -147,107 +147,155 @@ fn helper_path_error() -> ApplicationErrorDto {
     }
 }
 
-#[tauri::command]
-fn get_appearance_settings(
-    storage: State<'_, AppStorage>,
-) -> Result<AppearanceSettingsDto, ApplicationErrorDto> {
-    let storage = lock_storage(&storage.runtime, "get_appearance_settings")?;
-    let theme = storage
-        .preference("appearance-theme")
-        .map_err(|error| storage_error("get_appearance_settings", error))?;
-    let density = storage
-        .preference("appearance-density")
-        .map_err(|error| storage_error("get_appearance_settings", error))?;
-    let theme = match theme.as_deref().unwrap_or("system") {
-        "system" => AppearanceTheme::System,
-        "light" => AppearanceTheme::Light,
-        "dark" => AppearanceTheme::Dark,
-        _ => {
-            return Err(storage_error(
-                "get_appearance_settings",
-                StorageError::InvalidMetadata,
-            ));
-        }
-    };
-    let density = match density.as_deref().unwrap_or("comfortable") {
-        "comfortable" => AppearanceDensity::Comfortable,
-        "compact" => AppearanceDensity::Compact,
-        _ => {
-            return Err(storage_error(
-                "get_appearance_settings",
-                StorageError::InvalidMetadata,
-            ));
-        }
-    };
-    Ok(AppearanceSettingsDto { theme, density })
+/// Runs storage work on the blocking pool with the runtime lock held.
+///
+/// Storage commands touch SQLite and may wait on the operating-system vault, so
+/// they must never run on the main thread (where Tauri executes non-`async`
+/// commands) or on an async worker. A panicked or cancelled task is reported
+/// as the retryable `STORAGE_UNAVAILABLE` error for `action`.
+async fn run_storage<T, F>(
+    runtime: Arc<Mutex<StorageRuntime>>,
+    action: &'static str,
+    work: F,
+) -> Result<T, ApplicationErrorDto>
+where
+    T: Send + 'static,
+    F: FnOnce(&mut StorageRuntime) -> Result<T, ApplicationErrorDto> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut storage = lock_storage(&runtime, action)?;
+        work(&mut storage)
+    })
+    .await
+    .map_err(|_| {
+        application_error(
+            "STORAGE_UNAVAILABLE",
+            action,
+            "Local storage is unavailable.",
+            true,
+        )
+    })?
 }
 
 #[tauri::command]
-fn set_appearance_settings(
+async fn get_appearance_settings(
+    storage: State<'_, AppStorage>,
+) -> Result<AppearanceSettingsDto, ApplicationErrorDto> {
+    run_storage(
+        Arc::clone(&storage.runtime),
+        "get_appearance_settings",
+        |storage| {
+            let theme = storage
+                .preference("appearance-theme")
+                .map_err(|error| storage_error("get_appearance_settings", error))?;
+            let density = storage
+                .preference("appearance-density")
+                .map_err(|error| storage_error("get_appearance_settings", error))?;
+            let theme = match theme.as_deref().unwrap_or("system") {
+                "system" => AppearanceTheme::System,
+                "light" => AppearanceTheme::Light,
+                "dark" => AppearanceTheme::Dark,
+                _ => {
+                    return Err(storage_error(
+                        "get_appearance_settings",
+                        StorageError::InvalidMetadata,
+                    ));
+                }
+            };
+            let density = match density.as_deref().unwrap_or("comfortable") {
+                "comfortable" => AppearanceDensity::Comfortable,
+                "compact" => AppearanceDensity::Compact,
+                _ => {
+                    return Err(storage_error(
+                        "get_appearance_settings",
+                        StorageError::InvalidMetadata,
+                    ));
+                }
+            };
+            Ok(AppearanceSettingsDto { theme, density })
+        },
+    )
+    .await
+}
+
+#[tauri::command]
+async fn set_appearance_settings(
     storage: State<'_, AppStorage>,
     settings: AppearanceSettingsDto,
 ) -> Result<(), ApplicationErrorDto> {
-    let mut storage = lock_storage(&storage.runtime, "set_appearance_settings")?;
-    let theme = match settings.theme {
-        AppearanceTheme::System => "system",
-        AppearanceTheme::Light => "light",
-        AppearanceTheme::Dark => "dark",
-    };
-    let density = match settings.density {
-        AppearanceDensity::Comfortable => "comfortable",
-        AppearanceDensity::Compact => "compact",
-    };
-    storage
-        .set_appearance_preferences(theme, density)
-        .map_err(|error| storage_error("set_appearance_settings", error))
+    run_storage(
+        Arc::clone(&storage.runtime),
+        "set_appearance_settings",
+        move |storage| {
+            let theme = match settings.theme {
+                AppearanceTheme::System => "system",
+                AppearanceTheme::Light => "light",
+                AppearanceTheme::Dark => "dark",
+            };
+            let density = match settings.density {
+                AppearanceDensity::Comfortable => "comfortable",
+                AppearanceDensity::Compact => "compact",
+            };
+            storage
+                .set_appearance_preferences(theme, density)
+                .map_err(|error| storage_error("set_appearance_settings", error))
+        },
+    )
+    .await
 }
 
 #[tauri::command]
-fn get_credential_storage_status(
+async fn get_credential_storage_status(
     storage: State<'_, AppStorage>,
 ) -> Result<CredentialStorageStatusDto, ApplicationErrorDto> {
-    let storage = lock_storage(&storage.runtime, "get_credential_storage_status")?;
-    Ok(CredentialStorageStatusDto {
-        mode: credential_mode_dto(storage.credential_mode()),
-    })
+    run_storage(
+        Arc::clone(&storage.runtime),
+        "get_credential_storage_status",
+        |storage| {
+            Ok(CredentialStorageStatusDto {
+                mode: credential_mode_dto(storage.credential_mode()),
+            })
+        },
+    )
+    .await
 }
 
 #[tauri::command]
-fn use_session_only_storage(
+async fn use_session_only_storage(
     storage: State<'_, AppStorage>,
 ) -> Result<CredentialStorageStatusDto, ApplicationErrorDto> {
-    let mut storage = lock_storage(&storage.runtime, "use_session_only_storage")?;
-    storage
-        .use_session_only()
-        .map_err(|error| storage_error("use_session_only_storage", error))?;
-    Ok(CredentialStorageStatusDto {
-        mode: credential_mode_dto(storage.credential_mode()),
-    })
+    run_storage(
+        Arc::clone(&storage.runtime),
+        "use_session_only_storage",
+        |storage| {
+            storage
+                .use_session_only()
+                .map_err(|error| storage_error("use_session_only_storage", error))?;
+            Ok(CredentialStorageStatusDto {
+                mode: credential_mode_dto(storage.credential_mode()),
+            })
+        },
+    )
+    .await
 }
 
 #[tauri::command]
 async fn retry_persistent_storage(
     storage: State<'_, AppStorage>,
 ) -> Result<CredentialStorageStatusDto, ApplicationErrorDto> {
-    let storage = Arc::clone(&storage.runtime);
-    tauri::async_runtime::spawn_blocking(move || {
-        let mut storage = lock_storage(&storage, "retry_persistent_storage")?;
-        storage
-            .retry_persistent()
-            .map_err(|error| storage_error("retry_persistent_storage", error))?;
-        Ok(CredentialStorageStatusDto {
-            mode: credential_mode_dto(storage.credential_mode()),
-        })
-    })
+    run_storage(
+        Arc::clone(&storage.runtime),
+        "retry_persistent_storage",
+        |storage| {
+            storage
+                .retry_persistent()
+                .map_err(|error| storage_error("retry_persistent_storage", error))?;
+            Ok(CredentialStorageStatusDto {
+                mode: credential_mode_dto(storage.credential_mode()),
+            })
+        },
+    )
     .await
-    .map_err(|_| {
-        application_error(
-            "STORAGE_UNAVAILABLE",
-            "retry_persistent_storage",
-            "Persistent storage could not be retried.",
-            true,
-        )
-    })?
 }
 
 #[tauri::command]

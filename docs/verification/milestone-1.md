@@ -337,3 +337,13 @@ The helper's `probeStartDeadline` is now 12 s and the version read and first-sta
 Tests: `TestProbeStartupSharesOneDeadlineBetweenVersionAndFirstStatus` (200 ms budget, 120 ms version read; a separate-budget implementation would answer near 320 ms), `TestProbeCancelledDuringFirstStatusSendsNoTimeoutFrame`, and `helper_startup_timeout_maps_to_unavailable`. The new Go tests were not run against the pre-fix code in this session.
 
 Commands: Go gates including `go test -race ./...`, Rust fmt/clippy/test (69 passed, 1 ignored)/rustdoc, `git diff --check`: exit 0. Native gate not executed (no command change).
+
+### Review remediation R4
+
+Plan: [foundation review remediation](../plans/foundation-review-remediation-flash.md), packet R4, Linux x86_64, Rust 1.99.0.
+
+`get_appearance_settings`, `set_appearance_settings`, `get_credential_storage_status`, and `use_session_only_storage` were non-`async` commands that locked the storage mutex on the main thread. They are now `async` and, with `retry_persistent_storage`, share `run_storage`, which takes the `StorageRuntime` lock inside `spawn_blocking` and maps a join failure to the retryable `STORAGE_UNAVAILABLE`. `import_kubeconfig` keeps its own `spawn_blocking` body because it reads and validates the file before taking the lock. The vault call stays inside the lock, as [storage-v1.md](../storage/storage-v1.md) requires; no command name, argument, DTO, or ACL changed.
+
+Commands: Rust fmt, clippy `-D warnings`, `cargo test --locked --all-targets` (69 passed, 1 ignored; includes the plaintext sentinel scans), rustdoc `-D warnings`, `git diff --check`: exit 0.
+
+Not executed: the native gate (`pnpm test:native`). `pnpm` is not installed or executable on this host (a Node 26 toolchain exists, `spawnSync pnpm EACCES`), so the actual Tauri run for the command execution-context change is **unverified**. Run it on a provisioned host before relying on this packet; a mock transport cannot establish it.

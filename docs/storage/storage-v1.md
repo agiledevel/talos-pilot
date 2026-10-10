@@ -70,7 +70,9 @@ Persistent key initialization obtains the key through
 `Database::load_or_create_master_key`, which holds SQLite's immediate write
 reservation while consulting the vault. Instances sharing a database file
 therefore cannot race to generate and replace the first key before writing
-records. If a user retries the vault while session-only values are still in
+records. Every storage command runs on the blocking pool, never on the main
+thread, so a pending vault prompt cannot freeze the window. If a user retries
+the vault while session-only values are still in
 memory, new imports become persistent and the old values remain in memory; the
 status continues to show that combined state until the app exits.
 
