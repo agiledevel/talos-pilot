@@ -55,9 +55,14 @@ by request ID; the helper acknowledges cancellation and ends that stream with
 to the COSI watch. Rust forwards at most 256 status updates on one native
 channel before requesting cancellation, which bounds Tauri's queued channel
 data even if a view stops consuming callbacks. After Rust sends
-`TALOS_CANCEL_REQUEST` it waits at most two seconds for the acknowledgement and
-the matching `TALOS_STREAM_ENDED`; a helper that misses that deadline is
-terminated and reaped rather than awaited. The parent owns cancellation on
+`TALOS_CANCEL_REQUEST` it waits at most two seconds for both the subscription's
+terminal frame (`TALOS_STREAM_ENDED`, or an `ERROR` for the probe request) and
+the cancel reply, in either order. A natural stream end can cross the cancel on
+the pipe, so the reply is `TALOS_CANCEL_RESPONSE` or, when the helper already
+dropped the subscription, `ERROR` with `unknown_subscription`; Rust consumes
+that reply so no stale frame remains. Any other frame for the cancel request ID
+is a protocol fault. A helper that misses the deadline is terminated and
+reaped rather than awaited. The parent owns cancellation on
 view close, session close, and application shutdown, and cancels only the
 subscription whose backend session issued the request. The helper has a
 15-second initial read deadline; it does not automatically retry credential

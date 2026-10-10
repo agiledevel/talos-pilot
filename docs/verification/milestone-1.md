@@ -317,3 +317,13 @@ The talosconfig parser now deserializes `ca`, `crt`, and `key` into the shared z
 Limit: zeroization on drop is not observable from safe Rust tests; the evidence is the type change plus review. `serde_saphyr` may hold transient scalar copies while parsing, for both parsers, and is outside this packet.
 
 Commands: `cargo fmt`, `cargo clippy --locked --all-targets -D warnings`, `cargo test --locked --all-targets` (67 passed, 1 ignored), rustdoc with warnings denied, all exit 0. Go and native gates not executed (no Go or command-signature change).
+
+### Review remediation R6
+
+Plan: [foundation review remediation](../plans/foundation-review-remediation-flash.md), packet R6, base `ft-foundation` after R2, Linux x86_64, Rust 1.99.0, Go 1.27.2.
+
+With a cancel outstanding, the probe loop now finishes only after both the subscription terminal frame and the cancel reply (`TALOS_CANCEL_RESPONSE` or `ERROR{unknown_subscription}`) arrive, in either order, inside the existing two-second deadline; any other frame for the cancel request ID remains a protocol fault. [helper-v1.md](../protocol/helper-v1.md) states the rule.
+
+Test: `cancellation_crossing_a_natural_stream_end_is_accepted` uses the new `helper/testdata/endracehelper` fixture, which writes the stream end before reading the cancel and rotates replies (cancel response, `unknown_subscription`, silence). It asserts both reply forms return `Ok`, a following `refresh_status` succeeds on the same supervisor (no stale frame), and a missing reply ends in `Timeout` with the helper reaped. Before the fix it failed with an invalid-stream error on the first probe. The consumer closes at the first event so the cancel is sent deterministically; a first version that only signalled the cancellation channel was nondeterministic and was replaced. Stable over five consecutive runs.
+
+Commands: Rust gates (fmt, clippy `-D warnings`, `cargo test --locked --all-targets` 68 passed, rustdoc `-D warnings`), Go gates (gofmt, vet, `go test`, build), `git diff --check`: all exit 0. `go test -race` and the native gate were not executed.

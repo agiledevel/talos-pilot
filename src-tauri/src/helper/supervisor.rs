@@ -398,7 +398,11 @@ impl HelperSupervisor {
         let request_counter = &mut self.request_counter;
         let mut last_sequence = 0_u64;
         let mut cancel_request_id = None;
-        let mut cancel_acknowledged = false;
+        // Once a cancel is outstanding the stream finishes only when both the
+        // subscription's terminal frame and the cancel reply have arrived, in
+        // either order: a natural end can cross the cancel on the pipe.
+        let mut cancel_replied = false;
+        let mut terminal: Option<Result<(), SupervisorError>> = None;
         let mut cancel_deadline = None;
         if consumer_closed {
             cancel_request_id = Some(send_talos_cancel(stdin, request_counter, &request_id).await?);
@@ -417,11 +421,24 @@ impl HelperSupervisor {
                 received = read_probe_envelope(stdout, cancel_deadline) => {
                     let response = received?;
                     if Some(response.request_id.as_str()) == cancel_request_id.as_deref() {
-                        if response.kind != MessageKind::TalosCancelResponse as i32 {
+                        let unknown_subscription = matches!(
+                            &response.payload,
+                            Some(envelope::Payload::Error(error)) if error.code == "unknown_subscription"
+                        );
+                        if cancel_replied
+                            || (response.kind != MessageKind::TalosCancelResponse as i32
+                                && !unknown_subscription)
+                        {
                             return Err(SupervisorError::ResponseMismatch);
                         }
-                        cancel_acknowledged = true;
+                        cancel_replied = true;
+                        if let Some(result) = terminal.take() {
+                            return result;
+                        }
                         continue;
+                    }
+                    if terminal.is_some() {
+                        return Err(SupervisorError::ResponseMismatch);
                     }
                     if response.request_id != request_id {
                         return Err(SupervisorError::ResponseMismatch);
@@ -457,18 +474,25 @@ impl HelperSupervisor {
                             if response.kind != MessageKind::TalosStreamEnded as i32 || response.sequence != expected {
                                 return Err(SupervisorError::TalosStreamInvalid);
                             }
-                            if cancel_request_id.is_some() && !cancel_acknowledged {
-                                return Err(SupervisorError::TalosStreamInvalid);
-                            }
-                            return match code.as_str() {
+                            let result = match code.as_str() {
                                 "cancelled" | "stream_complete" => Ok(()),
                                 "stream_failed" => Err(SupervisorError::TalosProbeFailed(
                                     TalosProbeFailure::General,
                                 )),
                                 _ => Err(SupervisorError::TalosStreamInvalid),
                             };
+                            if cancel_request_id.is_none() || cancel_replied {
+                                return result;
+                            }
+                            terminal = Some(result);
                         }
-                        Some(envelope::Payload::Error(error)) => return Err(talos_probe_failure(error)),
+                        Some(envelope::Payload::Error(error)) => {
+                            let result = Err(talos_probe_failure(error));
+                            if cancel_request_id.is_none() || cancel_replied {
+                                return result;
+                            }
+                            terminal = Some(result);
+                        }
                         _ => return Err(SupervisorError::ResponseMismatch),
                     }
                 }
@@ -821,6 +845,79 @@ mod tests {
         let output = result.unwrap_or_else(|_| panic!("Go stream fixture must build"));
         assert!(output.status.success(), "Go stream fixture must build");
         binary
+    }
+
+    fn build_end_race_fixture() -> PathBuf {
+        let helper_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../helper");
+        let binary = std::env::temp_dir().join(format!(
+            "talos-pilot-end-race-fixture-test-{}{}",
+            std::process::id(),
+            std::env::consts::EXE_SUFFIX
+        ));
+        let result = Command::new("go")
+            .args(["build", "-o"])
+            .arg(&binary)
+            .arg("./testdata/endracehelper")
+            .current_dir(helper_dir)
+            .output();
+        let output = result.unwrap_or_else(|_| panic!("Go end-race fixture must build"));
+        assert!(output.status.success(), "Go end-race fixture must build");
+        binary
+    }
+
+    /// Runs a probe whose consumer closes at the first event, which makes the
+    /// supervisor send its cancel request deterministically.
+    fn close_at_first_event(
+        supervisor: &mut HelperSupervisor,
+    ) -> impl std::future::Future<Output = Result<(), SupervisorError>> + '_ {
+        let (_cancel_sender, cancel_receiver) = watch::channel(false);
+        supervisor.talos_probe(
+            super::TalosProbeInput {
+                config: Zeroizing::new(b"synthetic-private-config".to_vec()),
+                endpoints: vec!["10.79.0.2".to_owned()],
+                node: "10.79.0.2".to_owned(),
+                session_id: "session-1".to_owned(),
+            },
+            cancel_receiver,
+            |event| {
+                if event.sequence == "1" {
+                    Err(())
+                } else {
+                    Ok(())
+                }
+            },
+            Duration::from_secs(5),
+        )
+    }
+
+    #[tokio::test]
+    async fn cancellation_crossing_a_natural_stream_end_is_accepted() {
+        let helper = build_end_race_fixture();
+        let mut supervisor =
+            HelperSupervisor::start(&helper, "development", Duration::from_secs(5))
+                .await
+                .unwrap_or_else(|_| panic!("end-race fixture handshake must succeed"));
+
+        // First probe: the cancel is answered with TALOS_CANCEL_RESPONSE.
+        assert!(close_at_first_event(&mut supervisor).await.is_ok());
+        // Second probe: the cancel is answered with unknown_subscription.
+        assert!(close_at_first_event(&mut supervisor).await.is_ok());
+        // Neither reply may remain in the pipe as a stale frame.
+        supervisor
+            .refresh_status(Duration::from_secs(5))
+            .await
+            .unwrap_or_else(|_| panic!("the pipe must stay aligned after both races"));
+
+        // Third probe: no cancel reply ever arrives, so the bounded wait fires.
+        let started = Instant::now();
+        let third = close_at_first_event(&mut supervisor).await;
+        assert!(matches!(third, Err(SupervisorError::Timeout)), "{third:?}");
+        assert!(started.elapsed() < TALOS_CANCEL_ACK_DEADLINE + Duration::from_secs(2));
+        assert!(
+            supervisor.child.try_wait().ok().flatten().is_some(),
+            "a missing cancel reply must reap the helper"
+        );
+        remove_helper(helper);
     }
 
     fn remove_helper(binary: PathBuf) {
