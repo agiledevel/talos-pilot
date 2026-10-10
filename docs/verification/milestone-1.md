@@ -347,3 +347,14 @@ Plan: [foundation review remediation](../plans/foundation-review-remediation-fla
 Commands: Rust fmt, clippy `-D warnings`, `cargo test --locked --all-targets` (69 passed, 1 ignored; includes the plaintext sentinel scans), rustdoc `-D warnings`, `git diff --check`: exit 0.
 
 Not executed: the native gate (`pnpm test:native`). `pnpm` is not installed or executable on this host (a Node 26 toolchain exists, `spawnSync pnpm EACCES`), so the actual Tauri run for the command execution-context change is **unverified**. Run it on a provisioned host before relying on this packet; a mock transport cannot establish it.
+
+### Review remediation R3
+
+Plan: [foundation review remediation](../plans/foundation-review-remediation-flash.md), packet R3. Documentation only: [helper-v1.md](../protocol/helper-v1.md) now states that a status request waits for an active probe stream because the helper has one pipe and one in-flight exchange. No renderer component calls `getHelperStatus`; only the native helper-status spec does, without a concurrent probe. The coupling is tracked in the follow-ups table below. Gate: `git diff --check` and link review only.
+
+### Review remediation follow-ups
+
+| ID | Severity | Acceptance case | Owner decision or reason deferred |
+| --- | --- | --- | --- |
+| R3 | Low | A probe yielding several events is active, `status()` returns before the probe ends, the probe then completes normally, and no two exchanges touch the pipe concurrently. | Deferred: no renderer path polls helper status; a child-owning task that schedules pipe access from a request queue is a larger change for a later milestone and must land before any feature polls status. |
+| R4 (verification) | Low | `pnpm test:native` passes the storage and appearance flows with the async storage commands. | Not executed: `pnpm` is unavailable on the implementing host; run on a provisioned host. |

@@ -90,6 +90,12 @@ from the generated `src-tauri/binaries/` directory in development. Application
 exit requests graceful shutdown and awaits child reaping; failed exchanges
 terminate and reap the child before returning a structured safe error.
 
+The helper has one pipe and one in-flight exchange, so a `get_helper_status`
+request issued while a Talos probe stream is active waits until that stream
+ends, bounded by the 256-event cap or the two-second cancellation deadline.
+No renderer feature polls helper status today; one that does must first resolve
+the follow-up recorded in the milestone 1 ledger.
+
 ## Bounds and ownership
 
 The maximum frame payload is 1 MiB. Talos probe config is separately limited

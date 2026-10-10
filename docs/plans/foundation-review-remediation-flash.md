@@ -1,6 +1,6 @@
 # Foundation branch review remediation: FLASH implementation plan
 
-Date: 2026-10-10. Plan revision: 2. Status: ready for incremental implementation.
+Date: 2026-10-10. Plan revision: 2. Status: implemented on `ft-foundation` (R1-R6 committed); R4 native-gate verification outstanding, tracked in the milestone 1 ledger follow-ups.
 
 Audience: a fast LLM with limited reasoning, working in small verifiable sessions. This
 document supplies repository context, exact task packets, concrete fix direction, required
