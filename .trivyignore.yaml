@@ -11,3 +11,16 @@ vulnerabilities:
       scanner report, the reverse dependency path, and the linked executable; see
       docs/decisions/0006-gtk3-advisory-applicability.md.
     expired_at: 2026-11-30
+  - id: GO-2026-5932
+    paths:
+      - helper/go.mod
+    statement: >-
+      The advisory deprecates the golang.org/x/crypto/openpgp packages in every
+      module version, so no upgrade removes it. The helper builds none of them
+      on any declared target: Talos request signing uses
+      github.com/ProtonMail/go-crypto, the maintained fork the advisory
+      recommends, and x/crypto is required only for other packages. pnpm
+      audit:go (govulncheck) fails once an openpgp symbol is reachable from
+      helper code. Tracked as FND-007; evidence is in
+      docs/verification/automation.md.
+    expired_at: 2026-11-30
