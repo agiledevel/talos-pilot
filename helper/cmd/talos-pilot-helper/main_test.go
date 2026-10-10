@@ -349,6 +349,17 @@ func startSlowProbe(t *testing.T, deadline time.Duration, versionDelay time.Dura
 	inputWriter *io.PipeWriter, outputReader *io.PipeReader, serveDone *sync.WaitGroup,
 ) {
 	t.Helper()
+	return startProbe(t, deadline, func(context.Context, []byte, []string, string) (probeSession, error) {
+		return slowProbeSession{versionDelay: versionDelay}, nil
+	})
+}
+
+// startProbe serves the helper over unbuffered pipes, completes the handshake,
+// and sends one probe request. The output pipe closes when the helper returns.
+func startProbe(t *testing.T, deadline time.Duration, openProbe probeFactory) (
+	inputWriter *io.PipeWriter, outputReader *io.PipeReader, serveDone *sync.WaitGroup,
+) {
+	t.Helper()
 	inputReader, inputWriter := io.Pipe()
 	outputReader, outputWriter := io.Pipe()
 	serveDone = &sync.WaitGroup{}
@@ -356,9 +367,7 @@ func startSlowProbe(t *testing.T, deadline time.Duration, versionDelay time.Dura
 	go func() {
 		defer serveDone.Done()
 		defer func() { _ = outputWriter.Close() }()
-		_ = serveWithProbe(inputReader, outputWriter, func(context.Context, []byte, []string, string) (probeSession, error) {
-			return slowProbeSession{versionDelay: versionDelay}, nil
-		}, deadline)
+		_ = serveWithProbe(inputReader, outputWriter, openProbe, deadline)
 	}()
 	if err := writeRequest(inputWriter, handshake("handshake", buildIdentity)); err != nil {
 		t.Fatal(err)
@@ -394,31 +403,60 @@ func TestProbeStartupSharesOneDeadlineBetweenVersionAndFirstStatus(t *testing.T)
 		t.Fatalf("timeout arrived after %v, want one shared %v budget", elapsed, deadline)
 	}
 	_ = inputWriter.Close()
-	serveDone.Wait()
+	// Read before waiting: the output pipe is unbuffered, so an extra frame
+	// would otherwise block the helper and hang the test instead of failing it.
 	if extra, err := protocol.ReadFrame(outputReader); err == nil {
 		t.Fatalf("unexpected extra frame of %d bytes after the timeout", len(extra))
 	}
+	serveDone.Wait()
 }
 
-func TestProbeCancelledDuringFirstStatusSendsNoTimeoutFrame(t *testing.T) {
-	inputWriter, outputReader, serveDone := startSlowProbe(t, time.Hour, 0)
-	cancel := &protocolv1.Envelope{
-		ProtocolMajor: protocolMajor,
-		Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_REQUEST,
-		RequestId:     "cancel-1",
-		Payload: &protocolv1.Envelope_TalosCancelRequest{TalosCancelRequest: &protocolv1.TalosCancelRequest{
-			SubscriptionRequestId: "probe-1",
+// A cancelled probe context makes whichever startup step is running return its
+// own error. None of those errors is a probe failure: the helper answers the
+// cancel request and sends nothing for the probe request.
+func TestProbeCancelledDuringStartupSendsNoProbeFrame(t *testing.T) {
+	session := func(versionDelay time.Duration) probeFactory {
+		return func(context.Context, []byte, []string, string) (probeSession, error) {
+			return slowProbeSession{versionDelay: versionDelay}, nil
+		}
+	}
+	phases := []struct {
+		name      string
+		openProbe probeFactory
+	}{
+		{"open", func(ctx context.Context, _ []byte, _ []string, _ string) (probeSession, error) {
+			<-ctx.Done()
+			return nil, ctx.Err()
 		}},
+		{"version read", session(time.Hour)},
+		{"first status", session(0)},
 	}
-	if err := writeRequest(inputWriter, cancel); err != nil {
-		t.Fatal(err)
-	}
-	if response := readResponse(t, outputReader); response.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_RESPONSE {
-		t.Fatalf("cancel response = %v", response.Kind)
-	}
-	_ = inputWriter.Close()
-	serveDone.Wait()
-	if extra, err := protocol.ReadFrame(outputReader); err == nil {
-		t.Fatalf("unexpected frame after cancellation (%d bytes)", len(extra))
+	for _, phase := range phases {
+		t.Run(phase.name, func(t *testing.T) {
+			inputWriter, outputReader, serveDone := startProbe(t, time.Hour, phase.openProbe)
+			cancel := &protocolv1.Envelope{
+				ProtocolMajor: protocolMajor,
+				Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_REQUEST,
+				RequestId:     "cancel-1",
+				Payload: &protocolv1.Envelope_TalosCancelRequest{TalosCancelRequest: &protocolv1.TalosCancelRequest{
+					SubscriptionRequestId: "probe-1",
+				}},
+			}
+			if err := writeRequest(inputWriter, cancel); err != nil {
+				t.Fatal(err)
+			}
+			if response := readResponse(t, outputReader); response.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_RESPONSE {
+				t.Fatalf("cancel response = %v", response.Kind)
+			}
+			_ = inputWriter.Close()
+			// Read before waiting: the output pipe is unbuffered, so a stray
+			// frame would otherwise block the helper and hang the test.
+			if extra, err := protocol.ReadFrame(outputReader); err == nil {
+				stray := new(protocolv1.Envelope)
+				_ = proto.Unmarshal(extra, stray)
+				t.Fatalf("unexpected frame after cancellation: kind %v, error code %q", stray.Kind, stray.GetError().GetCode())
+			}
+			serveDone.Wait()
+		})
 	}
 }

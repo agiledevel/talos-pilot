@@ -69,8 +69,12 @@ subscription whose backend session issued the request. The helper shares one
 `MachineStatus` snapshot and answers an exhausted budget with the retryable
 `talos_probe_timeout` error, which Rust projects as `TALOS_UNAVAILABLE`. The
 parent's own startup deadline is 15 seconds, so the helper's classified answer
-always precedes a parent-side kill. The helper does not automatically retry
-credential or authorization failures.
+always precedes a parent-side kill. A probe cancelled before the helper sends
+its `TALOS_PROBE_RESPONSE` ends silently: the helper sends the cancel reply and
+no frame for the probe request, whichever startup step the cancellation
+interrupted. Rust does not cancel during startup; it bounds that phase with its
+own deadline. The helper does not automatically retry credential or
+authorization failures.
 
 One probe holds two authenticated connections, and the wire contract does not
 expose that split. `Version` is read on a connection across the supplied

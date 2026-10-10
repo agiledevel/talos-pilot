@@ -261,18 +261,26 @@ func runProbe(
 
 	startupContext, cancelStartup := context.WithTimeout(ctx, startupDeadline)
 	defer cancelStartup()
-	session, err := openProbe(ctx, probe.TalosConfig, probe.Endpoints, probe.Node)
-	if err != nil {
+	// A probe cancelled during startup is silent. Cancellation is acknowledged
+	// on its own request ID (or the helper is stopping), so the error an
+	// interrupted step returns is not a probe failure and must not reach the pipe.
+	reportStartupFailure := func(err error) {
+		if ctx.Err() != nil {
+			return
+		}
 		code := talosprobe.FailureCode(err)
 		_ = writer.send(errorResponse(request, code, talosFailureMessage(code), talosFailureRetryable(code)))
+	}
+	session, err := openProbe(ctx, probe.TalosConfig, probe.Endpoints, probe.Node)
+	if err != nil {
+		reportStartupFailure(err)
 		return
 	}
 	defer func() { _ = session.Close() }()
 
 	version, err := session.ReadVersion(startupContext)
 	if err != nil {
-		code := talosprobe.FailureCode(err)
-		_ = writer.send(errorResponse(request, code, talosFailureMessage(code), talosFailureRetryable(code)))
+		reportStartupFailure(err)
 		return
 	}
 
@@ -319,8 +327,8 @@ func runProbe(
 	select {
 	case initial = <-firstStatus:
 	case err = <-watchDone:
-		code := talosprobe.FailureCode(err)
-		_ = writer.send(errorResponse(request, code, talosFailureMessage(code), talosFailureRetryable(code)))
+		// A cancelled watch can finish before this select observes ctx.Done.
+		reportStartupFailure(err)
 		return
 	case <-startupContext.Done():
 		cancelWatch()
