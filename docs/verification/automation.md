@@ -106,3 +106,11 @@ Runs 38049609375 and 38049611875 (Foundation checks) and 38049611895 (Security s
 Executed on the same Linux host: the previous generator against a fresh `GOMODCACHE` filled by the workflow's Go steps reproduced the stale result (175016 generated against 176003 committed bytes); the new generator reports the regenerated inventory as current under both that fresh cache and the full developer cache. `pnpm check` (63 tests, including the changed and the added inventory case), `pnpm test:coverage`, `pnpm format:rust:check`, both Clippy configurations, both Rust test configurations (69 passed, 1 ignored), rustdoc, actionlint, and the `install-protoc` script (the `sha256sum` branch, the `shasum` branch, and an altered digest) all behaved as expected.
 
 Not executed locally: the Windows compilation of `secure_database_file` and the macOS digest branch, which only the hosted runners exercise. No cross-compilation toolchain for either target is installed on this host.
+
+### Third run at `88983a8`
+
+Foundation checks run 38050246762 (push) and Security scans run 38050249577 passed on every job: renderer, the four desktop runners, Trivy, and the three CodeQL languages. These are the first GitHub executions of the full desktop job on macOS and Windows for this branch, including `pnpm test:native` on each.
+
+Foundation checks run 38050249511 (pull request) passed on every job except `desktop (macos-15-intel)`, which GitHub cancelled at the 45-minute job limit during `cargo install cargo-audit`. Every step it executed had passed. Step durations on that runner varied between the two runs of the same commit (for example 213 s and 403 s for the first Rust test step), and the job needed about 50 minutes against 38 minutes on the push run. The desktop job limit is now 75 minutes, at the owner's direction on 2026-10-10.
+
+Not executed: a run with the 75-minute limit; the next push provides it.
