@@ -311,9 +311,16 @@ fn reject_symlink(path: &Path) -> Result<(), StorageError> {
     }
 }
 
+#[cfg(unix)]
 fn secure_database_file(path: &Path) -> Result<(), StorageError> {
-    #[cfg(unix)]
     fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
+    Ok(())
+}
+
+/// Windows has no mode bits to set: the database inherits the per-user ACL of
+/// the application-data directory.
+#[cfg(not(unix))]
+fn secure_database_file(_path: &Path) -> Result<(), StorageError> {
     Ok(())
 }
 
