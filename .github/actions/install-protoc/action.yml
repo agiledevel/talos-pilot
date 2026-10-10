@@ -1,0 +1,50 @@
+name: Install pinned protoc
+description: >-
+  Downloads the Protocol Buffers compiler pinned in
+  docs/decisions/0001-foundation-generators-and-native-harness.md, verifies the
+  archive's SHA-256, and puts it on PATH for prost-build and the contract
+  generator.
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        PROTOC_VERSION: "36.2"
+      run: |
+        # Digests are the published values for the v36.2 release assets.
+        case "$RUNNER_OS-$RUNNER_ARCH" in
+          Linux-X64)
+            platform=linux-x86_64
+            digest=121f6c7afe1d4d0e3ea6aab9432038599250134cbf4474cb1167d2c7decd4278
+            ;;
+          macOS-ARM64)
+            platform=osx-aarch_64
+            digest=9cd98a532c5c5e0c4161314de0225de27e4c8a323917b6ea7b1b714d3ae23466
+            ;;
+          macOS-X64)
+            platform=osx-x86_64
+            digest=228cc7add4616cc14ca5e80dee83209d44449a7aee95a914ae748fa374efb078
+            ;;
+          Windows-X64)
+            platform=win64
+            digest=f0c128dc0d8492eceece83bb459a4c0e316764b929ffbf1aa416357fd644edd3
+            ;;
+          *)
+            echo "No pinned protoc archive is recorded for $RUNNER_OS-$RUNNER_ARCH." >&2
+            exit 1
+            ;;
+        esac
+        archive="protoc-$PROTOC_VERSION-$platform.zip"
+        # Relative names keep Windows drive paths out of the checksum line.
+        cd "$RUNNER_TEMP"
+        curl -fsSL --retry 3 --max-time 120 "https://github.com/protocolbuffers/protobuf/releases/download/v$PROTOC_VERSION/$archive" -o "$archive"
+        # macOS runners provide shasum; Linux and Git Bash provide sha256sum.
+        if command -v sha256sum >/dev/null; then
+          echo "$digest  $archive" | sha256sum --check
+        else
+          echo "$digest  $archive" | shasum -a 256 --check
+        fi
+        unzip -q "$archive" -d protoc
+        echo "$RUNNER_TEMP/protoc/bin" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/protoc/bin/protoc" --version

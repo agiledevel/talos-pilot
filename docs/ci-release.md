@@ -19,6 +19,8 @@ No repository secret is required. Fork pull requests get a read-only token; thei
 
 For a local Trivy check matching CI, install Trivy 0.74.0 and run this from a clean checkout. In a working tree, skip local build directories such as `node_modules` and `src-tauri/target` with `--skip-dirs`.
 
+The desktop and release jobs need `protoc` because `prost-build` compiles the helper schema in `src-tauri/build.rs`, and hosted runners do not ship it. The local [`install-protoc`](../.github/actions/install-protoc/action.yml) action downloads the pinned 36.2 archive for the runner's platform, verifies its SHA-256, and adds it to `PATH`; a runner platform with no recorded digest fails the step. [`.gitattributes`](../.gitattributes) checks text out with LF on every platform, because rustfmt (`newline_style = "Unix"`) and the byte-for-byte generated-output comparisons reject the CRLF checkout that Git for Windows otherwise produces.
+
 ```sh
 trivy fs --scanners vuln,secret,misconfig --ignorefile .trivyignore.yaml --exit-code 1 .
 ```

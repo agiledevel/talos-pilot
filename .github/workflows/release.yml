@@ -105,6 +105,7 @@ jobs:
           echo "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  $RUNNER_TEMP/appimage-runtime-x86_64" | sha256sum --check
           printf 'LDAI_RUNTIME_FILE=%s\n' "$RUNNER_TEMP/appimage-runtime-x86_64" >> "$GITHUB_ENV"
       - run: rustup toolchain install 1.99.0 --profile minimal --target ${{ matrix.target }}
+      - uses: ./.github/actions/install-protoc
       - run: pnpm icons:check
       - name: Build preview packages
         run: pnpm tauri build --ci --config .github/tauri.release.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} -- --locked

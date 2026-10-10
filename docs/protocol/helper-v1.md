@@ -151,9 +151,11 @@ go build ./...
 
 The exact `protoc` archives and SHA-256 digests for Linux x86_64/arm64, macOS
 Intel/Apple Silicon, and Windows x86_64 are published on the [v36.2 release
-page](https://github.com/protocolbuffers/protobuf/releases/tag/v36.2). The
-foundation CI packet installs the matching archive and verifies its digest
-before running the same local generation command.
+page](https://github.com/protocolbuffers/protobuf/releases/tag/v36.2). CI
+installs the matching archive through the local
+[`install-protoc`](../../.github/actions/install-protoc/action.yml) action,
+which verifies its digest, so `prost-build` compiles the schema on every
+desktop and release runner.
 
 `pnpm helper:build` uses the target triple supplied by the Tauri CLI to
 cross-compile the helper with `CGO_ENABLED=0` for the four declared desktop
