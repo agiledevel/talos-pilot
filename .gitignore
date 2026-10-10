@@ -14,3 +14,4 @@ src-tauri/.local-tools/
 .DS_Store
 release-assets/
 release-notes.md
+.reasonix
