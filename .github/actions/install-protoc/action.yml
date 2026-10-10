@@ -36,14 +36,19 @@ runs:
             ;;
         esac
         archive="protoc-$PROTOC_VERSION-$platform.zip"
-        # Relative names keep Windows drive paths out of the checksum line.
+        # Relative names keep Windows drive paths out of the tool arguments.
         cd "$RUNNER_TEMP"
         curl -fsSL --retry 3 --max-time 120 "https://github.com/protocolbuffers/protobuf/releases/download/v$PROTOC_VERSION/$archive" -o "$archive"
-        # macOS runners provide shasum; Linux and Git Bash provide sha256sum.
+        # Compare the digest directly: the BSD sha256sum on macOS runners has
+        # no GNU --check option, and Git Bash does not always provide shasum.
         if command -v sha256sum >/dev/null; then
-          echo "$digest  $archive" | sha256sum --check
+          actual=$(sha256sum "$archive" | awk '{print $1}')
         else
-          echo "$digest  $archive" | shasum -a 256 --check
+          actual=$(shasum -a 256 "$archive" | awk '{print $1}')
+        fi
+        if [ "$actual" != "$digest" ]; then
+          echo "$archive has SHA-256 $actual, expected $digest." >&2
+          exit 1
         fi
         unzip -q "$archive" -d protoc
         echo "$RUNNER_TEMP/protoc/bin" >> "$GITHUB_PATH"
