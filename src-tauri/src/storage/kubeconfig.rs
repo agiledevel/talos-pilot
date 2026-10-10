@@ -1,10 +1,10 @@
 //! Bounded validation of imported Kubernetes kubeconfig documents.
 
-use base64::{Engine, engine::general_purpose::STANDARD};
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 use serde_saphyr::{from_slice_with_options, options};
-use zeroize::Zeroizing;
+
+use crate::secret::{SensitiveString, decodes_to_nonempty_base64};
 
 const MAX_DOCUMENT_BYTES: usize = 4 * 1024 * 1024;
 const MAX_NAMED_ENTRIES: usize = 256;
@@ -108,12 +108,12 @@ pub fn validate_kubeconfig(bytes: &[u8]) -> Result<KubeconfigMetadata, Kubeconfi
             .cluster
             .certificate_authority_data
             .as_ref()
-            .is_some_and(|value| !valid_base64(&value.0))
+            .is_some_and(|value| !decodes_to_nonempty_base64(value.expose()))
         {
             return Err(KubeconfigError::InvalidDocument);
         }
         if cluster.cluster.insecure_skip_tls_verify.unwrap_or(false)
-            || !valid_endpoint(&cluster.cluster.server.0)
+            || !valid_endpoint(cluster.cluster.server.expose())
         {
             return Err(KubeconfigError::InvalidEndpoint);
         }
@@ -149,12 +149,12 @@ pub fn validate_kubeconfig(bytes: &[u8]) -> Result<KubeconfigMetadata, Kubeconfi
             .user
             .client_certificate_data
             .as_ref()
-            .is_some_and(|value| !valid_base64(&value.0))
+            .is_some_and(|value| !decodes_to_nonempty_base64(value.expose()))
             || user
                 .user
                 .client_key_data
                 .as_ref()
-                .is_some_and(|value| !valid_base64(&value.0))
+                .is_some_and(|value| !decodes_to_nonempty_base64(value.expose()))
         {
             return Err(KubeconfigError::InvalidDocument);
         }
@@ -244,14 +244,6 @@ fn valid_endpoint(endpoint: &str) -> bool {
     })
 }
 
-fn valid_base64(value: &str) -> bool {
-    let decoded = match STANDARD.decode(value) {
-        Ok(decoded) => Zeroizing::new(decoded),
-        Err(_) => return false,
-    };
-    !decoded.is_empty()
-}
-
 #[derive(Deserialize)]
 struct Kubeconfig {
     #[serde(rename = "apiVersion")]
@@ -338,23 +330,6 @@ impl User {
                     .client_key_data
                     .as_ref()
                     .is_some_and(|value| !value.is_empty()))
-    }
-}
-
-struct SensitiveString(Zeroizing<String>);
-
-impl SensitiveString {
-    fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}
-
-impl<'de> Deserialize<'de> for SensitiveString {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        String::deserialize(deserializer).map(|value| Self(Zeroizing::new(value)))
     }
 }
 

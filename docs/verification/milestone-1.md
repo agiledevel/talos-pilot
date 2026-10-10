@@ -307,3 +307,13 @@ The helper supervisor read frames with `read_exact` inside the cancellation `sel
 New tests: `interrupted_frame_read_keeps_consumed_bytes`, `interrupted_header_read_keeps_consumed_bytes`, and `frame_reader_maps_eof_and_invalid_lengths`. The pre-fix failure (`Frame(InvalidLength)` on the resumed read) is the reproduction recorded in the plan's review evidence; the new tests were not separately executed against the old reader in this session. The existing streaming and bounded-cancel tests pass with only the reader type changed.
 
 Commands: `cargo fmt --check`, `cargo clippy --locked --all-targets -D warnings`, `cargo test --locked --all-targets` (65 passed, 1 ignored), and rustdoc with warnings denied, all exit 0. Not executed: Go gates (no Go change), native gate (no command signature change), `cargo build` as a separate step.
+
+### Review remediation R2
+
+Plan: [foundation review remediation](../plans/foundation-review-remediation-flash.md), packet R2, base `b0640c1`, Linux x86_64, Rust 1.99.0.
+
+The talosconfig parser now deserializes `ca`, `crt`, and `key` into the shared zeroizing `SensitiveString` and decodes through `decodes_to_nonempty_base64`, both moved from the kubeconfig parser into the crate-private `secret` module, leaving one definition of each. Accepted and rejected config semantics are unchanged; all existing talos and kubeconfig tests pass unmodified. New `secret.rs` tests cover base64 acceptance/rejection (empty, path reference) and the `expose`/`is_empty` round trip with synthetic values.
+
+Limit: zeroization on drop is not observable from safe Rust tests; the evidence is the type change plus review. `serde_saphyr` may hold transient scalar copies while parsing, for both parsers, and is outside this packet.
+
+Commands: `cargo fmt`, `cargo clippy --locked --all-targets -D warnings`, `cargo test --locked --all-targets` (67 passed, 1 ignored), rustdoc with warnings denied, all exit 0. Go and native gates not executed (no Go or command-signature change).

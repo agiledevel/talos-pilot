@@ -2,6 +2,7 @@
 
 pub mod contracts;
 pub mod helper;
+mod secret;
 pub mod storage;
 pub mod talos;
 

@@ -13,7 +13,6 @@ use std::{
     },
 };
 
-use base64::{Engine, engine::general_purpose::STANDARD};
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 use zeroize::Zeroizing;
@@ -21,6 +20,7 @@ use zeroize::Zeroizing;
 use crate::{
     contracts::{CredentialStorageModeDto, TalosCredentialSessionDto},
     helper::supervisor::TalosProbeInput,
+    secret::{SensitiveString, decodes_to_nonempty_base64},
 };
 
 /// Maximum number of in-memory Talos credential sessions.
@@ -79,19 +79,20 @@ struct TalosConfigContext {
     #[serde(default)]
     auth: Option<IgnoredAny>,
     #[serde(default)]
-    ca: Option<String>,
+    ca: Option<SensitiveString>,
     #[serde(default)]
-    crt: Option<String>,
+    crt: Option<SensitiveString>,
     #[serde(default)]
-    key: Option<String>,
+    key: Option<SensitiveString>,
 }
 
 impl TalosSessionStore {
     /// Parses and stores a native-selected talosconfig as a session-only credential.
     ///
-    /// The parser reads context metadata while ignoring certificate/key YAML
-    /// values. The original bounded source remains in a zeroizing buffer and
-    /// is never returned to the renderer.
+    /// The parser reads context metadata and the certificate/key values only to
+    /// prove they are inline base64; those values are held in zeroizing memory
+    /// for validation. The original bounded source remains in a zeroizing
+    /// buffer and is never returned to the renderer.
     pub fn insert(
         &self,
         config: Zeroizing<Vec<u8>>,
@@ -217,9 +218,9 @@ fn parse_config(source: &[u8]) -> Result<ParsedConfig, TalosConfigError> {
     };
     validate_identities(&nodes, MAX_NODES)?;
 
-    if !valid_inline_material(&context.ca)
-        || !valid_inline_material(&context.crt)
-        || !valid_inline_material(&context.key)
+    if !valid_inline_material(context.ca.as_ref())
+        || !valid_inline_material(context.crt.as_ref())
+        || !valid_inline_material(context.key.as_ref())
     {
         return Err(TalosConfigError::UnsupportedAuthentication);
     }
@@ -235,14 +236,8 @@ fn parse_config(source: &[u8]) -> Result<ParsedConfig, TalosConfigError> {
 ///
 /// The pinned Talos client decodes these fields with standard base64, so a
 /// non-decoding value is an external file reference the helper must not use.
-fn valid_inline_material(value: &Option<String>) -> bool {
-    let Some(value) = value else {
-        return false;
-    };
-    match STANDARD.decode(value) {
-        Ok(decoded) => !decoded.is_empty(),
-        Err(_) => false,
-    }
+fn valid_inline_material(value: Option<&SensitiveString>) -> bool {
+    value.is_some_and(|value| decodes_to_nonempty_base64(value.expose()))
 }
 
 struct ParsedConfig {
