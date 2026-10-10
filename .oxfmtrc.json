@@ -1,6 +1,7 @@
 {
   "ignorePatterns": [
     "pnpm-lock.yaml",
+    "docs/verification/dependency-inventory.json",
     "dist",
     "coverage",
     "playwright-report",

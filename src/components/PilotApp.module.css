@@ -11,8 +11,35 @@
   background: transparent;
   border-bottom: 1px solid rgba(128, 128, 128, 0.25);
 }
+.preferences {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.preference {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.preference legend {
+  float: left;
+  padding: 0;
+}
 .content {
   padding: 32px;
+}
+.credentials {
+  max-width: 720px;
+  margin: 48px auto 0;
+  display: grid;
+  gap: 16px;
+}
+.actionMessage {
+  margin-top: 12px;
 }
 .footer {
   text-align: center;
@@ -22,6 +49,15 @@
     align-items: flex-start;
     flex-direction: column;
     padding: 20px;
+  }
+  .preferences {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .preference {
+    align-items: flex-start;
+    flex-direction: column;
   }
   .content {
     padding: 20px;

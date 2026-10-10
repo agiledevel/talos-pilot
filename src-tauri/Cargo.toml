@@ -5,12 +5,58 @@ description = "Talos and Kubernetes desktop management"
 edition = "2024"
 rust-version = "1.99"
 publish = false
+default-run = "talos-pilot"
+
+[features]
+default = []
+native-test = ["dep:tauri-plugin-wdio", "dep:tauri-plugin-wdio-webdriver"]
 
 [build-dependencies]
+prost-build = "=0.14.4"
 tauri-build = { version = "=2.7.1", features = [] }
 
 [dependencies]
+base64 = "=0.22.1"
+chacha20poly1305 = { version = "=0.11.0", features = ["zeroize"] }
+getrandom = "=0.4.3"
+prost = "=0.14.4"
+rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled"] }
+secrecy = "=0.10.3"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+serde-saphyr = { version = "=1.3.0", default-features = false, features = ["deserialize"] }
 tauri = { version = "=2.12.1", features = [] }
+tauri-plugin-dialog = "=2.8.1"
+tauri-plugin-wdio = { version = "=1.5.0", optional = true }
+tauri-plugin-wdio-webdriver = { version = "=1.5.0", optional = true }
+thiserror = "=2.0.21"
+tokio = { version = "=1.53.2", features = [
+  "io-util",
+  "macros",
+  "process",
+  "rt",
+  "rt-multi-thread",
+  "sync",
+  "time",
+] }
+ts-rs = { version = "=12.0.1", features = ["serde-compat"] }
+url = "=2.5.8"
+zeroize = "=1.9.1"
+
+[dev-dependencies]
+tempfile = "=3.27.0"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "=3.6.3", default-features = false, features = [
+  "crypto-rust",
+  "sync-secret-service",
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "=3.6.3", default-features = false, features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "=3.6.3", default-features = false, features = ["windows-native"] }
 
 [lints.rust]
 missing_docs = "deny"

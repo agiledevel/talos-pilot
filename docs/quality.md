@@ -50,6 +50,9 @@ The foundation milestone must provide the following scripts and document exact n
 | Go lint/tests | In `helper/`, `go vet ./...`, `go test ./...`, and `go test -race ./...` on supported race-detector targets |
 | Go build | In `helper/`, `go build ./...`; package the correct OS/architecture binary in native builds |
 | Contracts | `pnpm contracts:check` regenerates DTOs/Protobuf outputs deterministically and fails on differences, including missing or untracked generated outputs |
+| Advisory baseline | `pnpm advisories:check` compares the cargo-audit report, each recorded advisory's reverse dependency path, and the linked Linux executable against the accepted applicability record; a new, drifted, vanished, or newly linked finding fails, and a stripped or unreadable executable is an error rather than a pass |
+| Go vulnerabilities | `pnpm audit:go` installs the pinned `govulncheck` into a private `GOBIN`, runs it over `helper/`, and fails on any finding in the linked call graph |
+| Dependency inventory | `pnpm inventory:check` regenerates `docs/verification/dependency-inventory.json` from the lockfiles, `cargo metadata`, `pnpm licenses`, and the Go module graph, and fails on any difference; `pnpm inventory:generate` writes it. Generated inventories are never hand-edited |
 
 The TypeScript compiler configuration is strict, including unchecked indexed access and exact optional-property behavior. Enable relevant Oxlint correctness, React/Hooks, TypeScript, promise, import, accessibility, and test rules supported by the pinned tools. Vite transpilation does not replace type checking. Do not add a parallel default ESLint/Prettier stack. Verify the selected Oxc engine's TypeScript requirements against its [official guide](https://oxc.rs/docs/guide/usage/linter/type-aware.html).
 

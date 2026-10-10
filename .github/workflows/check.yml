@@ -48,7 +48,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       RUSTDOCFLAGS: -D warnings
-    timeout-minutes: 45
+      TALOS_PILOT_BUILD_ID: ${{ inputs.revision || github.sha }}
+    # The macos-15-intel runner needs up to about 50 minutes for a passing run.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -59,15 +61,43 @@ jobs:
           node-version-file: .node-version
       - run: npm install --global pnpm@12.10.1
       - run: pnpm install --frozen-lockfile
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: helper/go.mod
+          cache-dependency-path: helper/go.sum
       - name: Linux native prerequisites
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libdbus-1-dev libxdo-dev build-essential pkg-config
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libdbus-1-dev libxdo-dev build-essential pkg-config xvfb
       - run: rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
+      - uses: ./.github/actions/install-protoc
       - run: pnpm format:rust:check
+      - name: Verify Go helper source and modules
+        working-directory: helper
+        shell: bash
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test ./...
+          go test -race ./...
+          go mod verify
+          go build ./...
       - run: pnpm build
+      - name: Verify pinned Go vulnerability scan
+        run: pnpm audit:go
+      - name: Verify the generated dependency inventory
+        if: runner.os == 'Linux'
+        run: pnpm inventory:check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --all-targets
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --features native-test -- -D warnings
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --all-targets --features native-test
       - run: cargo doc --manifest-path src-tauri/Cargo.toml --locked --no-deps
       - run: pnpm desktop:build
+      - run: pnpm production:check
+      - name: Run actual Tauri IPC tests
+        run: pnpm test:native
       - run: cargo install cargo-audit --version 0.22.2 --locked
       - run: cargo audit --file src-tauri/Cargo.lock
+      - name: Verify recorded advisory applicability
+        if: runner.os == 'Linux'
+        run: pnpm advisories:check

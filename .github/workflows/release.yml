@@ -80,6 +80,7 @@ jobs:
     env:
       RELEASE_TAG: ${{ needs.source.outputs.tag }}
       RELEASE_TARGET: ${{ matrix.target }}
+      TALOS_PILOT_BUILD_ID: ${{ needs.source.outputs.revision }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -88,6 +89,10 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: helper/go.mod
+          cache-dependency-path: helper/go.sum
       - run: npm install --global pnpm@12.10.1
       - run: pnpm install --frozen-lockfile
       - name: Linux package prerequisites
@@ -100,6 +105,7 @@ jobs:
           echo "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  $RUNNER_TEMP/appimage-runtime-x86_64" | sha256sum --check
           printf 'LDAI_RUNTIME_FILE=%s\n' "$RUNNER_TEMP/appimage-runtime-x86_64" >> "$GITHUB_ENV"
       - run: rustup toolchain install 1.99.0 --profile minimal --target ${{ matrix.target }}
+      - uses: ./.github/actions/install-protoc
       - run: pnpm icons:check
       - name: Build preview packages
         run: pnpm tauri build --ci --config .github/tauri.release.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} -- --locked

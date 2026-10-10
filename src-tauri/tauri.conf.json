@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "dev.talospilot.desktop",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "pnpm helper:build && pnpm dev",
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "pnpm helper:build && pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -27,6 +27,7 @@
   },
   "bundle": {
     "active": false,
-    "icon": ["icons/icon.png", "icons/icon.ico"]
+    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "resources": ["binaries/"]
   }
 }

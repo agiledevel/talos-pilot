@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package talos_pilot.helper.v1;
+
+option go_package = "github.com/agiledevel/talos-pilot/helper/internal/protocol/helper/v1;protocolv1";
+
+// Envelope is one private helper protocol message. Framing is defined in
+// docs/protocol/helper-v1.md; this message never crosses renderer IPC.
+message Envelope {
+  uint32 protocol_major = 1;
+  MessageKind kind = 2;
+  string request_id = 3;
+  optional string session_id = 4;
+  optional string operation_id = 5;
+  uint64 sequence = 6;
+
+  oneof payload {
+    HandshakeRequest handshake_request = 10;
+    HandshakeResponse handshake_response = 11;
+    StatusRequest status_request = 12;
+    StatusResponse status_response = 13;
+    ShutdownRequest shutdown_request = 14;
+    ShutdownResponse shutdown_response = 15;
+    ProtocolError error = 16;
+    TalosProbeRequest talos_probe_request = 17;
+    TalosProbeResponse talos_probe_response = 18;
+    TalosStatusEvent talos_status_event = 19;
+    TalosCancelRequest talos_cancel_request = 20;
+    TalosCancelResponse talos_cancel_response = 21;
+    TalosStreamEnded talos_stream_ended = 22;
+  }
+}
+
+enum MessageKind {
+  MESSAGE_KIND_UNSPECIFIED = 0;
+  MESSAGE_KIND_HANDSHAKE_REQUEST = 1;
+  MESSAGE_KIND_HANDSHAKE_RESPONSE = 2;
+  MESSAGE_KIND_STATUS_REQUEST = 3;
+  MESSAGE_KIND_STATUS_RESPONSE = 4;
+  MESSAGE_KIND_SHUTDOWN_REQUEST = 5;
+  MESSAGE_KIND_SHUTDOWN_RESPONSE = 6;
+  MESSAGE_KIND_ERROR = 7;
+  MESSAGE_KIND_TALOS_PROBE_REQUEST = 8;
+  MESSAGE_KIND_TALOS_PROBE_RESPONSE = 9;
+  MESSAGE_KIND_TALOS_STATUS_EVENT = 10;
+  MESSAGE_KIND_TALOS_CANCEL_REQUEST = 11;
+  MESSAGE_KIND_TALOS_CANCEL_RESPONSE = 12;
+  MESSAGE_KIND_TALOS_STREAM_ENDED = 13;
+}
+
+message HandshakeRequest {
+  uint32 protocol_major = 1;
+  string expected_build_identity = 2;
+}
+
+message HandshakeResponse {
+  uint32 protocol_major = 1;
+  string build_identity = 2;
+  repeated string capabilities = 3;
+}
+
+message StatusRequest {}
+
+message StatusResponse {
+  string build_identity = 1;
+  repeated string capabilities = 2;
+}
+
+message ShutdownRequest {}
+
+message ShutdownResponse {}
+
+message ProtocolError {
+  string code = 1;
+  string safe_message = 2;
+  bool retryable = 3;
+}
+
+// TalosProbeRequest carries backend-owned credentials only over helper stdin.
+message TalosProbeRequest {
+  bytes talos_config = 1;
+  repeated string endpoints = 2;
+  string node = 3;
+}
+
+// TalosProbeResponse contains the authenticated version and bootstrap snapshot.
+message TalosProbeResponse {
+  string version = 1;
+  string stage = 2;
+  bool ready = 3;
+}
+
+// TalosStatusEvent is the bounded projection of one MachineStatus update.
+message TalosStatusEvent {
+  string stage = 1;
+  bool ready = 2;
+  bool deleted = 3;
+}
+
+// TalosCancelRequest stops the stream identified by subscription_request_id.
+message TalosCancelRequest {
+  string subscription_request_id = 1;
+}
+
+message TalosCancelResponse {}
+
+// TalosStreamEnded closes the event sequence for one probe request.
+message TalosStreamEnded {
+  string code = 1;
+}

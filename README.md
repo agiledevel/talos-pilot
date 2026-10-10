@@ -11,7 +11,7 @@
 
 Talos Pilot is being built to bring cluster infrastructure and Kubernetes workloads into one desktop application. The planned v1 covers creating clusters on machines in Talos maintenance mode, inspecting nodes and workloads, managing resources and Helm releases, performing guided upgrades, and backing up and recovering clusters.
 
-**Current stage: foundation development, milestone 1.** The application currently provides a runnable Tauri shell with light/dark themes, compact density, and an empty cluster view. Cluster connections, credential storage, and management operations are not implemented yet. Preview packages demonstrate the shell and packaging; the complete v1 scope remains the [locked design](docs/design.md).
+**Current stage: foundation development, milestone 1 (C4 live probe proven; C5–C9 open).** The application provides a runnable Tauri shell with light/dark themes, compact density, and an empty cluster view. C1 adds the versioned Rust/Go helper protocol, supervision, a safe status command, and target-specific helper builds. C2 adds runtime-validated renderer IPC, a real Tauri helper permission test, and a Linux production-exclusion check. C3.1 adds backend-only SQLite schema and AEAD primitives; C3.2 adds explicit native vault providers, encrypted restart, and an in-memory session-only store. C3.3 connects safe kubeconfig import and persisted appearance controls. C4 adds the session-only Talos credential store, the helper probe stream with session-scoped bounded cancellation, and an accessible read-probe view; against the allowlisted disposable QEMU fixture `pnpm talos:fixture` now proves the authenticated `Version` read, the node-pinned `MachineStatus` stream, live cancellation, endpoint failover, and `TALOS_CERTIFICATE_INVALID`/`TALOS_UNAVAILABLE` classification through the production path, after which the fixture is destroyed and the host verified back to its recorded baseline. C7.1 records a verified applicability decision for both inherited GTK3 advisories and enforces it with `pnpm advisories:check`. macOS/Windows vault runtime checks and package qualification also remain in progress. Preview packages demonstrate the shell and packaging; the complete v1 scope remains the [locked design](docs/design.md).
 
 The [milestone 1 FLASH LLM implementation plan](docs/plans/milestone-1-flash.md) defines the remaining foundation work in small execution packets, with context, checkpoints, required tests, and evidence for a fast implementing model.
 
@@ -38,7 +38,7 @@ The renderer does not own cluster credentials or connect directly to cluster API
 
 ## Run from source
 
-Install **Node 26.11.1**, **pnpm 12.10.1**, **Rust 1.99.0**, and the [Tauri native prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS. Node and Rust are pinned in `.node-version` and `rust-toolchain.toml`.
+Install **Node 26.11.1**, **pnpm 12.10.1**, **Rust 1.99.0**, **Go 1.27.1**, and the [Tauri native prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS. Node and Rust are pinned in `.node-version` and `rust-toolchain.toml`; Go is pinned by `helper/go.mod`.
 
 ```sh
 git clone https://github.com/agiledevel/talos-pilot.git
@@ -58,13 +58,21 @@ pnpm format:rust:check             # rustfmt check (pnpm format:rust applies it)
 pnpm test:coverage                 # coverage reports, including LCOV
 pnpm exec playwright install chromium
 pnpm test:e2e                      # browser appearance and accessibility
+pnpm production:check              # default native build excludes test-only surfaces
+pnpm advisories:check              # recorded advisory applicability still matches scan, path, binary
+pnpm audit:go                      # pinned govulncheck over the helper module graph
+pnpm inventory:check               # generated dependency/license inventory is current
+pnpm talos:fixture -- --manifest tests/fixtures/talos-c4.json --talosconfig <path>
+                                   # live C4 harness against the allowlisted disposable fixture
+pnpm test:native                   # embedded WebDriver IPC, helper handshake, and denial checks
 pnpm icons:check                   # deterministic desktop icon conversion
-pnpm desktop:build                 # native release executable
+pnpm contracts:check               # generated Rust/Go/TypeScript contracts are current
+pnpm desktop:build                 # builds the target helper and native release executable
 ```
 
 [GitHub Actions](.github/workflows/check.yml) runs renderer checks and Rust formatting, Clippy, tests, rustdoc, builds, and dependency scans across the desktop build matrix. The [security scans](.github/workflows/security.yml) run CodeQL on the workflows, TypeScript, and Rust, and Trivy on dependencies, secrets, and misconfigurations. Each fails on any finding. Badges above report live checks; they are not a claim that every planned feature is qualified.
 
-See the [initialization evidence](docs/verification/initialization.md) and [automation evidence](docs/verification/automation.md) for executed environments and limitations. The existing GLib/macro dependency advisory findings remain tracked foundation work. Trivy has one exception, for the tracked GLib advisory, and it expires on 2026-11-30. Setup is in [CI/release](docs/ci-release.md).
+See the [initialization evidence](docs/verification/initialization.md) and [automation evidence](docs/verification/automation.md) for executed environments and limitations. The two GLib/macro dependency advisories inherited from Tauri's Linux GTK3 stack carry a verified applicability decision in [0006](docs/decisions/0006-gtk3-advisory-applicability.md); Trivy has two exceptions, for the tracked GLib advisory and for the unlinked `golang.org/x/crypto/openpgp` deprecation notice (GO-2026-5932), and both expire on 2026-11-30. `pnpm test:native` and `pnpm desktop:build` share the release executable path, so rebuild with `pnpm desktop:build` before `pnpm production:check` or `pnpm advisories:check`. Setup is in [CI/release](docs/ci-release.md).
 
 ## Preview releases
 

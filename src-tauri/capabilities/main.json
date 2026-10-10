@@ -1,7 +1,19 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "The initial shell has no application commands or plugin permissions.",
+  "description": "Main-window access to safe application settings, credential import, and Talos probe commands.",
   "windows": ["main"],
-  "permissions": []
+  "permissions": [
+    "allow-get-helper-status",
+    "allow-get-appearance-settings",
+    "allow-set-appearance-settings",
+    "allow-get-credential-storage-status",
+    "allow-use-session-only-storage",
+    "allow-retry-persistent-storage",
+    "allow-import-kubeconfig",
+    "allow-import-talosconfig",
+    "allow-start-talos-probe",
+    "allow-stop-talos-probe",
+    "allow-close-talos-session"
+  ]
 }

@@ -6,14 +6,22 @@ The `Security scans` workflow ([security.yml](../.github/workflows/security.yml)
 
 **CodeQL** analyzes `actions`, `javascript-typescript`, and `rust` with `build-mode: none`, using `github/codeql-action` **v4.38.1**, pinned by commit. The Rust job installs the pinned toolchain and the GTK/WebKit headers so that build scripts and proc macros resolve. Each language job fails unless its SARIF output contains zero results. On push, pull request, and schedule runs, results are also uploaded to GitHub code scanning. Release runs do not upload: a manually dispatched release can analyze a tag revision that differs from the triggering ref, so those runs gate only on the local SARIF.
 
-**Trivy** **v0.74.0** scans the checked-out tree for dependency vulnerabilities (`pnpm-lock.yaml`, `src-tauri/Cargo.lock`), committed secrets, and misconfigurations, and fails on any finding at any severity. CI downloads the release archive and verifies its SHA-256 before running it, the same pattern as actionlint. `aquasecurity/trivy-action` is deliberately not used, because its tags were republished in March 2026. Outside release runs, a separate SARIF pass uploads Trivy findings to code scanning under the `trivy` category.
+**Trivy** **v0.74.0** scans the checked-out tree for dependency vulnerabilities (`pnpm-lock.yaml`, `src-tauri/Cargo.lock`, `helper/go.mod`), committed secrets, and misconfigurations, and fails on any finding at any severity. CI downloads the release archive and verifies its SHA-256 before running it, the same pattern as actionlint. `aquasecurity/trivy-action` is deliberately not used, because its tags were republished in March 2026. Outside release runs, a separate SARIF pass uploads Trivy findings to code scanning under the `trivy` category.
 
-[`.trivyignore.yaml`](../.trivyignore.yaml) holds the only accepted exception. GHSA-wrw7-89jp-8q8g (RUSTSEC-2024-0429, glib 0.18.5 from Tauri's GTK3 stack) is scoped to `src-tauri/Cargo.lock` and expires on **2026-11-30**. After that date Trivy reports the finding again and the gate fails. Resolution is owned by FND-007 ([initialization](verification/initialization.md)). The exception is not a reachability claim, and `cargo audit` still reports the advisory. Any new exception needs one finding ID, a path, a statement, and an expiry date.
+[`.trivyignore.yaml`](../.trivyignore.yaml) holds the two accepted exceptions. GHSA-wrw7-89jp-8q8g (RUSTSEC-2024-0429, glib 0.18.5 from Tauri's GTK3 stack) is scoped to `src-tauri/Cargo.lock` and expires on **2026-11-30**. After that date Trivy reports the finding again and the gate fails. The applicability decision and its evidence are recorded in [decision 0006](decisions/0006-gtk3-advisory-applicability.md); `pnpm advisories:check` re-proves them in the Linux desktop job and fails if the scanner report, the dependency path, or the linked executable no longer matches the record. `cargo audit` still reports both advisories unignored.
+
+GO-2026-5932 is scoped to `helper/go.mod` and also expires on **2026-11-30**. It marks the `golang.org/x/crypto/openpgp` packages as unmaintained in every `x/crypto` version, so no upgrade removes it; Trivy matches the module, not the packages a build uses. The helper builds none of those packages on any declared target: Talos request signing reaches `github.com/ProtonMail/go-crypto`, the maintained fork the advisory recommends, and `x/crypto` is required only for other packages. `pnpm audit:go` keeps that claim enforced, because `govulncheck` fails once an `openpgp` symbol is reachable from helper code. The evidence is in the [automation record](verification/automation.md#amendment-first-ft-foundation-ci-run).
+
+Any new exception needs one finding ID, a path, a statement, and an expiry date.
 
 Repository setup:
 
 1. Leave GitHub's code scanning **default setup** disabled. Code scanning rejects uploads from an advanced workflow while default setup is enabled.
 2. Protect `main` with required checks for the three **CodeQL** jobs, **Trivy filesystem scan**, **renderer**, and all four **desktop** matrix jobs. The workflow files create these checks; they do not change branch-protection settings.
+
+The desktop and release jobs need `protoc` because `prost-build` compiles the helper schema in `src-tauri/build.rs`, and hosted runners do not ship it. The local [`install-protoc`](../.github/actions/install-protoc/action.yml) action downloads the pinned 36.2 archive for the runner's platform, verifies its SHA-256, and adds it to `PATH`; a runner platform with no recorded digest fails the step. [`.gitattributes`](../.gitattributes) checks text out with LF on every platform, because rustfmt (`newline_style = "Unix"`) and the byte-for-byte generated-output comparisons reject the CRLF checkout that Git for Windows otherwise produces.
+
+The desktop job's limit is 75 minutes. The `macos-15-intel` runner is roughly three times slower than `macos-15` on the Rust steps: at `88983a8` one passing run took 38 minutes, and a second was cancelled by the earlier 45-minute limit after every executed step had passed, with about five minutes of work left.
 
 No repository secret is required. Fork pull requests get a read-only token; their scans still run and gate, but their code-scanning upload can be refused.
 
@@ -49,7 +57,33 @@ Build matrix:
 | macOS 15 Intel         | x86_64-apple-darwin      | DMG, with app bundle built |
 | Windows Server 2022    | x86_64-pc-windows-msvc   | NSIS installer             |
 
-These are build runners; Windows Server compilation does not qualify Windows 11 runtime behavior, and macOS 15 does not prove the macOS 13 minimum. A separate release-only [Tauri configuration](../.github/tauri.release.conf.json) enables bundling. macOS previews are ad-hoc signed and not notarized; Windows previews are not publisher-signed. Production signing credentials, updater artifacts, and the future helper binary are not simulated.
+These are build runners; Windows Server compilation does not qualify Windows 11 runtime behavior, and macOS 15 does not prove the macOS 13 minimum. A separate release-only [Tauri configuration](../.github/tauri.release.conf.json) enables bundling. macOS previews are ad-hoc signed and not notarized; Windows previews are not publisher-signed. Production signing credentials and updater artifacts are not simulated.
+
+The desktop QA and release asset jobs install Go **1.27.2** from `helper/go.mod`
+with `actions/setup-go` **v6.5.0**, pinned to commit
+`924ae3a1cded613372ab5595356fb5720e22ba16`. The Tauri build hook cross-compiles
+the Go helper for the selected Rust target triple with cgo disabled, embeds the
+exact source revision as its build identity, and places it in the app's bundled
+resource directory. Go format, vet, tests, race tests, module verification,
+and build run in the desktop QA matrix before native compilation. Local
+`pnpm desktop:dev` and `pnpm desktop:build` use the same helper build hook.
+
+The desktop QA matrix also runs `pnpm test:native` on each declared runner. It
+builds a separate `native-test` feature/configuration and uses the embedded
+WebDriver service. Linux runs under Xvfb when the runner has no display. The
+native flow invokes the real helper status command from the main window,
+checks denial from a second window without that capability, and verifies the
+helper process count returns to baseline after the application exits. The
+default production build does not enable the feature or include its injected
+frontend plugin.
+
+Immediately after the default `pnpm desktop:build`, CI runs
+`pnpm production:check`. It checks the compiled Cargo graph, Tauri config and
+capabilities, production renderer assets, and native executable for test-only
+WDIO surfaces, then launches the default app with `TAURI_WEBDRIVER_PORT` set to
+a free loopback port and verifies that no WebDriver listener appears. It closes
+the app and waits for its process exit. On Linux it uses Xvfb when no display is
+available.
 
 Each matrix job must produce exactly one installer of each declared package type in its expected Tauri output directory. Nested application executables cannot satisfy the installer requirement. Artifact names include the target triple to prevent cross-platform collisions. The final job downloads all four artifacts, verifies their SHA-256 hashes, generates notes with git-cliff, prepends the [preview scope statement](release-preview.md), and creates a draft prerelease with packages, changelog, and hashes. Only this final job receives `contents:write`; build jobs have read-only repository access. A failed QA/gate/build prevents the draft job from running.
 
