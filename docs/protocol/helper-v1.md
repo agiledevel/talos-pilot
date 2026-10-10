@@ -64,9 +64,13 @@ that reply so no stale frame remains. Any other frame for the cancel request ID
 is a protocol fault. A helper that misses the deadline is terminated and
 reaped rather than awaited. The parent owns cancellation on
 view close, session close, and application shutdown, and cancels only the
-subscription whose backend session issued the request. The helper has a
-15-second initial read deadline; it does not automatically retry credential
-or authorization failures.
+subscription whose backend session issued the request. The helper shares one
+12-second startup budget between the Talos version read and the first
+`MachineStatus` snapshot and answers an exhausted budget with the retryable
+`talos_probe_timeout` error, which Rust projects as `TALOS_UNAVAILABLE`. The
+parent's own startup deadline is 15 seconds, so the helper's classified answer
+always precedes a parent-side kill. The helper does not automatically retry
+credential or authorization failures.
 
 One probe holds two authenticated connections, and the wire contract does not
 expose that split. `Version` is read on a connection across the supplied

@@ -590,7 +590,7 @@ fn talos_probe_failure(error: ProtocolError) -> SupervisorError {
     let failure = match error.code.as_str() {
         "talos_unauthorized" => TalosProbeFailure::Unauthorized,
         "talos_certificate_invalid" => TalosProbeFailure::CertificateInvalid,
-        "talos_unavailable" => TalosProbeFailure::Unavailable,
+        "talos_unavailable" | "talos_probe_timeout" => TalosProbeFailure::Unavailable,
         "talos_config_invalid" | "talos_invalid_target" => TalosProbeFailure::InvalidInput,
         _ => TalosProbeFailure::General,
     };
@@ -1030,6 +1030,18 @@ mod tests {
         let expired = Instant::now() - Duration::from_millis(5);
         let error = read_probe_envelope(&mut stalled, Some(expired)).await;
         assert!(matches!(error, Err(SupervisorError::Timeout)));
+    }
+
+    #[test]
+    fn helper_startup_timeout_maps_to_unavailable() {
+        let error = super::talos_probe_failure(super::ProtocolError {
+            code: "talos_probe_timeout".to_owned(),
+            ..super::ProtocolError::default()
+        });
+        assert!(matches!(
+            error,
+            SupervisorError::TalosProbeFailed(TalosProbeFailure::Unavailable)
+        ));
     }
 
     #[tokio::test]

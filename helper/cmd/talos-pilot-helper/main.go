@@ -19,9 +19,14 @@ import (
 )
 
 const (
-	protocolMajor      uint32 = 1
-	maxSubscriptions          = 4
-	probeStartDeadline        = 15 * time.Second
+	protocolMajor    uint32 = 1
+	maxSubscriptions        = 4
+	// probeStartDeadline bounds the whole probe startup: the Talos version read
+	// and the first MachineStatus snapshot share it. It must stay strictly
+	// shorter than the parent's TALOS_PROBE_STARTUP_DEADLINE (15 s, in
+	// src-tauri/src/helper/service.rs) so the helper answers with a classified
+	// timeout before the parent gives up and restarts it.
+	probeStartDeadline = 12 * time.Second
 )
 
 var buildIdentity = "development"
@@ -54,10 +59,10 @@ func main() {
 func serve(input io.Reader, output io.Writer) error {
 	return serveWithProbe(input, output, func(ctx context.Context, config []byte, endpoints []string, node string) (probeSession, error) {
 		return talosprobe.Open(ctx, config, endpoints, node)
-	})
+	}, probeStartDeadline)
 }
 
-func serveWithProbe(input io.Reader, output io.Writer, openProbe probeFactory) error {
+func serveWithProbe(input io.Reader, output io.Writer, openProbe probeFactory, startupDeadline time.Duration) error {
 	writer := &frameWriter{output: output}
 	incoming := make(chan inbound, 1)
 	stopReader := make(chan struct{})
@@ -145,7 +150,7 @@ func serveWithProbe(input io.Reader, output io.Writer, openProbe probeFactory) e
 				streamContext, cancel := context.WithCancel(context.Background())
 				active[request.RequestId] = cancel
 				streams.Add(1)
-				go runProbe(streamContext, request, probeRequest, writer, openProbe, &streams, finished)
+				go runProbe(streamContext, request, probeRequest, writer, openProbe, startupDeadline, &streams, finished)
 			case protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_REQUEST:
 				payload, ok := request.Payload.(*protocolv1.Envelope_TalosCancelRequest)
 				if !handshakeComplete || !ok || payload.TalosCancelRequest == nil || !validRequestID(payload.TalosCancelRequest.SubscriptionRequestId) {
@@ -246,6 +251,7 @@ func runProbe(
 	probe *protocolv1.TalosProbeRequest,
 	writer *frameWriter,
 	openProbe probeFactory,
+	startupDeadline time.Duration,
 	streams *sync.WaitGroup,
 	finished chan<- string,
 ) {
@@ -253,7 +259,7 @@ func runProbe(
 	defer func() { finished <- request.RequestId }()
 	defer clear(probe.TalosConfig)
 
-	startupContext, cancelStartup := context.WithTimeout(ctx, probeStartDeadline)
+	startupContext, cancelStartup := context.WithTimeout(ctx, startupDeadline)
 	defer cancelStartup()
 	session, err := openProbe(ctx, probe.TalosConfig, probe.Endpoints, probe.Node)
 	if err != nil {
@@ -316,11 +322,15 @@ func runProbe(
 		code := talosprobe.FailureCode(err)
 		_ = writer.send(errorResponse(request, code, talosFailureMessage(code), talosFailureRetryable(code)))
 		return
-	case <-time.After(probeStartDeadline):
+	case <-startupContext.Done():
 		cancelWatch()
 		select {
 		case <-watchDone:
 		case <-time.After(5 * time.Second):
+		}
+		// The startup context derives from ctx; a cancelled probe sends nothing.
+		if ctx.Err() != nil {
+			return
 		}
 		_ = writer.send(errorResponse(request, "talos_probe_timeout", "The Talos probe exceeded its startup deadline.", true))
 		return

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/agiledevel/talos-pilot/helper/internal/protocol"
 	protocolv1 "github.com/agiledevel/talos-pilot/helper/internal/protocol/helper/v1"
@@ -59,7 +60,7 @@ func TestServeTalosProbeStreamsBoundedEventsAndCancels(t *testing.T) {
 		serveError = serveWithProbe(inputReader, outputCapture, func(_ context.Context, received []byte, _ []string, _ string) (probeSession, error) {
 			observedConfig = received
 			return fakeProbeSession{}, nil
-		})
+		}, probeStartDeadline)
 	}()
 
 	if err := writeRequest(inputWriter, handshake("handshake", buildIdentity)); err != nil {
@@ -320,4 +321,104 @@ func decodeResponses(t *testing.T, data []byte) []*protocolv1.Envelope {
 		responses = append(responses, response)
 	}
 	return responses
+}
+
+// slowProbeSession spends part of the startup budget in ReadVersion and then
+// never produces a MachineStatus snapshot.
+type slowProbeSession struct {
+	versionDelay time.Duration
+}
+
+func (session slowProbeSession) ReadVersion(ctx context.Context) (string, error) {
+	select {
+	case <-time.After(session.versionDelay):
+		return "v1.14.1", nil
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+}
+
+func (slowProbeSession) WatchMachineStatus(ctx context.Context, _ func(talosprobe.Status) error) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (slowProbeSession) Close() error { return nil }
+
+func startSlowProbe(t *testing.T, deadline time.Duration, versionDelay time.Duration) (
+	inputWriter *io.PipeWriter, outputReader *io.PipeReader, serveDone *sync.WaitGroup,
+) {
+	t.Helper()
+	inputReader, inputWriter := io.Pipe()
+	outputReader, outputWriter := io.Pipe()
+	serveDone = &sync.WaitGroup{}
+	serveDone.Add(1)
+	go func() {
+		defer serveDone.Done()
+		defer func() { _ = outputWriter.Close() }()
+		_ = serveWithProbe(inputReader, outputWriter, func(context.Context, []byte, []string, string) (probeSession, error) {
+			return slowProbeSession{versionDelay: versionDelay}, nil
+		}, deadline)
+	}()
+	if err := writeRequest(inputWriter, handshake("handshake", buildIdentity)); err != nil {
+		t.Fatal(err)
+	}
+	if response := readResponse(t, outputReader); response.Kind != protocolv1.MessageKind_MESSAGE_KIND_HANDSHAKE_RESPONSE {
+		t.Fatalf("handshake response = %v", response.Kind)
+	}
+	probeRequest := &protocolv1.Envelope{
+		ProtocolMajor: protocolMajor,
+		Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_PROBE_REQUEST,
+		RequestId:     "probe-1",
+		Payload: &protocolv1.Envelope_TalosProbeRequest{TalosProbeRequest: &protocolv1.TalosProbeRequest{
+			TalosConfig: []byte("synthetic"), Endpoints: []string{"10.79.0.2"}, Node: "10.79.0.2",
+		}},
+	}
+	if err := writeRequest(inputWriter, probeRequest); err != nil {
+		t.Fatal(err)
+	}
+	return inputWriter, outputReader, serveDone
+}
+
+func TestProbeStartupSharesOneDeadlineBetweenVersionAndFirstStatus(t *testing.T) {
+	const deadline = 200 * time.Millisecond
+	inputWriter, outputReader, serveDone := startSlowProbe(t, deadline, 120*time.Millisecond)
+	started := time.Now()
+	response := readResponse(t, outputReader)
+	elapsed := time.Since(started)
+	if response.GetError().GetCode() != "talos_probe_timeout" {
+		t.Fatalf("response = %v, want talos_probe_timeout", response)
+	}
+	// Separate budgets would answer after about 120 ms + 200 ms.
+	if elapsed > deadline+60*time.Millisecond {
+		t.Fatalf("timeout arrived after %v, want one shared %v budget", elapsed, deadline)
+	}
+	_ = inputWriter.Close()
+	serveDone.Wait()
+	if extra, err := protocol.ReadFrame(outputReader); err == nil {
+		t.Fatalf("unexpected extra frame of %d bytes after the timeout", len(extra))
+	}
+}
+
+func TestProbeCancelledDuringFirstStatusSendsNoTimeoutFrame(t *testing.T) {
+	inputWriter, outputReader, serveDone := startSlowProbe(t, time.Hour, 0)
+	cancel := &protocolv1.Envelope{
+		ProtocolMajor: protocolMajor,
+		Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_REQUEST,
+		RequestId:     "cancel-1",
+		Payload: &protocolv1.Envelope_TalosCancelRequest{TalosCancelRequest: &protocolv1.TalosCancelRequest{
+			SubscriptionRequestId: "probe-1",
+		}},
+	}
+	if err := writeRequest(inputWriter, cancel); err != nil {
+		t.Fatal(err)
+	}
+	if response := readResponse(t, outputReader); response.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_RESPONSE {
+		t.Fatalf("cancel response = %v", response.Kind)
+	}
+	_ = inputWriter.Close()
+	serveDone.Wait()
+	if extra, err := protocol.ReadFrame(outputReader); err == nil {
+		t.Fatalf("unexpected frame after cancellation (%d bytes)", len(extra))
+	}
 }

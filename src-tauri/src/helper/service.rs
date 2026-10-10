@@ -12,6 +12,11 @@ use crate::contracts::{
 use super::supervisor::{HelperSupervisor, SupervisorError, TalosProbeFailure, TalosProbeInput};
 
 const HELPER_DEADLINE: Duration = Duration::from_secs(5);
+/// Parent bound for the helper's first probe answer.
+///
+/// The helper's own `probeStartDeadline` (12 s, `helper/cmd/talos-pilot-helper`)
+/// must stay strictly shorter so a slow probe is answered with a classified
+/// `talos_probe_timeout` instead of being killed by this deadline.
 const TALOS_PROBE_STARTUP_DEADLINE: Duration = Duration::from_secs(15);
 
 /// Owns the helper used by read-only feasibility operations.

@@ -327,3 +327,13 @@ With a cancel outstanding, the probe loop now finishes only after both the subsc
 Test: `cancellation_crossing_a_natural_stream_end_is_accepted` uses the new `helper/testdata/endracehelper` fixture, which writes the stream end before reading the cancel and rotates replies (cancel response, `unknown_subscription`, silence). It asserts both reply forms return `Ok`, a following `refresh_status` succeeds on the same supervisor (no stale frame), and a missing reply ends in `Timeout` with the helper reaped. Before the fix it failed with an invalid-stream error on the first probe. The consumer closes at the first event so the cancel is sent deterministically; a first version that only signalled the cancellation channel was nondeterministic and was replaced. Stable over five consecutive runs.
 
 Commands: Rust gates (fmt, clippy `-D warnings`, `cargo test --locked --all-targets` 68 passed, rustdoc `-D warnings`), Go gates (gofmt, vet, `go test`, build), `git diff --check`: all exit 0. `go test -race` and the native gate were not executed.
+
+### Review remediation R5
+
+Plan: [foundation review remediation](../plans/foundation-review-remediation-flash.md), packet R5, Linux x86_64, Rust 1.99.0, Go 1.27.2.
+
+The helper's `probeStartDeadline` is now 12 s and the version read and first-status wait share one `startupContext` budget (previously two separate 15 s waits, up to 30 s against the parent's 15 s). A cancelled `ctx` takes the silent cancellation path; otherwise one `talos_probe_timeout` frame is sent. The deadline is a `serveWithProbe`/`runProbe` parameter (no mutable package state). Rust maps `talos_probe_timeout` to `TALOS_UNAVAILABLE`; both constants document the ordering, and [helper-v1.md](../protocol/helper-v1.md) states it.
+
+Tests: `TestProbeStartupSharesOneDeadlineBetweenVersionAndFirstStatus` (200 ms budget, 120 ms version read; a separate-budget implementation would answer near 320 ms), `TestProbeCancelledDuringFirstStatusSendsNoTimeoutFrame`, and `helper_startup_timeout_maps_to_unavailable`. The new Go tests were not run against the pre-fix code in this session.
+
+Commands: Go gates including `go test -race ./...`, Rust fmt/clippy/test (69 passed, 1 ignored)/rustdoc, `git diff --check`: exit 0. Native gate not executed (no command change).
