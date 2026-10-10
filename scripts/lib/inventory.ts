@@ -214,7 +214,17 @@ export function parseCargoPackages(
   return sortedBy(entries, (entry) => `${entry.name}\u0000${entry.version}`);
 }
 
-/** Reads a stream of `go list -m -json all` module objects. */
+/**
+ * Reads a stream of `go list -m -json all` module objects.
+ *
+ * License files are read only for `linked` modules. Building the helper
+ * extracts their source on every machine, whereas a graph-only module is in the
+ * module cache only if something else downloaded it; inspecting those would
+ * make the inventory depend on the host. Graph-only modules are therefore
+ * always reported as `unobserved`.
+ *
+ * @throws When an entry has no path, or a linked module has no extracted source.
+ */
 export function parseGoModules(
   modules: readonly unknown[],
   linked: ReadonlySet<string>,
@@ -234,17 +244,32 @@ export function parseGoModules(
     if (typeof item.Main === "boolean" && item.Main) {
       continue;
     }
-    const dir = typeof item.Dir === "string" ? item.Dir : "";
-    const discovered = readLicenses({ dir });
-    const usable = dir.length > 0 && discovered.observed;
-    entries.push({
+    const identity = {
       path: item.Path,
       version: typeof item.Version === "string" ? item.Version : "devel",
       indirect: item.Indirect === true,
-      linked: linked.has(item.Path),
-      license: usable ? classifyGoLicense(discovered.texts) : "unobserved",
-      licenseFiles: usable ? [...discovered.files].sort() : [],
-      hasNotice: usable && discovered.notice,
+    };
+    if (!linked.has(item.Path)) {
+      entries.push({
+        ...identity,
+        linked: false,
+        license: "unobserved",
+        licenseFiles: [],
+        hasNotice: false,
+      });
+      continue;
+    }
+    const dir = typeof item.Dir === "string" ? item.Dir : "";
+    const discovered = readLicenses({ dir });
+    if (dir.length === 0 || !discovered.observed) {
+      throw new Error(`linked Go module ${item.Path} has no extracted source to inspect.`);
+    }
+    entries.push({
+      ...identity,
+      linked: true,
+      license: classifyGoLicense(discovered.texts),
+      licenseFiles: [...discovered.files].sort(),
+      hasNotice: discovered.notice,
     });
   }
   return sortedBy(entries, (entry) => `${entry.path}\u0000${entry.version}`);

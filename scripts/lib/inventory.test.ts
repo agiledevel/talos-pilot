@@ -112,10 +112,9 @@ describe("dependency inventory generation", () => {
         { Path: "a.org/a", Version: "v0.1.0", Dir: "/cache/a" },
       ],
       new Set(["a.org/a"]),
-      ({ dir }) =>
-        dir === "/cache/a"
-          ? { files: ["LICENSE"], texts: [mit], notice: false, observed: true }
-          : { files: [], texts: [], notice: false, observed: false },
+      // Every module has extracted source here, as on a developer machine
+      // whose module cache was filled by unrelated work.
+      () => ({ files: ["LICENSE"], texts: [mit], notice: true, observed: true }),
     );
     expect(parsed.map((entry) => entry.path)).toEqual(["a.org/a", "z.org/z"]);
     expect(parsed[0]).toEqual({
@@ -125,13 +124,37 @@ describe("dependency inventory generation", () => {
       linked: true,
       license: "MIT",
       licenseFiles: ["LICENSE"],
+      hasNotice: true,
+    });
+    // A graph-only module is never inspected, so a filled module cache cannot
+    // change the inventory.
+    expect(parsed[1]).toEqual({
+      path: "z.org/z",
+      version: "v1.2.3",
+      indirect: true,
+      linked: false,
+      license: "unobserved",
+      licenseFiles: [],
       hasNotice: false,
     });
-    // A graph module with no extracted source is reported as unobserved rather
-    // than guessed.
-    expect(parsed[1]?.license).toBe("unobserved");
-    expect(parsed[1]?.linked).toBe(false);
-    expect(parsed[1]?.indirect).toBe(true);
+  });
+
+  it("rejects a linked Go module with no extracted source", () => {
+    const unobserved = { files: [], texts: [], notice: false, observed: false };
+    expect(() =>
+      parseGoModules(
+        [{ Path: "a.org/a", Version: "v0.1.0" }],
+        new Set(["a.org/a"]),
+        () => unobserved,
+      ),
+    ).toThrow("a.org/a");
+    expect(() =>
+      parseGoModules(
+        [{ Path: "a.org/a", Version: "v0.1.0", Dir: "/cache/a" }],
+        new Set(["a.org/a"]),
+        () => unobserved,
+      ),
+    ).toThrow("a.org/a");
   });
 
   it("serializes a stable inventory document", () => {

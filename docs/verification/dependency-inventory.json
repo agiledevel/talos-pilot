@@ -7403,10 +7403,8 @@
       "version": "v0.25.2",
       "indirect": true,
       "linked": false,
-      "license": "Apache-2.0",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -7483,10 +7481,8 @@
       "version": "v4.13.1",
       "indirect": true,
       "linked": false,
-      "license": "BSD-2-Clause",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -7514,10 +7510,8 @@
       "version": "v7.7.3",
       "indirect": true,
       "linked": false,
-      "license": "MIT",
-      "licenseFiles": [
-        "LICENSE.txt"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -7545,10 +7539,8 @@
       "version": "v2.3.0",
       "indirect": true,
       "linked": false,
-      "license": "MIT",
-      "licenseFiles": [
-        "LICENSE.txt"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -7730,10 +7722,8 @@
       "version": "v1.4.4",
       "indirect": true,
       "linked": false,
-      "license": "Apache-2.0",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -7741,10 +7731,8 @@
       "version": "v1.2.2",
       "indirect": true,
       "linked": false,
-      "license": "Apache-2.0",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -7950,10 +7938,8 @@
       "version": "v3.0.0",
       "indirect": true,
       "linked": false,
-      "license": "MIT",
-      "licenseFiles": [
-        "LICENSE.txt"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -7979,10 +7965,8 @@
       "version": "v1.5.4",
       "indirect": true,
       "linked": false,
-      "license": "BSD-3-Clause",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -7990,10 +7974,8 @@
       "version": "v0.31.0",
       "indirect": true,
       "linked": false,
-      "license": "unknown",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8001,10 +7983,8 @@
       "version": "v0.7.0",
       "indirect": true,
       "linked": false,
-      "license": "BSD-3-Clause",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8012,10 +7992,8 @@
       "version": "v0.21.7",
       "indirect": true,
       "linked": false,
-      "license": "Apache-2.0",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8023,10 +8001,8 @@
       "version": "v0.0.0-20240727154555-813a5fbdbec8",
       "indirect": true,
       "linked": false,
-      "license": "Apache-2.0",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8043,10 +8019,8 @@
       "version": "v1.6.0",
       "indirect": true,
       "linked": false,
-      "license": "BSD-3-Clause",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8105,10 +8079,8 @@
       "version": "v2.2.1-0.20260802200809-43bafec815b3",
       "indirect": true,
       "linked": false,
-      "license": "MIT",
-      "licenseFiles": [
-        "LICENSE.md"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8143,10 +8115,8 @@
       "version": "v0.6.1",
       "indirect": true,
       "linked": false,
-      "license": "MIT",
-      "licenseFiles": [
-        "LICENSE.md"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8154,10 +8124,8 @@
       "version": "v1.4.0",
       "indirect": true,
       "linked": false,
-      "license": "MIT",
-      "licenseFiles": [
-        "LICENSE.md"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8165,10 +8133,8 @@
       "version": "v1.11.2",
       "indirect": true,
       "linked": false,
-      "license": "MIT",
-      "licenseFiles": [
-        "LICENSE.md"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8176,10 +8142,8 @@
       "version": "v0.6.1",
       "indirect": true,
       "linked": false,
-      "license": "MIT",
-      "licenseFiles": [
-        "LICENSE.md"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8214,10 +8178,8 @@
       "version": "v2.20.1",
       "indirect": true,
       "linked": false,
-      "license": "MIT",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8225,10 +8187,8 @@
       "version": "v1.34.1",
       "indirect": true,
       "linked": false,
-      "license": "MIT",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8236,11 +8196,8 @@
       "version": "v1.0.0",
       "indirect": true,
       "linked": false,
-      "license": "Apache-2.0",
-      "licenseFiles": [
-        "LICENSE",
-        "LICENSE.docs"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8259,10 +8216,8 @@
       "version": "v0.0.0-20260713124913-97594f28f5ca",
       "indirect": true,
       "linked": false,
-      "license": "Apache-2.0",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8319,10 +8274,8 @@
       "version": "v1.0.0",
       "indirect": true,
       "linked": false,
-      "license": "MIT",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8339,10 +8292,8 @@
       "version": "v0.3.9",
       "indirect": true,
       "linked": false,
-      "license": "Apache-2.0",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8394,10 +8345,8 @@
       "version": "v0.3.3",
       "indirect": true,
       "linked": false,
-      "license": "MPL-2.0",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8405,10 +8354,8 @@
       "version": "v0.4.0",
       "indirect": true,
       "linked": false,
-      "license": "MPL-2.0",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8447,10 +8394,8 @@
       "version": "v0.4.0",
       "indirect": true,
       "linked": false,
-      "license": "MIT",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8458,10 +8403,8 @@
       "version": "v1.12.1",
       "indirect": true,
       "linked": false,
-      "license": "MIT",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8469,10 +8412,8 @@
       "version": "v0.0.4",
       "indirect": true,
       "linked": false,
-      "license": "Apache-2.0",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8489,10 +8430,8 @@
       "version": "v1.2.1",
       "indirect": true,
       "linked": false,
-      "license": "Apache-2.0",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8527,10 +8466,8 @@
       "version": "v1.45.0",
       "indirect": true,
       "linked": false,
-      "license": "unknown",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8547,10 +8484,8 @@
       "version": "v1.45.0",
       "indirect": true,
       "linked": false,
-      "license": "unknown",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8558,10 +8493,8 @@
       "version": "v1.45.0",
       "indirect": true,
       "linked": false,
-      "license": "unknown",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8569,10 +8502,8 @@
       "version": "v1.44.0",
       "indirect": true,
       "linked": false,
-      "license": "unknown",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8580,10 +8511,8 @@
       "version": "v1.45.0",
       "indirect": true,
       "linked": false,
-      "license": "unknown",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8591,10 +8520,8 @@
       "version": "v1.3.0",
       "indirect": true,
       "linked": false,
-      "license": "MIT",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8624,11 +8551,9 @@
       "version": "v3.0.5",
       "indirect": true,
       "linked": false,
-      "license": "unknown",
-      "licenseFiles": [
-        "LICENSE"
-      ],
-      "hasNotice": true
+      "license": "unobserved",
+      "licenseFiles": [],
+      "hasNotice": false
     },
     {
       "path": "go.yaml.in/yaml/v4",
@@ -8657,10 +8582,8 @@
       "version": "v0.0.0-20260709172345-9ea1abe57597",
       "indirect": true,
       "linked": false,
-      "license": "BSD-3-Clause",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8697,10 +8620,8 @@
       "version": "v0.23.0",
       "indirect": true,
       "linked": false,
-      "license": "BSD-3-Clause",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8750,10 +8671,8 @@
       "version": "v0.49.0",
       "indirect": true,
       "linked": false,
-      "license": "BSD-3-Clause",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8761,10 +8680,8 @@
       "version": "v0.17.0",
       "indirect": true,
       "linked": false,
-      "license": "BSD-3-Clause",
-      "licenseFiles": [
-        "LICENSE"
-      ],
+      "license": "unobserved",
+      "licenseFiles": [],
       "hasNotice": false
     },
     {
@@ -8834,11 +8751,9 @@
       "version": "v3.0.1",
       "indirect": true,
       "linked": false,
-      "license": "unknown",
-      "licenseFiles": [
-        "LICENSE"
-      ],
-      "hasNotice": true
+      "license": "unobserved",
+      "licenseFiles": [],
+      "hasNotice": false
     }
   ]
 }

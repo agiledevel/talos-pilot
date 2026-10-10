@@ -82,7 +82,8 @@ const cargoMetadata = JSON.parse(
 const goList = run("go", ["list", "-m", "-json", "all"], join(root, "helper"));
 const goModules: unknown[] = splitJsonObjects(goList).map((chunk) => JSON.parse(chunk) as unknown);
 // Modules that actually contribute packages to the helper binary. Their sources
-// are present in the module cache, so their license files are always observable.
+// are present in the module cache, so their license files are always observable;
+// they are the only Go modules whose license files the inventory reads.
 const goDeps = run("go", ["list", "-deps", "-json", "./..."], join(root, "helper"));
 const linkedModules = new Set<string>();
 for (const chunk of splitJsonObjects(goDeps)) {
