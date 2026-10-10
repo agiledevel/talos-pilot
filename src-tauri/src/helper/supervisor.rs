@@ -129,7 +129,7 @@ pub struct TalosProbeInput {
 pub struct HelperSupervisor {
     child: Child,
     stdin: ChildStdin,
-    stdout: ChildStdout,
+    stdout: FrameReader<ChildStdout>,
     stderr_drain: JoinHandle<()>,
     status: HelperStatus,
     request_counter: u64,
@@ -165,7 +165,7 @@ impl HelperSupervisor {
         let mut supervisor = Self {
             child,
             stdin,
-            stdout,
+            stdout: FrameReader::new(stdout),
             stderr_drain,
             status: HelperStatus {
                 build_identity: String::new(),
@@ -404,6 +404,8 @@ impl HelperSupervisor {
             cancel_request_id = Some(send_talos_cancel(stdin, request_counter, &request_id).await?);
             cancel_deadline = Some(Instant::now() + TALOS_CANCEL_ACK_DEADLINE);
         }
+        // A frame read interrupted by cancellation must not lose bytes already
+        // consumed from the pipe: `FrameReader` keeps its progress across drops.
         loop {
             tokio::select! {
                 changed = cancellation.changed(), if cancel_request_id.is_none() => {
@@ -533,7 +535,7 @@ impl HelperSupervisor {
             .encode(&mut encoded)
             .map_err(SupervisorError::Encode)?;
         write_async_frame(&mut self.stdin, &encoded).await?;
-        let bytes = read_async_frame(&mut self.stdout).await?;
+        let bytes = self.stdout.read_frame().await?;
         let response = Envelope::decode(bytes.as_slice()).map_err(SupervisorError::Decode)?;
         validate_envelope(&response)?;
         if response.request_id != request_id {
@@ -599,34 +601,76 @@ fn status_response(response: Envelope) -> Result<HelperStatus, SupervisorError> 
     })
 }
 
-async fn read_async_frame(
-    reader: &mut (impl AsyncRead + Unpin),
-) -> Result<Vec<u8>, SupervisorError> {
-    let mut length = [0_u8; 4];
-    reader.read_exact(&mut length).await.map_err(|error| {
-        if error.kind() == io::ErrorKind::UnexpectedEof {
-            SupervisorError::ChildExited
-        } else {
-            SupervisorError::Pipe(error)
-        }
-    })?;
-    let length = u32::from_be_bytes(length) as usize;
-    if length == 0 || length > MAX_FRAME_BYTES {
-        return Err(SupervisorError::Frame(FrameError::InvalidLength));
-    }
-    let mut payload = vec![0; length];
-    reader.read_exact(&mut payload).await.map_err(|error| {
-        if error.kind() == io::ErrorKind::UnexpectedEof {
-            SupervisorError::ChildExited
-        } else {
-            SupervisorError::Pipe(error)
-        }
-    })?;
-    Ok(payload)
+/// Reads length-prefixed helper frames from a pipe.
+///
+/// Cancel safety: progress is stored in `self` and only the cancel-safe
+/// `AsyncReadExt::read` is awaited, so dropping [`read_frame`](Self::read_frame)
+/// (for example in a `select!` branch or under a timeout) loses no consumed
+/// bytes. The next call resumes the same frame. After an error the reader must
+/// not be reused; the supervisor always terminates the helper on a read error.
+struct FrameReader<R> {
+    inner: R,
+    header: [u8; 4],
+    header_filled: usize,
+    body: Vec<u8>,
+    body_filled: usize,
 }
 
-async fn read_envelope(reader: &mut (impl AsyncRead + Unpin)) -> Result<Envelope, SupervisorError> {
-    let bytes = read_async_frame(reader).await?;
+impl<R: AsyncRead + Unpin> FrameReader<R> {
+    fn new(inner: R) -> Self {
+        Self {
+            inner,
+            header: [0; 4],
+            header_filled: 0,
+            body: Vec::new(),
+            body_filled: 0,
+        }
+    }
+
+    /// Reads one frame payload, resuming any frame interrupted by a drop.
+    ///
+    /// The body is allocated only after its length passes validation.
+    async fn read_frame(&mut self) -> Result<Vec<u8>, SupervisorError> {
+        while self.header_filled < self.header.len() {
+            let count = self
+                .inner
+                .read(&mut self.header[self.header_filled..])
+                .await
+                .map_err(SupervisorError::Pipe)?;
+            if count == 0 {
+                return Err(SupervisorError::ChildExited);
+            }
+            self.header_filled += count;
+        }
+        if self.body.is_empty() {
+            let length = u32::from_be_bytes(self.header) as usize;
+            if length == 0 || length > MAX_FRAME_BYTES {
+                return Err(SupervisorError::Frame(FrameError::InvalidLength));
+            }
+            self.body = vec![0; length];
+            self.body_filled = 0;
+        }
+        while self.body_filled < self.body.len() {
+            let count = self
+                .inner
+                .read(&mut self.body[self.body_filled..])
+                .await
+                .map_err(SupervisorError::Pipe)?;
+            if count == 0 {
+                return Err(SupervisorError::ChildExited);
+            }
+            self.body_filled += count;
+        }
+        self.header_filled = 0;
+        self.body_filled = 0;
+        Ok(std::mem::take(&mut self.body))
+    }
+}
+
+async fn read_envelope(
+    reader: &mut FrameReader<impl AsyncRead + Unpin>,
+) -> Result<Envelope, SupervisorError> {
+    let bytes = reader.read_frame().await?;
     let response = Envelope::decode(bytes.as_slice()).map_err(SupervisorError::Decode)?;
     validate_envelope(&response)?;
     Ok(response)
@@ -639,7 +683,7 @@ async fn read_envelope(reader: &mut (impl AsyncRead + Unpin)) -> Result<Envelope
 /// [`TALOS_CANCEL_ACK_DEADLINE`]; otherwise the caller reports a timeout and the
 /// supervisor terminates and reaps the child instead of waiting forever.
 async fn read_probe_envelope(
-    reader: &mut (impl AsyncRead + Unpin),
+    reader: &mut FrameReader<impl AsyncRead + Unpin>,
     cancel_deadline: Option<Instant>,
 ) -> Result<Envelope, SupervisorError> {
     match cancel_deadline {
@@ -715,8 +759,8 @@ mod tests {
     use zeroize::Zeroizing;
 
     use super::{
-        HelperSupervisor, SupervisorError, TALOS_CANCEL_ACK_DEADLINE, TalosProbeFailure,
-        read_probe_envelope,
+        FrameReader, HelperSupervisor, SupervisorError, TALOS_CANCEL_ACK_DEADLINE,
+        TalosProbeFailure, read_probe_envelope,
     };
 
     fn build_helper(test_name: &str) -> PathBuf {
@@ -884,10 +928,93 @@ mod tests {
 
         // An expired cancellation deadline must fail the stream read instead of
         // pinning the probe gate and the supervised helper forever.
-        let (mut stalled, _active) = tokio::io::duplex(64);
+        let (stalled, _active) = tokio::io::duplex(64);
+        let mut stalled = FrameReader::new(stalled);
         let expired = Instant::now() - Duration::from_millis(5);
         let error = read_probe_envelope(&mut stalled, Some(expired)).await;
         assert!(matches!(error, Err(SupervisorError::Timeout)));
+    }
+
+    #[tokio::test]
+    async fn interrupted_frame_read_keeps_consumed_bytes() {
+        use tokio::io::AsyncWriteExt;
+
+        let (mut writer, reader) = tokio::io::duplex(64);
+        let mut reader = FrameReader::new(reader);
+        writer
+            .write_all(&3_u32.to_be_bytes())
+            .await
+            .unwrap_or_else(|_| panic!("header must be written"));
+        let interrupted =
+            tokio::time::timeout(Duration::from_millis(20), reader.read_frame()).await;
+        assert!(
+            interrupted.is_err(),
+            "the withheld body must stall the read"
+        );
+        writer
+            .write_all(b"abc")
+            .await
+            .unwrap_or_else(|_| panic!("body must be written"));
+        let frame = reader
+            .read_frame()
+            .await
+            .unwrap_or_else(|_| panic!("the resumed read must stay frame aligned"));
+        assert_eq!(frame, b"abc");
+    }
+
+    #[tokio::test]
+    async fn interrupted_header_read_keeps_consumed_bytes() {
+        use tokio::io::AsyncWriteExt;
+
+        let (mut writer, reader) = tokio::io::duplex(64);
+        let mut reader = FrameReader::new(reader);
+        let header = 3_u32.to_be_bytes();
+        writer
+            .write_all(&header[..2])
+            .await
+            .unwrap_or_else(|_| panic!("partial header must be written"));
+        let interrupted =
+            tokio::time::timeout(Duration::from_millis(20), reader.read_frame()).await;
+        assert!(interrupted.is_err(), "a partial header must stall the read");
+        writer
+            .write_all(&header[2..])
+            .await
+            .unwrap_or_else(|_| panic!("header remainder must be written"));
+        writer
+            .write_all(b"xyz")
+            .await
+            .unwrap_or_else(|_| panic!("body must be written"));
+        let frame = reader
+            .read_frame()
+            .await
+            .unwrap_or_else(|_| panic!("the resumed read must stay frame aligned"));
+        assert_eq!(frame, b"xyz");
+    }
+
+    #[tokio::test]
+    async fn frame_reader_maps_eof_and_invalid_lengths() {
+        use tokio::io::AsyncWriteExt;
+
+        let (writer, reader) = tokio::io::duplex(64);
+        let mut reader = FrameReader::new(reader);
+        drop(writer);
+        assert!(matches!(
+            reader.read_frame().await,
+            Err(SupervisorError::ChildExited)
+        ));
+
+        for length in [0_u32, u32::MAX] {
+            let (mut writer, reader) = tokio::io::duplex(64);
+            let mut reader = FrameReader::new(reader);
+            writer
+                .write_all(&length.to_be_bytes())
+                .await
+                .unwrap_or_else(|_| panic!("header must be written"));
+            assert!(matches!(
+                reader.read_frame().await,
+                Err(SupervisorError::Frame(_))
+            ));
+        }
     }
 
     #[tokio::test]
