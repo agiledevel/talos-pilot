@@ -251,6 +251,8 @@ describe("navigation and status bar", () => {
       ready: true,
       deleted: false,
       sequence: "0",
+      generation: "1",
+      snapshot: true,
     });
     await screen.findByText("Talos: healthy");
 

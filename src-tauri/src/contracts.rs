@@ -76,7 +76,19 @@ pub struct TalosProbeEventDto {
     /// Whether the source resource was removed.
     pub deleted: bool,
     /// Per-subscription sequence encoded as a decimal string.
+    ///
+    /// Data projections advance the sequence by exactly one and continue it
+    /// across reconnect generations. A stale marker repeats the sequence of the
+    /// projection it invalidates and carries no data fields.
     pub sequence: String,
+    /// Snapshot generation encoded as a decimal string.
+    ///
+    /// Generation 1 is the authenticated bootstrap snapshot; every valid
+    /// replacement snapshot after a reconnect advances the generation by one
+    /// while the sequence stays continuous.
+    pub generation: String,
+    /// Whether this event is a snapshot (the bootstrap or a replacement).
+    pub snapshot: bool,
 }
 
 /// Safe metadata for a native-imported, session-only Talos credential context.

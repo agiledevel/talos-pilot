@@ -54,9 +54,10 @@ is limited to 64 KiB and is accepted only from the private pipe; Rust must not
 put it in renderer DTOs, command arguments, environment variables, or logs.
 The helper clears its input byte buffer after parsing. A matching
 `TALOS_PROBE_RESPONSE` returns the Talos version and the first projected
-`MachineStatus` snapshot. Subsequent `TALOS_STATUS_EVENT` frames use the probe
-request ID and strictly increasing sequence values. They carry only stage,
-ready, and deletion state. `TALOS_CANCEL_REQUEST` identifies the active probe
+`MachineStatus` snapshot as generation 1. Subsequent `TALOS_STATUS_EVENT`
+frames use the probe request ID and strictly increasing sequence values. They
+carry only stage, ready, deletion state, the snapshot generation, and whether
+the frame is a snapshot. `TALOS_CANCEL_REQUEST` identifies the active probe
 by request ID; the helper acknowledges cancellation and ends that stream with
 `TALOS_STREAM_ENDED`. The event queue is capped at 16 and applies backpressure
 to the COSI watch. Rust forwards at most 256 status updates on one native
@@ -82,6 +83,43 @@ no frame for the probe request, whichever startup step the cancellation
 interrupted. Rust does not cancel during startup; it bounds that phase with its
 own deadline. The helper does not automatically retry credential or
 authorization failures.
+
+## Mid-stream reconnection and resync
+
+A watch that fails mid-flight invalidates the previously delivered projection.
+The helper then emits one `TALOS_STREAM_STALE` marker and reconnects through
+the official Talos client on the same node-pinned session, so subscription,
+node, and credential identity never change (see
+[decision 0007](../decisions/0007-pin-talos-streams-to-the-node-api.md)). The
+marker carries no data and consumes no sequence: its envelope sequence repeats
+the sequence of the projection it invalidates, which is 0 when that projection
+is the bootstrap `TALOS_PROBE_RESPONSE`. Until a valid replacement snapshot
+arrives, no projection on the stream may be presented as current.
+
+The reconnection follows the foundation plan's bounded policy. One subscription
+allows **at most three reconnect attempts in total**: the first attempt starts
+immediately after the interruption, the helper waits 0.5 s before the second
+and 1 s before the third, each wait scaled by jitter of at most ±20%, and each
+attempt is bounded by a 15-second deadline covering watch re-establishment and
+the replacement snapshot. An established watch is never cut by that deadline.
+Permission (`talos_unauthorized`), TLS (`talos_certificate_invalid`), and input
+(`talos_config_invalid`, `talos_invalid_target`) failures never retry: the
+subscription ends at once with that terminal class. An exhausted budget ends
+the subscription with a terminal `talos_unavailable` error, which is an
+outcome the parent must not present as current. The 256-event cap counts
+replacement snapshots and is never raised.
+
+A replacement snapshot is a `TALOS_STATUS_EVENT` frame with `snapshot` set and
+`generation` incremented by one; it is the only frame allowed to advance the
+generation, and it must be the first status frame after a stale marker. The
+subscription's sequence stays continuous across generations and is never reset
+by a reconnect. Events of a generation carry that generation and no snapshot
+flag. Rust rejects a stale or foreign generation, a duplicate or skipped
+sequence, a second stale marker before a replacement snapshot, and any data
+frame after a stale marker that is not a replacement snapshot, as a protocol
+fault. Cancellation during a backoff wait or a reconnect attempt is
+acknowledged within the same two-second bound and ends the stream cleanly; the
+helper never leaves a reconnect task or session behind.
 
 One probe holds two authenticated connections, and the wire contract does not
 expose that split. `Version` is read on a connection across the supplied

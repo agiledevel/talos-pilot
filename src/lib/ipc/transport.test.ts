@@ -295,6 +295,8 @@ const VALID_PROBE_EVENT = {
   ready: true,
   deleted: false,
   sequence: "0",
+  generation: "1",
+  snapshot: true,
 };
 
 function createUnusedInvoke(): MockedFunction<IpcTransport["invoke"]> {
@@ -359,6 +361,8 @@ describe("Talos probe session and stream contracts", () => {
         ready: null,
         deleted: false,
         sequence: "0",
+        generation: "1",
+        snapshot: false,
       }),
     ).toEqual({
       session_id: "talos-session-2",
@@ -368,6 +372,8 @@ describe("Talos probe session and stream contracts", () => {
       ready: null,
       deleted: false,
       sequence: "0",
+      generation: "1",
+      snapshot: false,
     });
     expect(() => parseTalosProbeEventDto({ ...VALID_PROBE_EVENT, state: "connected" })).toThrow(
       IpcContractError,
@@ -384,6 +390,15 @@ describe("Talos probe session and stream contracts", () => {
     expect(() => parseTalosProbeEventDto({ ...VALID_PROBE_EVENT, sequence: 3 })).toThrow(
       IpcContractError,
     );
+    expect(() => parseTalosProbeEventDto({ ...VALID_PROBE_EVENT, generation: "0" })).toThrow(
+      IpcContractError,
+    );
+    expect(() => parseTalosProbeEventDto({ ...VALID_PROBE_EVENT, generation: 1 })).toThrow(
+      IpcContractError,
+    );
+    expect(() => parseTalosProbeEventDto({ ...VALID_PROBE_EVENT, snapshot: "true" })).toThrow(
+      IpcContractError,
+    );
     expect(() =>
       parseTalosProbeEventDto({ ...VALID_PROBE_EVENT, version: "v".repeat(65) }),
     ).toThrow(IpcContractError);
@@ -396,6 +411,36 @@ describe("Talos probe session and stream contracts", () => {
     expect(() => parseTalosProbeEventDto({ ...VALID_PROBE_EVENT, deleted: null })).toThrow(
       IpcContractError,
     );
+  });
+
+  it("accepts a data-free stale marker and rejects one carrying projection data", () => {
+    const staleMarker = {
+      session_id: "talos-session-1",
+      state: "stale",
+      version: null,
+      stage: null,
+      ready: null,
+      deleted: false,
+      sequence: "0",
+      generation: "1",
+      snapshot: false,
+    };
+    expect(parseTalosProbeEventDto(staleMarker)).toEqual(staleMarker);
+    expect(() =>
+      parseTalosProbeEventDto({ ...staleMarker, stage: "running", ready: true }),
+    ).toThrow(IpcContractError);
+    expect(() => parseTalosProbeEventDto({ ...staleMarker, version: "v1.14.1" })).toThrow(
+      IpcContractError,
+    );
+    expect(() => parseTalosProbeEventDto({ ...staleMarker, snapshot: true })).toThrow(
+      IpcContractError,
+    );
+    expect(() => parseTalosProbeEventDto({ ...staleMarker, deleted: true })).toThrow(
+      IpcContractError,
+    );
+    expect(() =>
+      parseTalosProbeEventDto({ ...VALID_PROBE_EVENT, state: "healthy", stage: null }),
+    ).toThrow(IpcContractError);
   });
 
   it("imports a talosconfig session or an explicit cancellation null", async () => {

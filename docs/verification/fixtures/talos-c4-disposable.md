@@ -242,6 +242,28 @@ it does not authorize an unverified address.
 Neither action authorizes a host firewall, zone, or interface change beyond the
 remediation recorded above, and both are removed by the restoration checklist.
 
+### F1 part 2 execution form (2026-10-11)
+
+Packet F1 part 2 executes the two authorized actions above through the live
+fixture tests in `src-tauri/tests/talos_fixture.rs`, under exactly the recorded
+authority:
+
+- the worker reboot runs as `sudo -n -E <pinned talosctl> --talosconfig
+  /tmp/tpc4/talosconfig --nodes <worker> reboot` — the recorded command — with
+  the target asserted against the manifest node allowlist before dispatch. The
+  pinned `talosctl` is passed by file reference (`--talosctl` to
+  `pnpm talos:fixture`), never by inline content;
+- the worker's QEMU process is suspended and resumed with `sudo -n kill
+  -STOP/-CONT <pid>` only after the pid is resolved from `/proc` by **both**
+  this fixture's `--state` directory and the machine name
+  `talos-pilot-c4-20261009-worker-1`. No process that fails either match is
+  ever signalled.
+
+No new mutation is authorized by this entry: the reboot remains the only
+lifecycle action, `/Reset` and `/Upgrade` remain forbidden, the three control
+planes stay untouched, and every live case ends by waiting for the worker to
+report `running` again before the next case starts.
+
 ## Host-issued identities (2026-10-09 run)
 
 - QEMU bridge: `talosb8c871e1` on `10.79.0.1/24`, four guests

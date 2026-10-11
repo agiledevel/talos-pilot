@@ -49,15 +49,31 @@ view cannot accumulate renderer messages. See
 [helper protocol v1](helper-v1.md) for the private Rust-to-Go side of the same
 stream.
 
+Every event carries the session identity, a decimal sequence, a decimal
+snapshot generation, and a snapshot flag. Data projections advance the
+sequence by exactly one and continue it across reconnect generations; the
+bootstrap snapshot is generation 1 with sequence `0`, and a replacement
+snapshot after a mid-stream reconnect is the only event that advances the
+generation while the sequence stays continuous. A stale marker repeats the
+sequence and generation of the projection it invalidates and carries no data
+fields: the state module retains the displayed values and marks them stale, so
+old data stays visibly stale until a valid replacement snapshot arrives. A
+failed or exhausted subscription ends with an application error state
+(`TALOS_UNAVAILABLE` for an exhausted reconnect budget, the classified code
+for a permission or TLS failure) that the view never presents as current.
+
 ## Validation and errors
 
 Fields are snake_case in DTO payloads; nullable DTO fields are present as
 `null`. The adapter accepts harmless additive object fields but rejects missing
 required fields, unknown enum or capability values, inconsistent readiness
-state, duplicate or excess identities, non-decimal sequence strings, sequences
-beyond the stream bound, unsafe numerics, and oversized strings or labels.
-Talos identifiers must match the documented session, version, stage, and
-identity character sets before anything reaches a component.
+state, duplicate or excess identities, non-decimal sequence or generation
+strings, sequences beyond the stream bound, generations outside `1..256`,
+unsafe numerics, and oversized strings or labels. Talos identifiers must match
+the documented session, version, stage, and identity character sets before
+anything reaches a component. A stale marker must carry no data fields and no
+snapshot flag, and a healthy event must carry a stage; anything else is a
+contract violation and stops the stream.
 
 The transport returns `unknown` from Tauri's generic `invoke` API and validates
 the runtime value before exposing the generated DTO. A well-formed application

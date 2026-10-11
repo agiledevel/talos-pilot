@@ -20,6 +20,8 @@ function probeEvent(state: TalosProbeEventDto["state"]): TalosProbeEventDto {
     ready: true,
     deleted: false,
     sequence: "0",
+    generation: "1",
+    snapshot: true,
   };
 }
 

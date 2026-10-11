@@ -22,6 +22,8 @@ const HEALTHY_EVENT = {
   ready: true,
   deleted: false,
   sequence: "0",
+  generation: "1",
+  snapshot: true,
 };
 
 type ChannelHandler = ((message: unknown) => void) | undefined;

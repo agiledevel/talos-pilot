@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/agiledevel/talos-pilot/helper/internal/protocol"
@@ -27,7 +29,50 @@ const (
 	// src-tauri/src/helper/service.rs) so the helper answers with a classified
 	// timeout before the parent gives up and restarts it.
 	probeStartDeadline = 12 * time.Second
+	// reconnectMaxAttempts bounds the reconnection of one subscription in
+	// total. Reaching it ends the stream with a terminal unavailable outcome;
+	// the bound is never raised to lengthen a stream or a test.
+	reconnectMaxAttempts = 3
+	// reconnectAttemptDeadline bounds one reconnect attempt: re-establishing
+	// the node-pinned watch and obtaining its replacement snapshot.
+	reconnectAttemptDeadline = 15 * time.Second
+	// reconnectMaxJitter scales a backoff by at most ±20%.
+	reconnectMaxJitter = 0.2
 )
+
+// reconnectBackoffs are the waits before the second and third reconnect
+// attempts of one subscription. The first attempt starts immediately after the
+// interruption is classified.
+var reconnectBackoffs = [reconnectMaxAttempts - 1]time.Duration{
+	500 * time.Millisecond,
+	time.Second,
+}
+
+// reconnectPolicy is the injectable mid-stream reconnection policy of one
+// probe subscription. Tests inject tiny backoffs and identity jitter while
+// keeping the attempt accounting identical to production.
+type reconnectPolicy struct {
+	backoffs        [reconnectMaxAttempts - 1]time.Duration
+	jitter          func(time.Duration) time.Duration
+	attemptDeadline time.Duration
+}
+
+// defaultReconnectPolicy is the policy documented in docs/protocol/helper-v1.md.
+func defaultReconnectPolicy() reconnectPolicy {
+	return reconnectPolicy{
+		backoffs:        reconnectBackoffs,
+		jitter:          jitterDuration,
+		attemptDeadline: reconnectAttemptDeadline,
+	}
+}
+
+// jitterDuration scales one backoff by a factor in [0.8, 1.2], which is the
+// documented maximum jitter of ±20%. The randomness quality is irrelevant: the
+// jitter only spreads reconnect attempts in time.
+func jitterDuration(duration time.Duration) time.Duration {
+	factor := 1 - reconnectMaxJitter + rand.Float64()*(2*reconnectMaxJitter)
+	return time.Duration(float64(duration) * factor)
+}
 
 var buildIdentity = "development"
 
@@ -59,10 +104,10 @@ func main() {
 func serve(input io.Reader, output io.Writer) error {
 	return serveWithProbe(input, output, func(ctx context.Context, config []byte, endpoints []string, node string) (probeSession, error) {
 		return talosprobe.Open(ctx, config, endpoints, node)
-	}, probeStartDeadline)
+	}, probeStartDeadline, defaultReconnectPolicy())
 }
 
-func serveWithProbe(input io.Reader, output io.Writer, openProbe probeFactory, startupDeadline time.Duration) error {
+func serveWithProbe(input io.Reader, output io.Writer, openProbe probeFactory, startupDeadline time.Duration, reconnect reconnectPolicy) error {
 	writer := &frameWriter{output: output}
 	incoming := make(chan inbound, 1)
 	stopReader := make(chan struct{})
@@ -150,7 +195,7 @@ func serveWithProbe(input io.Reader, output io.Writer, openProbe probeFactory, s
 				streamContext, cancel := context.WithCancel(context.Background())
 				active[request.RequestId] = cancel
 				streams.Add(1)
-				go runProbe(streamContext, request, probeRequest, writer, openProbe, startupDeadline, &streams, finished)
+				go runProbe(streamContext, request, probeRequest, writer, openProbe, startupDeadline, reconnect, &streams, finished)
 			case protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_REQUEST:
 				payload, ok := request.Payload.(*protocolv1.Envelope_TalosCancelRequest)
 				if !handshakeComplete || !ok || payload.TalosCancelRequest == nil || !validRequestID(payload.TalosCancelRequest.SubscriptionRequestId) {
@@ -252,6 +297,7 @@ func runProbe(
 	writer *frameWriter,
 	openProbe probeFactory,
 	startupDeadline time.Duration,
+	reconnect reconnectPolicy,
 	streams *sync.WaitGroup,
 	finished chan<- string,
 ) {
@@ -284,12 +330,17 @@ func runProbe(
 		return
 	}
 
+	stream := &subscriptionStream{
+		writer:     writer,
+		requestID:  request.RequestId,
+		policy:     reconnect,
+		generation: 1,
+	}
 	firstStatus := make(chan talosprobe.Status, 1)
 	allowStream := make(chan struct{})
 	watchDone := make(chan error, 1)
 	watchContext, cancelWatch := context.WithCancel(ctx)
 	defer cancelWatch()
-	var sequence uint64
 	go func() {
 		first := true
 		watchDone <- session.WatchMachineStatus(watchContext, func(status talosprobe.Status) error {
@@ -303,23 +354,7 @@ func runProbe(
 					return watchContext.Err()
 				}
 			}
-			if sequence == ^uint64(0) {
-				return errors.New("Talos status sequence limit reached")
-			}
-			nextSequence := sequence + 1
-			if err := writer.send(&protocolv1.Envelope{
-				ProtocolMajor: protocolMajor,
-				Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_STATUS_EVENT,
-				RequestId:     request.RequestId,
-				Sequence:      nextSequence,
-				Payload: &protocolv1.Envelope_TalosStatusEvent{TalosStatusEvent: &protocolv1.TalosStatusEvent{
-					Stage: status.Stage, Ready: status.Ready, Deleted: status.Deleted,
-				}},
-			}); err != nil {
-				return err
-			}
-			sequence = nextSequence
-			return nil
+			return stream.sendEvent(status)
 		})
 	}()
 
@@ -357,49 +392,236 @@ func runProbe(
 		RequestId:     request.RequestId,
 		Payload: &protocolv1.Envelope_TalosProbeResponse{TalosProbeResponse: &protocolv1.TalosProbeResponse{
 			Version: version, Stage: initial.Stage, Ready: initial.Ready,
+			Generation: stream.generation,
 		}},
 	}); err != nil {
 		return
 	}
 	close(allowStream)
 
-	select {
-	case err := <-watchDone:
-		if err != nil && !errors.Is(err, context.Canceled) {
-			code := talosprobe.FailureCode(err)
-			_ = writer.send(errorResponse(request, code, talosFailureMessage(code), talosFailureRetryable(code)))
+	stream.run(ctx, session, watchDone, cancelWatch)
+}
+
+// subscriptionStream emits the frames of one probe subscription after its
+// bootstrap snapshot and owns the bounded mid-stream reconnection.
+//
+// Wire invariants (docs/protocol/helper-v1.md): the sequence advances by one
+// per data frame and stays continuous across generations; a mid-stream failure
+// marks the previously delivered projection stale before anything else; only a
+// replacement snapshot may advance the generation, and it is the first frame of
+// that generation. All bookkeeping lives here so one implementation owns the
+// invariants.
+type subscriptionStream struct {
+	writer     *frameWriter
+	requestID  string
+	policy     reconnectPolicy
+	generation uint64
+	sequence   uint64
+	staleSent  bool
+	attempts   int
+}
+
+// sendEvent projects one MachineStatus update of the current generation.
+func (stream *subscriptionStream) sendEvent(status talosprobe.Status) error {
+	if stream.sequence == ^uint64(0) {
+		return errors.New("Talos status sequence limit reached")
+	}
+	nextSequence := stream.sequence + 1
+	if err := stream.writer.send(&protocolv1.Envelope{
+		ProtocolMajor: protocolMajor,
+		Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_STATUS_EVENT,
+		RequestId:     stream.requestID,
+		Sequence:      nextSequence,
+		Payload: &protocolv1.Envelope_TalosStatusEvent{TalosStatusEvent: &protocolv1.TalosStatusEvent{
+			Stage: status.Stage, Ready: status.Ready, Deleted: status.Deleted,
+			Generation: stream.generation,
+		}},
+	}); err != nil {
+		return err
+	}
+	stream.sequence = nextSequence
+	return nil
+}
+
+// sendSnapshot publishes a replacement snapshot as the first frame of the next
+// generation and closes the stale marking. The sequence continues unchanged.
+func (stream *subscriptionStream) sendSnapshot(status talosprobe.Status, generation uint64) error {
+	if stream.sequence == ^uint64(0) {
+		return errors.New("Talos status sequence limit reached")
+	}
+	nextSequence := stream.sequence + 1
+	if err := stream.writer.send(&protocolv1.Envelope{
+		ProtocolMajor: protocolMajor,
+		Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_STATUS_EVENT,
+		RequestId:     stream.requestID,
+		Sequence:      nextSequence,
+		Payload: &protocolv1.Envelope_TalosStatusEvent{TalosStatusEvent: &protocolv1.TalosStatusEvent{
+			Stage: status.Stage, Ready: status.Ready, Deleted: status.Deleted,
+			Generation: generation, Snapshot: true,
+		}},
+	}); err != nil {
+		return err
+	}
+	stream.sequence = nextSequence
+	stream.generation = generation
+	stream.staleSent = false
+	return nil
+}
+
+// sendStale marks the projection of the current sequence stale without
+// consuming a sequence value.
+func (stream *subscriptionStream) sendStale() error {
+	return stream.writer.send(&protocolv1.Envelope{
+		ProtocolMajor: protocolMajor,
+		Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_STREAM_STALE,
+		RequestId:     stream.requestID,
+		Sequence:      stream.sequence,
+		Payload:       &protocolv1.Envelope_TalosStreamStale{TalosStreamStale: &protocolv1.TalosStreamStale{}},
+	})
+}
+
+func (stream *subscriptionStream) sendEnd(code string) error {
+	return stream.writer.send(&protocolv1.Envelope{
+		ProtocolMajor: protocolMajor,
+		Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_STREAM_ENDED,
+		RequestId:     stream.requestID,
+		Sequence:      stream.sequence + 1,
+		Payload:       &protocolv1.Envelope_TalosStreamEnded{TalosStreamEnded: &protocolv1.TalosStreamEnded{Code: code}},
+	})
+}
+
+func (stream *subscriptionStream) sendFailure(code string) error {
+	return stream.writer.send(errorResponse(
+		&protocolv1.Envelope{RequestId: stream.requestID},
+		code, talosFailureMessage(code), talosFailureRetryable(code),
+	))
+}
+
+// run streams the subscription's watch generations until the stream ends.
+//
+// The first generation's watch is already running when run is called. A
+// mid-stream failure marks the projection stale; a retryable failure then
+// re-establishes the node-pinned watch through the same session, at most
+// reconnectMaxAttempts times in total, waiting the bounded jittered backoff
+// before attempts two and three and bounding each attempt by the policy
+// deadline. A permission, TLS, or input failure never retries, and an
+// exhausted budget ends the subscription with a terminal unavailable outcome.
+// The old projection stays stale until a replacement snapshot arrives.
+func (stream *subscriptionStream) run(
+	ctx context.Context,
+	session probeSession,
+	done chan error,
+	cancelWatch context.CancelFunc,
+) {
+	defer cancelWatch()
+	for {
+		var watchErr error
+		select {
+		case watchErr = <-done:
+		case <-ctx.Done():
+			cancelWatch()
+			select {
+			case err := <-done:
+				if err != nil && !errors.Is(err, context.Canceled) {
+					_ = stream.sendFailure(talosprobe.FailureCode(err))
+					return
+				}
+				_ = stream.sendEnd("cancelled")
+			case <-time.After(5 * time.Second):
+			}
 			return
 		}
-		_ = writer.send(&protocolv1.Envelope{
-			ProtocolMajor: protocolMajor,
-			Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_STREAM_ENDED,
-			RequestId:     request.RequestId,
-			Sequence:      sequence + 1,
-			Payload: &protocolv1.Envelope_TalosStreamEnded{TalosStreamEnded: &protocolv1.TalosStreamEnded{
-				Code: "stream_complete",
-			}},
-		})
-	case <-ctx.Done():
-		select {
-		case err := <-watchDone:
-			code := "cancelled"
-			if err != nil && !errors.Is(err, context.Canceled) {
-				failureCode := talosprobe.FailureCode(err)
-				_ = writer.send(errorResponse(request, failureCode, talosFailureMessage(failureCode), talosFailureRetryable(failureCode)))
+		cancelWatch()
+
+		if watchErr == nil {
+			_ = stream.sendEnd("stream_complete")
+			return
+		}
+		if ctx.Err() != nil {
+			// The parent cancelled while the watch was ending; this preserves
+			// the terminal/cancel race dispositions of the original stream.
+			if !errors.Is(watchErr, context.Canceled) {
+				_ = stream.sendFailure(talosprobe.FailureCode(watchErr))
 				return
 			}
-			_ = writer.send(&protocolv1.Envelope{
-				ProtocolMajor: protocolMajor,
-				Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_STREAM_ENDED,
-				RequestId:     request.RequestId,
-				Sequence:      sequence + 1,
-				Payload: &protocolv1.Envelope_TalosStreamEnded{TalosStreamEnded: &protocolv1.TalosStreamEnded{
-					Code: code,
-				}},
-			})
-		case <-time.After(5 * time.Second):
+			_ = stream.sendEnd("stream_complete")
+			return
 		}
+
+		// A failed watch with the parent alive is either a mid-stream failure
+		// or a failed reconnect attempt. Either way the projection is stale
+		// until a valid replacement snapshot arrives.
+		if !stream.staleSent {
+			if err := stream.sendStale(); err != nil {
+				return
+			}
+			stream.staleSent = true
+		}
+		code := talosprobe.FailureCode(watchErr)
+		if errors.Is(watchErr, context.Canceled) {
+			// Only the attempt deadline cancels a watch while the parent is
+			// alive, so the attempt failed as a retryable timeout.
+			code = "talos_unavailable"
+		}
+		if !talosFailureRetryable(code) {
+			_ = stream.sendFailure(code)
+			return
+		}
+		if stream.attempts >= reconnectMaxAttempts {
+			_ = stream.sendFailure("talos_unavailable")
+			return
+		}
+		if stream.attempts > 0 {
+			delay := stream.policy.jitter(stream.policy.backoffs[stream.attempts-1])
+			select {
+			case <-ctx.Done():
+				_ = stream.sendEnd("cancelled")
+				return
+			case <-time.After(delay):
+			}
+		}
+		stream.attempts++
+
+		// Reconnect through the official Talos client on the same node-pinned
+		// session, preserving node and credential identity (decision 0007).
+		done, cancelWatch = stream.attemptWatch(ctx, session, stream.generation+1)
 	}
+}
+
+// attemptWatch starts one reconnect attempt: a fresh node-pinned MachineStatus
+// watch whose replacement snapshot advances to the given generation. The
+// attempt deadline covers re-establishing the watch and obtaining that
+// snapshot; it never cuts the lifetime of an established watch.
+func (stream *subscriptionStream) attemptWatch(
+	ctx context.Context,
+	session probeSession,
+	generation uint64,
+) (chan error, context.CancelFunc) {
+	attemptContext, cancelAttempt := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	established := &atomic.Bool{}
+	timer := time.AfterFunc(stream.policy.attemptDeadline, func() {
+		if !established.Load() {
+			cancelAttempt()
+		}
+	})
+	go func() {
+		first := true
+		watchErr := session.WatchMachineStatus(attemptContext, func(status talosprobe.Status) error {
+			if first {
+				first = false
+				if err := stream.sendSnapshot(status, generation); err != nil {
+					return err
+				}
+				established.Store(true)
+				return nil
+			}
+			return stream.sendEvent(status)
+		})
+		timer.Stop()
+		done <- watchErr
+	}()
+	return done, cancelAttempt
 }
 
 func handle(request *protocolv1.Envelope, handshakeComplete bool) (*protocolv1.Envelope, bool, bool) {

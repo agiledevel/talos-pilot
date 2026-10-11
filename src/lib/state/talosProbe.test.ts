@@ -127,6 +127,8 @@ describe("Talos probe state", () => {
       ready: true,
       deleted: false,
       sequence: "0",
+      generation: "1",
+      snapshot: true,
     });
     expect(probe.probeEvent?.state).toBe("healthy");
 
@@ -134,6 +136,164 @@ describe("Talos probe state", () => {
     await running;
     expect(probe.probeEvent?.state).toBe("stale");
     expect(probe.probeEvent?.version).toBe("v1.14.1");
+  });
+
+  it("keeps the retained projection stale until a replacement snapshot arrives", async () => {
+    const { probe, emit, end } = await importedProbe();
+    const running = probe.runProbe();
+    emit({
+      session_id: SESSION.session_id,
+      state: "healthy",
+      version: "v1.14.1",
+      stage: "running",
+      ready: true,
+      deleted: false,
+      sequence: "0",
+      generation: "1",
+      snapshot: true,
+    });
+    emit({
+      session_id: SESSION.session_id,
+      state: "stale",
+      version: null,
+      stage: null,
+      ready: null,
+      deleted: false,
+      sequence: "0",
+      generation: "1",
+      snapshot: false,
+    });
+
+    expect(probe.probeEvent?.state).toBe("stale");
+    expect(probe.probeEvent?.version).toBe("v1.14.1");
+    expect(probe.probeEvent?.stage).toBe("running");
+
+    emit({
+      session_id: SESSION.session_id,
+      state: "healthy",
+      version: null,
+      stage: "booting",
+      ready: false,
+      deleted: false,
+      sequence: "1",
+      generation: "2",
+      snapshot: true,
+    });
+
+    expect(probe.probeEvent?.state).toBe("healthy");
+    expect(probe.probeEvent?.stage).toBe("booting");
+    expect(probe.probeEvent?.sequence).toBe("1");
+    expect(probe.probeEvent?.generation).toBe("2");
+
+    end();
+    await running;
+  });
+
+  it("stops the stream on a stale, duplicate, or foreign generation", async () => {
+    for (const violation of [
+      // A duplicate of the bootstrap projection.
+      {
+        state: "healthy",
+        version: null,
+        stage: "running",
+        ready: true,
+        deleted: false,
+        sequence: "0",
+        generation: "1",
+        snapshot: true,
+      },
+      // A sequence gap.
+      {
+        state: "healthy",
+        version: null,
+        stage: "running",
+        ready: true,
+        deleted: false,
+        sequence: "2",
+        generation: "1",
+        snapshot: false,
+      },
+      // A foreign generation without a replacement snapshot.
+      {
+        state: "healthy",
+        version: null,
+        stage: "running",
+        ready: true,
+        deleted: false,
+        sequence: "1",
+        generation: "4",
+        snapshot: false,
+      },
+      // A stale marker that repeats no projection identity.
+      {
+        state: "stale",
+        version: null,
+        stage: null,
+        ready: null,
+        deleted: false,
+        sequence: "5",
+        generation: "5",
+        snapshot: false,
+      },
+    ] as const) {
+      const { probe, emit, end, invoke } = await importedProbe();
+      const running = probe.runProbe();
+      emit({
+        session_id: SESSION.session_id,
+        state: "healthy",
+        version: "v1.14.1",
+        stage: "running",
+        ready: true,
+        deleted: false,
+        sequence: "0",
+        generation: "1",
+        snapshot: true,
+      });
+      emit({ session_id: SESSION.session_id, ...violation });
+
+      expect(probe.probeEvent?.state).toBe("stale");
+
+      end();
+      await running;
+      expect(probe.error).toBe("The native application returned an invalid Talos probe response.");
+      expect(invoke).toHaveBeenCalledWith("stop_talos_probe", { sessionId: SESSION.session_id });
+    }
+  });
+
+  it("presents an exhausted reconnect budget as a terminal state, not as current", async () => {
+    const { probe, emit, end } = await importedProbe();
+    const running = probe.runProbe();
+    emit({
+      session_id: SESSION.session_id,
+      state: "healthy",
+      version: "v1.14.1",
+      stage: "running",
+      ready: true,
+      deleted: false,
+      sequence: "0",
+      generation: "1",
+      snapshot: true,
+    });
+    emit({
+      session_id: SESSION.session_id,
+      state: "stale",
+      version: null,
+      stage: null,
+      ready: null,
+      deleted: false,
+      sequence: "0",
+      generation: "1",
+      snapshot: false,
+    });
+
+    end(
+      applicationError("TALOS_UNAVAILABLE", "The selected Talos endpoint or node is unavailable."),
+    );
+    await running;
+
+    expect(probe.probeEvent?.state).toBe("unavailable");
+    expect(probe.probeEvent?.stage).toBe("running");
+    expect(probe.error).toBe("The selected Talos endpoint or node is unavailable.");
   });
 
   it("releases nothing on dispose once the session is closed", async () => {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -14,13 +15,15 @@ import (
 	"github.com/agiledevel/talos-pilot/helper/internal/protocol"
 	protocolv1 "github.com/agiledevel/talos-pilot/helper/internal/protocol/helper/v1"
 	"github.com/agiledevel/talos-pilot/helper/internal/talosprobe"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
 func TestServeHandshakeStatusAndShutdown(t *testing.T) {
 	input := encodeRequests(t,
 		handshake("request-1", buildIdentity),
-		status("request-2"),
+		statusRequest("request-2"),
 		shutdown("request-3"),
 	)
 	var output bytes.Buffer
@@ -60,7 +63,7 @@ func TestServeTalosProbeStreamsBoundedEventsAndCancels(t *testing.T) {
 		serveError = serveWithProbe(inputReader, outputCapture, func(_ context.Context, received []byte, _ []string, _ string) (probeSession, error) {
 			observedConfig = received
 			return fakeProbeSession{}, nil
-		}, probeStartDeadline)
+		}, probeStartDeadline, testReconnectPolicy())
 	}()
 
 	if err := writeRequest(inputWriter, handshake("handshake", buildIdentity)); err != nil {
@@ -128,7 +131,7 @@ func TestServeTalosProbeStreamsBoundedEventsAndCancels(t *testing.T) {
 }
 
 func TestServeRejectsStatusBeforeHandshake(t *testing.T) {
-	input := encodeRequests(t, status("request-1"))
+	input := encodeRequests(t, statusRequest("request-1"))
 	var output bytes.Buffer
 	if err := serve(bytes.NewReader(input), &output); err != nil {
 		t.Fatalf("serve() error = %v", err)
@@ -146,7 +149,7 @@ func TestHandleRejectsWrongBuildAndPayloadKind(t *testing.T) {
 		t.Fatalf("wrong build response = %v, accepted=%v", response, accepted)
 	}
 
-	wrongPayload := status("request-2")
+	wrongPayload := statusRequest("request-2")
 	wrongPayload.Payload = &protocolv1.Envelope_ShutdownRequest{ShutdownRequest: &protocolv1.ShutdownRequest{}}
 	response, _, _ = handle(wrongPayload, true)
 	if response.GetError().GetCode() != "invalid_message" {
@@ -222,7 +225,7 @@ func handshake(requestID, expectedBuild string) *protocolv1.Envelope {
 	}
 }
 
-func status(requestID string) *protocolv1.Envelope {
+func statusRequest(requestID string) *protocolv1.Envelope {
 	return &protocolv1.Envelope{
 		ProtocolMajor: protocolMajor,
 		Kind:          protocolv1.MessageKind_MESSAGE_KIND_STATUS_REQUEST,
@@ -351,12 +354,12 @@ func startSlowProbe(t *testing.T, deadline time.Duration, versionDelay time.Dura
 	t.Helper()
 	return startProbe(t, deadline, func(context.Context, []byte, []string, string) (probeSession, error) {
 		return slowProbeSession{versionDelay: versionDelay}, nil
-	})
+	}, testReconnectPolicy())
 }
 
 // startProbe serves the helper over unbuffered pipes, completes the handshake,
 // and sends one probe request. The output pipe closes when the helper returns.
-func startProbe(t *testing.T, deadline time.Duration, openProbe probeFactory) (
+func startProbe(t *testing.T, deadline time.Duration, openProbe probeFactory, reconnect reconnectPolicy) (
 	inputWriter *io.PipeWriter, outputReader *io.PipeReader, serveDone *sync.WaitGroup,
 ) {
 	t.Helper()
@@ -367,7 +370,7 @@ func startProbe(t *testing.T, deadline time.Duration, openProbe probeFactory) (
 	go func() {
 		defer serveDone.Done()
 		defer func() { _ = outputWriter.Close() }()
-		_ = serveWithProbe(inputReader, outputWriter, openProbe, deadline)
+		_ = serveWithProbe(inputReader, outputWriter, openProbe, deadline, reconnect)
 	}()
 	if err := writeRequest(inputWriter, handshake("handshake", buildIdentity)); err != nil {
 		t.Fatal(err)
@@ -433,7 +436,7 @@ func TestProbeCancelledDuringStartupSendsNoProbeFrame(t *testing.T) {
 	}
 	for _, phase := range phases {
 		t.Run(phase.name, func(t *testing.T) {
-			inputWriter, outputReader, serveDone := startProbe(t, time.Hour, phase.openProbe)
+			inputWriter, outputReader, serveDone := startProbe(t, time.Hour, phase.openProbe, testReconnectPolicy())
 			cancel := &protocolv1.Envelope{
 				ProtocolMajor: protocolMajor,
 				Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_REQUEST,
@@ -458,5 +461,434 @@ func TestProbeCancelledDuringStartupSendsNoProbeFrame(t *testing.T) {
 			}
 			serveDone.Wait()
 		})
+	}
+}
+
+// testReconnectPolicy makes reconnection deterministic: no jitter and nearly
+// instant backoffs, while the attempt accounting stays identical to production.
+func testReconnectPolicy() reconnectPolicy {
+	return reconnectPolicy{
+		backoffs:        [reconnectMaxAttempts - 1]time.Duration{time.Millisecond, 2 * time.Millisecond},
+		jitter:          func(duration time.Duration) time.Duration { return duration },
+		attemptDeadline: time.Second,
+	}
+}
+
+// watchScript describes one WatchMachineStatus invocation of a scriptedSession.
+type watchScript struct {
+	statuses []talosprobe.Status
+	err      error
+	// block keeps the watch open until its context is cancelled, after the
+	// scripted statuses have been emitted.
+	block bool
+}
+
+// scriptedSession replays one watchScript per WatchMachineStatus call and
+// counts its calls, so tests can assert the bounded reconnect and that one
+// session - the node and credential identity - serves every generation.
+type scriptedSession struct {
+	mu      sync.Mutex
+	watches []watchScript
+	calls   int
+	opens   int
+}
+
+func (session *scriptedSession) ReadVersion(context.Context) (string, error) {
+	return "v1.14.1", nil
+}
+
+func (session *scriptedSession) WatchMachineStatus(ctx context.Context, emit func(talosprobe.Status) error) error {
+	session.mu.Lock()
+	index := session.calls
+	session.calls++
+	session.mu.Unlock()
+	watch := watchScript{err: errors.New("no scripted watch left")}
+	if index < len(session.watches) {
+		watch = session.watches[index]
+	}
+	for _, status := range watch.statuses {
+		if err := emit(status); err != nil {
+			return err
+		}
+	}
+	if watch.block {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	return watch.err
+}
+
+func (session *scriptedSession) Close() error { return nil }
+
+func (session *scriptedSession) counts() (opens, calls int) {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	return session.opens, session.calls
+}
+
+// startScriptedProbe serves the helper with one scriptedSession and returns the
+// pipe ends plus the session for assertions.
+func startScriptedProbe(
+	t *testing.T,
+	watches []watchScript,
+	reconnect reconnectPolicy,
+) (*io.PipeWriter, *io.PipeReader, *sync.WaitGroup, *scriptedSession) {
+	t.Helper()
+	session := &scriptedSession{watches: watches}
+	inputWriter, outputReader, serveDone := startProbe(t, time.Hour, func(context.Context, []byte, []string, string) (probeSession, error) {
+		session.mu.Lock()
+		session.opens++
+		session.mu.Unlock()
+		return session, nil
+	}, reconnect)
+	return inputWriter, outputReader, serveDone, session
+}
+
+// endFrameCode accepts either clean terminal code: a natural end and a
+// cancellation may cross on the pipe, and both are valid clean ends.
+func endFrameCode(t *testing.T, frame *protocolv1.Envelope) string {
+	t.Helper()
+	code := frame.GetTalosStreamEnded().GetCode()
+	if code != "cancelled" && code != "stream_complete" {
+		t.Fatalf("stream end code = %q, want cancelled or stream_complete", code)
+	}
+	return code
+}
+
+func TestProbeReconnectsUnderANewGenerationWithAContinuousSequence(t *testing.T) {
+	inputWriter, outputReader, serveDone, session := startScriptedProbe(t, []watchScript{
+		{
+			statuses: []talosprobe.Status{{Stage: "running", Ready: true}, {Stage: "rebooting"}},
+			err:      status.Error(codes.Unavailable, "connection refused"),
+		},
+		{
+			statuses: []talosprobe.Status{{Stage: "running", Ready: true}},
+			block:    true,
+		},
+	}, testReconnectPolicy())
+
+	probeResponse := readResponse(t, outputReader)
+	if probeResponse.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_PROBE_RESPONSE ||
+		probeResponse.GetTalosProbeResponse().GetGeneration() != 1 {
+		t.Fatalf("probe response = %#v", probeResponse)
+	}
+	event := readResponse(t, outputReader)
+	if event.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_STATUS_EVENT ||
+		event.Sequence != 1 || event.GetTalosStatusEvent().GetGeneration() != 1 ||
+		event.GetTalosStatusEvent().GetSnapshot() {
+		t.Fatalf("first event = %#v", event)
+	}
+	stale := readResponse(t, outputReader)
+	if stale.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_STREAM_STALE || stale.Sequence != 1 {
+		t.Fatalf("stale marker = %#v", stale)
+	}
+	snapshot := readResponse(t, outputReader)
+	if snapshot.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_STATUS_EVENT ||
+		snapshot.Sequence != 2 || snapshot.GetTalosStatusEvent().GetGeneration() != 2 ||
+		!snapshot.GetTalosStatusEvent().GetSnapshot() {
+		t.Fatalf("replacement snapshot = %#v", snapshot)
+	}
+
+	cancel := &protocolv1.Envelope{
+		ProtocolMajor: protocolMajor,
+		Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_REQUEST,
+		RequestId:     "cancel-1",
+		Payload: &protocolv1.Envelope_TalosCancelRequest{TalosCancelRequest: &protocolv1.TalosCancelRequest{
+			SubscriptionRequestId: "probe-1",
+		}},
+	}
+	if err := writeRequest(inputWriter, cancel); err != nil {
+		t.Fatal(err)
+	}
+	for remaining := 2; remaining > 0; remaining-- {
+		switch frame := readResponse(t, outputReader); frame.Kind {
+		case protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_RESPONSE:
+			if frame.RequestId != "cancel-1" {
+				t.Fatalf("cancel reply = %#v", frame)
+			}
+		case protocolv1.MessageKind_MESSAGE_KIND_TALOS_STREAM_ENDED:
+			endFrameCode(t, frame)
+			if frame.Sequence != 3 {
+				t.Fatalf("stream end sequence = %d, want 3 (continuous)", frame.Sequence)
+			}
+		default:
+			t.Fatalf("unexpected frame after cancellation: %#v", frame)
+		}
+	}
+	opens, calls := session.counts()
+	if opens != 1 || calls != 2 {
+		t.Fatalf("session opens = %d, watch calls = %d; want one session and two watches", opens, calls)
+	}
+	_ = inputWriter.Close()
+	if extra, err := protocol.ReadFrame(outputReader); err == nil {
+		t.Fatalf("unexpected trailing frame of %d bytes", len(extra))
+	}
+	serveDone.Wait()
+}
+
+func TestProbeReconnectBudgetExhaustsAfterThreeAttempts(t *testing.T) {
+	unavailable := status.Error(codes.Unavailable, "connection refused")
+	inputWriter, outputReader, serveDone, session := startScriptedProbe(t, []watchScript{
+		{statuses: []talosprobe.Status{{Stage: "running", Ready: true}}, err: unavailable},
+		{err: unavailable},
+		{err: unavailable},
+		{err: unavailable},
+	}, testReconnectPolicy())
+
+	probeResponse := readResponse(t, outputReader)
+	if probeResponse.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_PROBE_RESPONSE {
+		t.Fatalf("probe response = %#v", probeResponse)
+	}
+	stale := readResponse(t, outputReader)
+	if stale.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_STREAM_STALE || stale.Sequence != 0 {
+		t.Fatalf("stale marker = %#v", stale)
+	}
+	terminal := readResponse(t, outputReader)
+	if terminal.Kind != protocolv1.MessageKind_MESSAGE_KIND_ERROR ||
+		terminal.GetError().GetCode() != "talos_unavailable" ||
+		!terminal.GetError().GetRetryable() {
+		t.Fatalf("terminal frame = %#v", terminal)
+	}
+	opens, calls := session.counts()
+	if opens != 1 || calls != 4 {
+		t.Fatalf("session opens = %d, watch calls = %d; want one session and four watches (bootstrap plus three attempts)", opens, calls)
+	}
+	_ = inputWriter.Close()
+	if extra, err := protocol.ReadFrame(outputReader); err == nil {
+		t.Fatalf("unexpected trailing frame after exhaustion: %d bytes", len(extra))
+	}
+	serveDone.Wait()
+}
+
+func TestProbeNeverRetriesPermissionAndTLSFailures(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		watchErr error
+		code     string
+	}{
+		{
+			name:     "permission",
+			watchErr: status.Error(codes.PermissionDenied, "not authorized"),
+			code:     "talos_unauthorized",
+		},
+		{
+			name:     "tls",
+			watchErr: errors.New("x509: certificate signed by unknown authority"),
+			code:     "talos_certificate_invalid",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			inputWriter, outputReader, serveDone, session := startScriptedProbe(t, []watchScript{
+				{statuses: []talosprobe.Status{{Stage: "running", Ready: true}}, err: test.watchErr},
+			}, testReconnectPolicy())
+
+			probeResponse := readResponse(t, outputReader)
+			if probeResponse.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_PROBE_RESPONSE {
+				t.Fatalf("probe response = %#v", probeResponse)
+			}
+			stale := readResponse(t, outputReader)
+			if stale.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_STREAM_STALE {
+				t.Fatalf("stale marker = %#v", stale)
+			}
+			terminal := readResponse(t, outputReader)
+			if terminal.Kind != protocolv1.MessageKind_MESSAGE_KIND_ERROR ||
+				terminal.GetError().GetCode() != test.code ||
+				terminal.GetError().GetRetryable() {
+				t.Fatalf("terminal frame = %#v, want non-retryable %s", terminal, test.code)
+			}
+			opens, calls := session.counts()
+			if opens != 1 || calls != 1 {
+				t.Fatalf("session opens = %d, watch calls = %d; the failure must not retry", opens, calls)
+			}
+			_ = inputWriter.Close()
+			if extra, err := protocol.ReadFrame(outputReader); err == nil {
+				t.Fatalf("unexpected trailing frame: %d bytes", len(extra))
+			}
+			serveDone.Wait()
+		})
+	}
+}
+
+// cancelledStreamEnd asserts the two terminal frames of a cancelled stream and
+// that they arrived promptly, well inside the cancellation deadline.
+func cancelledStreamEnd(t *testing.T, outputReader *io.PipeReader) {
+	t.Helper()
+	started := time.Now()
+	for remaining := 2; remaining > 0; remaining-- {
+		switch frame := readResponse(t, outputReader); frame.Kind {
+		case protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_RESPONSE:
+		case protocolv1.MessageKind_MESSAGE_KIND_TALOS_STREAM_ENDED:
+			endFrameCode(t, frame)
+		default:
+			t.Fatalf("unexpected frame after cancellation: %#v", frame)
+		}
+	}
+	if elapsed := time.Since(started); elapsed > 2*time.Second {
+		t.Fatalf("cancellation took %v, want at most the two-second bound", elapsed)
+	}
+}
+
+func TestProbeCancellationDuringBackoffEndsCleanly(t *testing.T) {
+	policy := reconnectPolicy{
+		backoffs:        [reconnectMaxAttempts - 1]time.Duration{30 * time.Second, 30 * time.Second},
+		jitter:          func(duration time.Duration) time.Duration { return duration },
+		attemptDeadline: 30 * time.Second,
+	}
+	inputWriter, outputReader, serveDone, session := startScriptedProbe(t, []watchScript{
+		{statuses: []talosprobe.Status{{Stage: "running", Ready: true}}, err: status.Error(codes.Unavailable, "connection refused")},
+		// Attempt one starts immediately after the interruption; the 30 s
+		// backoff then holds before attempt two.
+		{err: status.Error(codes.Unavailable, "connection refused")},
+	}, policy)
+
+	probeResponse := readResponse(t, outputReader)
+	if probeResponse.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_PROBE_RESPONSE {
+		t.Fatalf("probe response = %#v", probeResponse)
+	}
+	stale := readResponse(t, outputReader)
+	if stale.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_STREAM_STALE {
+		t.Fatalf("stale marker = %#v", stale)
+	}
+
+	cancel := &protocolv1.Envelope{
+		ProtocolMajor: protocolMajor,
+		Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_REQUEST,
+		RequestId:     "cancel-1",
+		Payload: &protocolv1.Envelope_TalosCancelRequest{TalosCancelRequest: &protocolv1.TalosCancelRequest{
+			SubscriptionRequestId: "probe-1",
+		}},
+	}
+	if err := writeRequest(inputWriter, cancel); err != nil {
+		t.Fatal(err)
+	}
+	// The 30 s backoff is pending before attempt two: cancellation must
+	// interrupt it well inside the two-second bound instead of waiting it out.
+	cancelledStreamEnd(t, outputReader)
+	opens, calls := session.counts()
+	if opens != 1 || calls != 2 {
+		t.Fatalf("session opens = %d, watch calls = %d; no attempt may start after cancellation", opens, calls)
+	}
+	_ = inputWriter.Close()
+	if extra, err := protocol.ReadFrame(outputReader); err == nil {
+		t.Fatalf("unexpected trailing frame: %d bytes", len(extra))
+	}
+	serveDone.Wait()
+}
+
+func TestProbeCancellationDuringReconnectAttemptEndsCleanly(t *testing.T) {
+	policy := testReconnectPolicy()
+	policy.attemptDeadline = 30 * time.Second
+	inputWriter, outputReader, serveDone, session := startScriptedProbe(t, []watchScript{
+		{statuses: []talosprobe.Status{{Stage: "running", Ready: true}}, err: status.Error(codes.Unavailable, "connection refused")},
+		{block: true},
+	}, policy)
+
+	probeResponse := readResponse(t, outputReader)
+	if probeResponse.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_PROBE_RESPONSE {
+		t.Fatalf("probe response = %#v", probeResponse)
+	}
+	stale := readResponse(t, outputReader)
+	if stale.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_STREAM_STALE {
+		t.Fatalf("stale marker = %#v", stale)
+	}
+
+	cancel := &protocolv1.Envelope{
+		ProtocolMajor: protocolMajor,
+		Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_REQUEST,
+		RequestId:     "cancel-1",
+		Payload: &protocolv1.Envelope_TalosCancelRequest{TalosCancelRequest: &protocolv1.TalosCancelRequest{
+			SubscriptionRequestId: "probe-1",
+		}},
+	}
+	if err := writeRequest(inputWriter, cancel); err != nil {
+		t.Fatal(err)
+	}
+	// The reconnect attempt is blocked establishing its watch; cancellation
+	// must interrupt it instead of waiting for the attempt deadline.
+	cancelledStreamEnd(t, outputReader)
+	opens, calls := session.counts()
+	if opens != 1 || calls != 2 {
+		t.Fatalf("session opens = %d, watch calls = %d; want one interrupted attempt", opens, calls)
+	}
+	_ = inputWriter.Close()
+	if extra, err := protocol.ReadFrame(outputReader); err == nil {
+		t.Fatalf("unexpected trailing frame: %d bytes", len(extra))
+	}
+	serveDone.Wait()
+}
+
+func TestProbeAttemptDeadlineRetriesAndEstablishedWatchesSurviveIt(t *testing.T) {
+	policy := testReconnectPolicy()
+	policy.attemptDeadline = 60 * time.Millisecond
+	inputWriter, outputReader, serveDone, session := startScriptedProbe(t, []watchScript{
+		{statuses: []talosprobe.Status{{Stage: "running", Ready: true}}, err: status.Error(codes.Unavailable, "connection refused")},
+		{block: true},
+		{statuses: []talosprobe.Status{{Stage: "running", Ready: true}}, block: true},
+	}, policy)
+
+	probeResponse := readResponse(t, outputReader)
+	if probeResponse.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_PROBE_RESPONSE {
+		t.Fatalf("probe response = %#v", probeResponse)
+	}
+	stale := readResponse(t, outputReader)
+	if stale.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_STREAM_STALE {
+		t.Fatalf("stale marker = %#v", stale)
+	}
+	started := time.Now()
+	snapshot := readResponse(t, outputReader)
+	elapsed := time.Since(started)
+	if snapshot.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_STATUS_EVENT ||
+		!snapshot.GetTalosStatusEvent().GetSnapshot() ||
+		snapshot.GetTalosStatusEvent().GetGeneration() != 2 {
+		t.Fatalf("replacement snapshot = %#v", snapshot)
+	}
+	if elapsed < 45*time.Millisecond {
+		t.Fatalf("replacement snapshot arrived after %v, want the 60 ms attempt deadline to govern", elapsed)
+	}
+
+	// The established generation must outlive its own attempt deadline: only a
+	// second watch call may exist after three deadlines worth of waiting.
+	time.Sleep(200 * time.Millisecond)
+	if _, calls := session.counts(); calls != 3 {
+		t.Fatalf("watch calls = %d; an established watch must not be cut by the attempt deadline", calls)
+	}
+
+	cancel := &protocolv1.Envelope{
+		ProtocolMajor: protocolMajor,
+		Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_CANCEL_REQUEST,
+		RequestId:     "cancel-1",
+		Payload: &protocolv1.Envelope_TalosCancelRequest{TalosCancelRequest: &protocolv1.TalosCancelRequest{
+			SubscriptionRequestId: "probe-1",
+		}},
+	}
+	if err := writeRequest(inputWriter, cancel); err != nil {
+		t.Fatal(err)
+	}
+	cancelledStreamEnd(t, outputReader)
+	_ = inputWriter.Close()
+	if extra, err := protocol.ReadFrame(outputReader); err == nil {
+		t.Fatalf("unexpected trailing frame: %d bytes", len(extra))
+	}
+	serveDone.Wait()
+}
+
+func TestReconnectPolicyDefaultsAreBounded(t *testing.T) {
+	policy := defaultReconnectPolicy()
+	if reconnectMaxAttempts != 3 {
+		t.Fatalf("reconnectMaxAttempts = %d, want 3 in total", reconnectMaxAttempts)
+	}
+	if policy.backoffs != [2]time.Duration{500 * time.Millisecond, time.Second} {
+		t.Fatalf("backoffs = %v, want 0.5 s and 1 s", policy.backoffs)
+	}
+	if policy.attemptDeadline != 15*time.Second {
+		t.Fatalf("attemptDeadline = %v, want 15 s", policy.attemptDeadline)
+	}
+	for range 200 {
+		for _, base := range []time.Duration{500 * time.Millisecond, time.Second} {
+			jittered := jitterDuration(base)
+			if jittered < 4*base/5 || jittered > 6*base/5 {
+				t.Fatalf("jitterDuration(%v) = %v, want at most ±20%%", base, jittered)
+			}
+		}
 	}
 }

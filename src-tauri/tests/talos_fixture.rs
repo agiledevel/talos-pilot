@@ -31,6 +31,7 @@ const TALOSCONFIG_ENV: &str = "TALOS_PILOT_FIXTURE_TALOSCONFIG";
 const READER_TALOSCONFIG_ENV: &str = "TALOS_PILOT_FIXTURE_READER_TALOSCONFIG";
 const DENIED_TALOSCONFIG_ENV: &str = "TALOS_PILOT_FIXTURE_DENIED_TALOSCONFIG";
 const HELPER_ENV: &str = "TALOS_PILOT_FIXTURE_HELPER";
+const TALOSCTL_ENV: &str = "TALOS_PILOT_FIXTURE_TALOSCTL";
 const FIXTURE_ID: &str = "talos-pilot-c4-20261009";
 const FIRST_EVENT_DEADLINE: Duration = Duration::from_secs(30);
 /// Grace given to a second live projection before the harness cancels, so stream
@@ -58,6 +59,8 @@ struct FixtureManifest {
     /// One unassigned address inside the fixture CIDR, used only to prove the
     /// unreachable-target classification.
     negative_endpoint: String,
+    /// Provisioner state directory; identifies this fixture's QEMU processes.
+    state_dir: String,
 }
 
 struct Fixture {
@@ -265,6 +268,7 @@ fn describe(error: &ApplicationErrorDto) -> String {
 #[tokio::test]
 #[ignore = "requires the allowlisted disposable Talos fixture"]
 async fn reads_and_streams_the_allowlisted_fixture() {
+    let _serial = LIVE_SERIAL.lock().await;
     let fixture = fixture();
     let (store, input) = import(&fixture, &fixture.config, &fixture.manifest.context_name);
     let service = HelperService::default();
@@ -384,6 +388,7 @@ async fn reads_and_streams_the_allowlisted_fixture() {
 #[tokio::test]
 #[ignore = "requires the allowlisted disposable Talos fixture"]
 async fn reads_with_a_reader_identity_and_denies_a_credential_without_the_probe_roles() {
+    let _serial = LIVE_SERIAL.lock().await;
     let fixture = fixture();
     let service = HelperService::default();
 
@@ -468,6 +473,7 @@ async fn reads_with_a_reader_identity_and_denies_a_credential_without_the_probe_
 #[tokio::test]
 #[ignore = "requires the allowlisted disposable Talos fixture"]
 async fn fails_closed_on_targets_and_authority_that_do_not_match() {
+    let _serial = LIVE_SERIAL.lock().await;
     let fixture = fixture();
     let (store, input) = import(&fixture, &fixture.config, &fixture.manifest.context_name);
 
@@ -548,6 +554,7 @@ async fn fails_closed_on_targets_and_authority_that_do_not_match() {
 #[tokio::test]
 #[ignore = "requires the allowlisted disposable Talos fixture"]
 async fn fails_over_to_a_reachable_allowlisted_endpoint() {
+    let _serial = LIVE_SERIAL.lock().await;
     let fixture = fixture();
     let (_store, input) = import(&fixture, &fixture.config, &fixture.manifest.context_name);
     let service = HelperService::default();
@@ -607,4 +614,512 @@ fn foreign_authority(config: &Zeroizing<Vec<u8>>) -> Zeroizing<Vec<u8>> {
         .join("\n");
     assert_ne!(mutated, text, "the authority must actually change");
     Zeroizing::new(mutated.into_bytes())
+}
+
+// ---------------------------------------------------------------------------
+// F1 live evidence: multi-event, real interruption, reconnect outcome,
+// exhaustion, and cancellation during reconnect.
+//
+// The interruption is always one of the two allowlisted fixture-local actions:
+// a worker reboot through the fixture admin identity, or suspend/resume of the
+// worker's QEMU process identified by this fixture's state directory and
+// machine name. Nothing else is touched, and every case waits for the worker to
+// report running again before it finishes.
+// ---------------------------------------------------------------------------
+
+/// Serializes live cases: an interrupted worker would corrupt parallel reads.
+/// The lock is held across awaits on purpose, so it is a Tokio mutex.
+static LIVE_SERIAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+fn worker_node(fixture: &Fixture) -> String {
+    fixture
+        .manifest
+        .allowed_nodes
+        .iter()
+        .find(|node| !fixture.manifest.allowed_endpoints.contains(node))
+        .unwrap_or_else(|| panic!("the fixture manifest must record a non-endpoint worker"))
+        .clone()
+}
+
+fn worker_machine_name(fixture: &Fixture) -> String {
+    format!("{}-worker-1", fixture.manifest.fixture_id)
+}
+
+/// Reboots the fixture's worker through its admin identity: the allowlisted
+/// lifecycle action that generates real status events and interrupts the
+/// authenticated stream.
+fn reboot_worker(fixture: &Fixture, worker: &str) {
+    assert!(
+        fixture
+            .manifest
+            .allowed_nodes
+            .iter()
+            .any(|node| node == worker),
+        "the reboot target must be a recorded fixture node"
+    );
+    assert!(
+        !fixture
+            .manifest
+            .allowed_endpoints
+            .contains(&worker.to_owned()),
+        "only the worker may be rebooted; a control-plane node is never a lifecycle target"
+    );
+    assert_eq!(
+        worker,
+        worker_node(fixture),
+        "the reboot target must be the fixture's single worker"
+    );
+    let talosctl = reference(TALOSCTL_ENV);
+    let config = reference(TALOSCONFIG_ENV);
+    let output = std::process::Command::new("sudo")
+        .args(["-n", "-E"])
+        .arg(&talosctl)
+        .args(["--talosconfig"])
+        .arg(&config)
+        .args(["--nodes", worker, "reboot"])
+        .output()
+        .unwrap_or_else(|_| panic!("sudo must run the pinned talosctl for the allowlisted reboot"));
+    assert!(
+        output.status.success(),
+        "the allowlisted worker reboot must be accepted: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    println!("worker {worker} rebooted through the fixture admin identity");
+}
+
+/// Resolves this fixture's worker QEMU process by its state directory AND
+/// machine name; no other process is ever considered.
+fn worker_qemu_pid(fixture: &Fixture) -> u32 {
+    let machine = worker_machine_name(fixture);
+    let mut matches = Vec::new();
+    for entry in std::fs::read_dir("/proc").unwrap_or_else(|_| panic!("/proc must be readable")) {
+        let Ok(entry) = entry else {
+            continue;
+        };
+        let Ok(pid) = entry.file_name().to_string_lossy().parse::<u32>() else {
+            continue;
+        };
+        let Ok(command) = std::fs::read_to_string(entry.path().join("cmdline")) else {
+            continue;
+        };
+        let command = command.replace('\0', " ");
+        if command.contains("qemu-system")
+            && command.contains(&fixture.manifest.state_dir)
+            && command.contains(&machine)
+        {
+            matches.push(pid);
+        }
+    }
+    assert_eq!(
+        matches.len(),
+        1,
+        "exactly one QEMU process must match state {} and machine {machine}",
+        fixture.manifest.state_dir
+    );
+    matches[0]
+}
+
+/// Suspends or resumes the worker's QEMU process: the allowlisted network
+/// interruption action, signalled only to the identified fixture process.
+fn signal_worker_qemu(fixture: &Fixture, signal: &str) -> u32 {
+    let pid = worker_qemu_pid(fixture);
+    let output = std::process::Command::new("sudo")
+        .args(["-n", "kill", &format!("-{signal}"), &pid.to_string()])
+        .output()
+        .unwrap_or_else(|_| panic!("sudo must signal the identified worker QEMU process"));
+    assert!(
+        output.status.success(),
+        "SIG{signal} of worker QEMU {pid} must be accepted: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    println!("worker QEMU {pid} received SIG{signal}");
+    pid
+}
+
+/// Waits until a fresh probe projects the worker running again, so a later
+/// live case starts from a healthy fixture.
+async fn wait_for_worker_running(
+    fixture: &Fixture,
+    service: &HelperService,
+    store: &TalosSessionStore,
+    session_id: &str,
+    worker: &str,
+) {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(240);
+    loop {
+        let input = store
+            .probe_input(session_id, worker)
+            .unwrap_or_else(|_| panic!("the worker node must stay selectable"));
+        if let Ok(events) = probe(service, fixture, &input, input.endpoints.clone(), true).await
+            && events.iter().any(|event| {
+                event.state == TalosProbeState::Healthy && event.stage.as_deref() == Some("running")
+            })
+        {
+            println!("worker {worker} reports running again");
+            return;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the worker must return to running within {deadline:?}"
+        );
+        tokio::time::sleep(Duration::from_secs(10)).await;
+    }
+}
+
+#[derive(Default)]
+struct Collector {
+    events: Arc<Mutex<Vec<TalosProbeEventDto>>>,
+}
+
+impl Collector {
+    fn sink(&self) -> impl FnMut(TalosProbeEventDto) -> Result<(), ()> + 'static {
+        let sink = Arc::clone(&self.events);
+        move |event| {
+            if let Ok(mut held) = sink.lock() {
+                held.push(event);
+            }
+            Ok(())
+        }
+    }
+
+    fn snapshot(&self) -> Vec<TalosProbeEventDto> {
+        self.events
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
+
+    /// Waits (bounded) until at least `count` events arrived.
+    async fn wait_for_count(&self, count: usize, budget: Duration) {
+        let deadline = tokio::time::Instant::now() + budget;
+        loop {
+            if self.snapshot().len() >= count {
+                return;
+            }
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "expected {count} projected events within {budget:?}"
+            );
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+
+    /// Waits (bounded) for the first stale marker of the stream.
+    async fn wait_for_stale(&self, budget: Duration) {
+        let deadline = tokio::time::Instant::now() + budget;
+        loop {
+            if self
+                .snapshot()
+                .iter()
+                .any(|event| event.state == TalosProbeState::Stale)
+            {
+                return;
+            }
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "the interrupted projection must be marked stale within {budget:?}"
+            );
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+}
+
+/// Asserts the multi-event and stale-identity invariants shared by the live
+/// interruption cases and returns the identity of the last data projection.
+fn assert_live_interruption_shape(events: &[TalosProbeEventDto]) -> (u64, u64) {
+    let stale_at = events
+        .iter()
+        .position(|event| event.state == TalosProbeState::Stale)
+        .unwrap_or_else(|| panic!("the interruption must mark the projection stale"));
+    let before = &events[..stale_at];
+    assert!(
+        before.len() >= 2,
+        "the reboot must project several real status events before the interruption, saw {before:?}"
+    );
+    let bootstrap = &before[0];
+    assert!(
+        before[1..]
+            .iter()
+            .any(|event| { event.stage != bootstrap.stage || event.ready != bootstrap.ready }),
+        "at least one real status change must be observed, saw {before:?}"
+    );
+    let stale = &events[stale_at];
+    let previous = &events[stale_at - 1];
+    assert_eq!(
+        stale.sequence, previous.sequence,
+        "a stale marker repeats the sequence it invalidates"
+    );
+    assert_eq!(stale.generation, previous.generation);
+    assert!(!stale.snapshot, "a stale marker carries no snapshot");
+    (
+        previous
+            .sequence
+            .parse()
+            .unwrap_or_else(|_| panic!("decimal sequence")),
+        previous
+            .generation
+            .parse()
+            .unwrap_or_else(|_| panic!("decimal generation")),
+    )
+}
+
+#[tokio::test]
+#[ignore = "requires the allowlisted disposable Talos fixture"]
+async fn live_interruption_marks_stale_then_recovers_or_exhausts_within_the_policy() {
+    let _serial = LIVE_SERIAL.lock().await;
+    let fixture = fixture();
+    let (store, input) = import(&fixture, &fixture.config, &fixture.manifest.context_name);
+    let service = HelperService::default();
+    let worker = worker_node(&fixture);
+    let worker_input = store
+        .probe_input(&input.session_id, &worker)
+        .unwrap_or_else(|_| panic!("the worker node must be selectable"));
+    let collector = Collector::default();
+    let session_id = worker_input.session_id.clone();
+    let stream = service.talos_probe(
+        &fixture.helper,
+        Zeroizing::new(worker_input.config.to_vec()),
+        worker_input.endpoints.clone(),
+        worker_input.node.clone(),
+        session_id.clone(),
+        collector.sink(),
+    );
+    tokio::pin!(stream);
+
+    // Phase 1: the allowlisted reboot generates real status events and
+    // interrupts the authenticated stream mid-flight.
+    let watch = async {
+        collector.wait_for_count(1, FIRST_EVENT_DEADLINE).await;
+        reboot_worker(&fixture, &worker);
+        collector.wait_for_stale(Duration::from_secs(60)).await;
+        // Phase 2: within the reconnect policy window the subscription must
+        // either deliver a replacement snapshot or end terminally.
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(90);
+        loop {
+            if let Some(snapshot) = collector.snapshot().iter().find(|event| {
+                event.snapshot && event.state == TalosProbeState::Healthy && event.sequence != "0"
+            }) {
+                return Some(snapshot.clone());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                return None;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    };
+
+    let terminal;
+    let recovered;
+    tokio::select! {
+        result = &mut stream => {
+            terminal = Some(result);
+            recovered = None;
+        }
+        outcome = watch => {
+            recovered = outcome;
+            terminal = None;
+        }
+    }
+
+    let events = collector.snapshot();
+    let (sequence, generation) = assert_live_interruption_shape(&events);
+    match recovered {
+        Some(snapshot) => {
+            assert_eq!(
+                snapshot
+                    .generation
+                    .parse::<u64>()
+                    .unwrap_or_else(|_| panic!("decimal generation")),
+                generation + 1,
+                "a replacement snapshot advances the generation by one"
+            );
+            assert_eq!(
+                snapshot
+                    .sequence
+                    .parse::<u64>()
+                    .unwrap_or_else(|_| panic!("decimal sequence")),
+                sequence + 1,
+                "the sequence stays continuous across the resync"
+            );
+            assert_eq!(
+                snapshot.session_id, session_id,
+                "the subscription identity never changes"
+            );
+            assert!(!snapshot.deleted);
+            println!(
+                "live reconnect recovered under generation {} with continuous sequence {}",
+                snapshot.generation, snapshot.sequence
+            );
+            assert!(
+                service.stop_talos_probe(&session_id),
+                "the owning session must release its recovered stream"
+            );
+            let result = stream.await;
+            assert!(
+                result.is_ok(),
+                "the recovered stream must cancel cleanly: {result:?}"
+            );
+        }
+        None => {
+            let result =
+                terminal.unwrap_or_else(|| panic!("one of the two outcomes must be observed"));
+            let error = result.err().unwrap_or_else(|| {
+                panic!("without a replacement snapshot the stream must end terminally")
+            });
+            assert_eq!(error.code, "TALOS_UNAVAILABLE", "{error:?}");
+            assert!(
+                events
+                    .iter()
+                    .skip_while(|event| event.state != TalosProbeState::Stale)
+                    .all(|event| event.state != TalosProbeState::Healthy),
+                "no projection may be presented as current after the stale marker"
+            );
+            println!(
+                "live reconnect exhausted the three-attempt budget: {:?}",
+                describe(&error)
+            );
+        }
+    }
+
+    wait_for_worker_running(&fixture, &service, &store, &input.session_id, &worker).await;
+    service.shutdown().await;
+}
+
+#[tokio::test]
+#[ignore = "requires the allowlisted disposable Talos fixture"]
+async fn live_reconnect_exhausts_while_the_worker_is_suspended() {
+    let _serial = LIVE_SERIAL.lock().await;
+    let fixture = fixture();
+    let (store, input) = import(&fixture, &fixture.config, &fixture.manifest.context_name);
+    let service = HelperService::default();
+    let worker = worker_node(&fixture);
+    let worker_input = store
+        .probe_input(&input.session_id, &worker)
+        .unwrap_or_else(|_| panic!("the worker node must be selectable"));
+    let collector = Collector::default();
+    let session_id = worker_input.session_id.clone();
+    let stream = service.talos_probe(
+        &fixture.helper,
+        Zeroizing::new(worker_input.config.to_vec()),
+        worker_input.endpoints.clone(),
+        worker_input.node.clone(),
+        session_id.clone(),
+        collector.sink(),
+    );
+    tokio::pin!(stream);
+
+    let suspend = async {
+        collector.wait_for_count(1, FIRST_EVENT_DEADLINE).await;
+        reboot_worker(&fixture, &worker);
+        collector.wait_for_stale(Duration::from_secs(60)).await;
+        // Hold the outage past the whole reconnect budget: the booting guest is
+        // frozen so every attempt must fail, which makes exhaustion deterministic.
+        signal_worker_qemu(&fixture, "STOP")
+    };
+
+    let frozen_pid;
+    tokio::select! {
+        _ = &mut stream => {
+            panic!("the stream may not end before the worker is suspended");
+        }
+        pid = suspend => {
+            frozen_pid = Some(pid);
+        }
+    }
+    // The three attempts (15 s deadline each, 0.5/1 s jittered backoffs) must
+    // end the subscription within their bounded window.
+    let result = tokio::time::timeout(Duration::from_secs(90), &mut stream)
+        .await
+        .unwrap_or_else(|_| {
+            panic!("the reconnect budget must end the subscription within its window")
+        });
+
+    let error = result
+        .err()
+        .unwrap_or_else(|| panic!("a frozen worker must exhaust the reconnect budget"));
+    assert_eq!(error.code, "TALOS_UNAVAILABLE", "{error:?}");
+    let events = collector.snapshot();
+    let (_sequence, _generation) = assert_live_interruption_shape(&events);
+    assert!(
+        events
+            .iter()
+            .skip_while(|event| event.state != TalosProbeState::Stale)
+            .all(|event| event.state != TalosProbeState::Healthy),
+        "the exhausted subscription must not present data as current"
+    );
+    println!(
+        "live exhaustion with a suspended worker: {}",
+        describe(&error)
+    );
+
+    if let Some(pid) = frozen_pid {
+        std::process::Command::new("sudo")
+            .args(["-n", "kill", "-CONT", &pid.to_string()])
+            .output()
+            .ok();
+    }
+    wait_for_worker_running(&fixture, &service, &store, &input.session_id, &worker).await;
+    service.shutdown().await;
+}
+
+#[tokio::test]
+#[ignore = "requires the allowlisted disposable Talos fixture"]
+async fn live_cancellation_during_reconnect_ends_promptly() {
+    let _serial = LIVE_SERIAL.lock().await;
+    let fixture = fixture();
+    let (store, input) = import(&fixture, &fixture.config, &fixture.manifest.context_name);
+    let service = HelperService::default();
+    let worker = worker_node(&fixture);
+    let worker_input = store
+        .probe_input(&input.session_id, &worker)
+        .unwrap_or_else(|_| panic!("the worker node must be selectable"));
+    let collector = Collector::default();
+    let session_id = worker_input.session_id.clone();
+    let stream = service.talos_probe(
+        &fixture.helper,
+        Zeroizing::new(worker_input.config.to_vec()),
+        worker_input.endpoints.clone(),
+        worker_input.node.clone(),
+        session_id.clone(),
+        collector.sink(),
+    );
+    tokio::pin!(stream);
+
+    let cancel = async {
+        collector.wait_for_count(1, FIRST_EVENT_DEADLINE).await;
+        reboot_worker(&fixture, &worker);
+        collector.wait_for_stale(Duration::from_secs(60)).await;
+        // The helper is now in its backoff or a reconnect attempt: cancelling
+        // must be acknowledged instead of waiting out the policy.
+        let started = tokio::time::Instant::now();
+        assert!(
+            service.stop_talos_probe(&session_id),
+            "the owning session must release its reconnecting stream"
+        );
+        started
+    };
+
+    let started;
+    tokio::select! {
+        _ = &mut stream => {
+            panic!("the stream may not end before the cancellation");
+        }
+        begin = cancel => {
+            started = begin;
+        }
+    }
+    let result = tokio::time::timeout(Duration::from_secs(5), &mut stream)
+        .await
+        .unwrap_or_else(|_| panic!("cancellation must end the stream within five seconds"));
+    assert!(
+        result.is_ok(),
+        "a cancelled stream ends cleanly: {result:?}"
+    );
+    println!(
+        "live cancellation during reconnect acknowledged in {:?}",
+        started.elapsed()
+    );
+
+    wait_for_worker_running(&fixture, &service, &store, &input.session_id, &worker).await;
+    service.shutdown().await;
 }

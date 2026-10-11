@@ -61,7 +61,7 @@ func serve(input io.Reader, output io.Writer) error {
 				Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_PROBE_RESPONSE,
 				RequestId:     request.RequestId,
 				Payload: &protocolv1.Envelope_TalosProbeResponse{TalosProbeResponse: &protocolv1.TalosProbeResponse{
-					Version: "v1.14.1", Stage: "running", Ready: true,
+					Version: "v1.14.1", Stage: "running", Ready: true, Generation: 1,
 				}},
 			}); err != nil {
 				return err
@@ -72,7 +72,7 @@ func serve(input io.Reader, output io.Writer) error {
 				RequestId:     request.RequestId,
 				Sequence:      1,
 				Payload: &protocolv1.Envelope_TalosStatusEvent{TalosStatusEvent: &protocolv1.TalosStatusEvent{
-					Stage: "running", Ready: true,
+					Stage: "running", Ready: true, Generation: 1,
 				}},
 			}); err != nil {
 				return err

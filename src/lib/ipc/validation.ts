@@ -200,13 +200,30 @@ export function parseTalosProbeEventDto(value: unknown): TalosProbeEventDto {
     !(value.stage === null || isSafeTalosStage(value.stage)) ||
     !(value.ready === null || typeof value.ready === "boolean") ||
     typeof value.deleted !== "boolean" ||
-    typeof value.sequence !== "string" ||
-    !/^(0|[1-9][0-9]{0,2})$/u.test(value.sequence) ||
-    Number(value.sequence) > 256
+    !isBoundedDecimal(value.sequence) ||
+    Number(value.sequence) > 256 ||
+    !isBoundedDecimal(value.generation) ||
+    Number(value.generation) < 1 ||
+    Number(value.generation) > 256 ||
+    typeof value.snapshot !== "boolean"
   ) {
     throw new IpcContractError();
   }
   if (value.state === "connecting" && (value.version !== null || value.stage !== null)) {
+    throw new IpcContractError();
+  }
+  if (
+    value.state === "stale" &&
+    (value.version !== null || value.stage !== null || value.ready !== null)
+  ) {
+    // A stale marker repeats the identity of the projection it invalidates and
+    // carries no data: the view keeps its retained values and marks them stale.
+    throw new IpcContractError();
+  }
+  if (value.state === "stale" && (value.snapshot || value.deleted)) {
+    throw new IpcContractError();
+  }
+  if (value.state === "healthy" && value.stage === null) {
     throw new IpcContractError();
   }
   return {
@@ -217,6 +234,8 @@ export function parseTalosProbeEventDto(value: unknown): TalosProbeEventDto {
     ready: value.ready,
     deleted: value.deleted,
     sequence: value.sequence,
+    generation: value.generation,
+    snapshot: value.snapshot,
   };
 }
 
@@ -266,6 +285,11 @@ function isSafeIdentityArray(value: unknown, maximum: number): value is string[]
 
 function isSafeTalosVersion(value: unknown): value is string {
   return typeof value === "string" && value.length <= 64 && /^[A-Za-z0-9._+-]+$/u.test(value);
+}
+
+/** Accepts a canonical decimal string for a sequence or generation bound to 256. */
+function isBoundedDecimal(value: unknown): value is string {
+  return typeof value === "string" && /^(0|[1-9][0-9]{0,2})$/u.test(value);
 }
 
 function isSafeTalosStage(value: unknown): value is string {
