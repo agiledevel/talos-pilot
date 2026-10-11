@@ -1,8 +1,18 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+
+import { normalizeToolVersion } from "./lib/contracts.ts";
 
 const root = resolve(import.meta.dirname, "..");
 const helperDir = join(root, "helper");
@@ -44,11 +54,29 @@ function sha256(filePath: string): string {
 
 function verifyVersion(command: string, args: string[], expected: string, cwd: string): void {
   const actual = run(command, args, cwd);
-  if (actual !== expected) {
+  if (normalizeToolVersion(actual) !== expected) {
     throw new Error(
       `Expected ${expected}, received ${actual}. Install the pinned contract toolchain from docs/protocol/helper-v1.md.`,
     );
   }
+}
+
+/**
+ * Resolves the pinned formatter's Node entry point.
+ *
+ * `spawnSync` cannot start the `pnpm` shim on Windows without a shell, because
+ * pnpm installs a `.cmd` there, so the gate would fail before comparing any
+ * output. The package's own `bin` is a Node script and executes identically on
+ * every platform.
+ */
+function oxfmtEntry(): string {
+  const entry = join(root, "node_modules", "oxfmt", "bin", "oxfmt");
+  if (!existsSync(entry)) {
+    throw new Error(
+      `the pinned formatter is missing at ${entry}; run pnpm install --frozen-lockfile.`,
+    );
+  }
+  return entry;
 }
 
 function main(): void {
@@ -105,7 +133,7 @@ function main(): void {
       ],
       root,
     );
-    run("pnpm", ["exec", "oxfmt", typescriptOutput], root);
+    run(process.execPath, [oxfmtEntry(), typescriptOutput], root);
 
     const stagedGo = join(goOutput, "helper/v1/envelope.pb.go");
     if (checkOnly) {
