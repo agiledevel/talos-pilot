@@ -31,6 +31,13 @@ C4 also negotiates `talos_probe`. No other request is valid before handshake
 succeeds. `SHUTDOWN_REQUEST` receives one acknowledgement before the helper
 exits. EOF cancels all helper-owned subscriptions and stops their tasks.
 
+A helper that exits between a request and its response closes its end of the
+request pipe. The parent reports that as one exited-helper class, whether it
+observes the exit as a failed request write or as end of file on the matching
+read, so the same failure never carries two different stable codes. The helper
+itself never closes its standard input while it remains alive: it reads requests
+until end of file and returns on that end of file.
+
 Every request has a nonempty opaque request ID. IDs are not reused while an
 exchange is active. Optional session and operation IDs have explicit Protobuf
 presence. Sequence values are unsigned 64-bit integers in the helper protocol;

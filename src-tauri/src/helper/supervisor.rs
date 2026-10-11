@@ -45,7 +45,10 @@ pub enum SupervisorError {
     /// An operation exceeded its configured deadline.
     #[error("the helper operation exceeded its deadline")]
     Timeout,
-    /// Reading or writing a private pipe failed.
+    /// Reading a private pipe failed, or it could not be closed during
+    /// shutdown. A failed request *write* is not this class; the helper closes
+    /// its end of that pipe only by exiting, so it is reported as
+    /// [`ChildExited`](Self::ChildExited).
     #[error("the helper private pipe failed")]
     Pipe(#[source] io::Error),
     /// A frame violated the protocol size or completeness rules.
@@ -749,6 +752,24 @@ where
     on_event(event)
 }
 
+/// Writes one framed request to the helper's standard input.
+///
+/// Invariant: this writer is always the helper's request pipe. The helper
+/// reads requests until end of file and returns on that end of file, so it
+/// never closes the pipe while it stays alive. Every write failure here is
+/// therefore the helper having exited or exiting, which is reported as
+/// [`SupervisorError::ChildExited`] rather than as a generic pipe failure.
+///
+/// The distinction is observable, so it cannot depend on scheduler timing. A
+/// helper killed between the request and its response closes its end of the
+/// pipe, and the parent then either fails the write (`EPIPE`) or succeeds and
+/// observes end of file on the matching read. Both are the same event, and
+/// reporting the first as `Pipe` made the caller's stable error class, and the
+/// message the operator sees, differ between two runs of the same failure.
+///
+/// The write's `io::Error` is dropped rather than carried as a source. It was
+/// never projected to a caller, and a separate variant for a write failure
+/// whose only realistic cause is the helper's exit would be untestable.
 async fn write_async_frame(
     writer: &mut (impl AsyncWrite + Unpin),
     payload: &[u8],
@@ -761,12 +782,15 @@ async fn write_async_frame(
     writer
         .write_all(&length.to_be_bytes())
         .await
-        .map_err(SupervisorError::Pipe)?;
+        .map_err(|_| SupervisorError::ChildExited)?;
     writer
         .write_all(payload)
         .await
-        .map_err(SupervisorError::Pipe)?;
-    writer.flush().await.map_err(SupervisorError::Pipe)
+        .map_err(|_| SupervisorError::ChildExited)?;
+    writer
+        .flush()
+        .await
+        .map_err(|_| SupervisorError::ChildExited)
 }
 
 /// Drains stderr continuously while retaining no child-controlled text.
@@ -965,6 +989,35 @@ mod tests {
         remove_helper(helper);
     }
 
+    /// The same exit must be reported by class whether the parent observes it
+    /// on the request write or on the following read.
+    ///
+    /// Reproduces the class of a real CI failure (run 38122849142,
+    /// `ubuntu-22.04`), where a killed helper was observed on the request write:
+    /// `write_async_frame` failed with `EPIPE` and the supervisor reported
+    /// `Pipe` instead of `ChildExited`, failing the sibling test below. The
+    /// hosted failure killed without waiting, so which observation won was a
+    /// race; this test removes that race by reaping the child first.
+    #[tokio::test]
+    async fn status_request_after_the_helper_exited_reports_child_exit() {
+        let helper = build_helper("exited-before-status");
+        let mut supervisor =
+            HelperSupervisor::start(&helper, "development", Duration::from_secs(5))
+                .await
+                .unwrap_or_else(|_| panic!("real Go helper handshake must succeed"));
+        supervisor
+            .child
+            .kill()
+            .await
+            .unwrap_or_else(|_| panic!("test helper must be killable"));
+
+        assert!(matches!(
+            supervisor.refresh_status(Duration::from_secs(5)).await,
+            Err(SupervisorError::ChildExited)
+        ));
+        remove_helper(helper);
+    }
+
     #[tokio::test]
     async fn helper_exit_during_status_exchange_is_reported_and_reaped() {
         let helper = build_helper("exit-during-status");
@@ -981,6 +1034,10 @@ mod tests {
             supervisor.refresh_status(Duration::from_secs(5)).await,
             Err(SupervisorError::ChildExited)
         ));
+        assert!(
+            supervisor.child.try_wait().ok().flatten().is_some(),
+            "a failed status exchange must reap the helper"
+        );
         remove_helper(helper);
     }
 
