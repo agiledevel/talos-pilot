@@ -169,6 +169,22 @@ full provisioning cycle each:
   the new context with a `-1` suffix, which then fails the harness identity gate;
   start from an empty state root.
 
+### Re-application authorization (2026-10-11)
+
+The owner confirmed on 2026-10-11 that the same fixture-scoped remediation above
+may be re-applied for the foundation completion phase, packets F1–F5. One
+confirmation covers those packets. Nothing broader is authorized: no rule, zone,
+or interface outside this fixture's own bridge and CIDR, and no change to the
+host's default zone. Each session re-applies these rules only to reprovision,
+destroys the fixture, and completes the restoration checklist below before it
+ends, unless the owner separately agrees to leave something in place and the
+session's ledger entry names it.
+
+The Talos patch refresh that packet F1 must perform — `talosctl`, the image, the
+Go module, and this manifest together — is not covered by that confirmation and
+is not yet reflected in the identity table above, which still records the
+2026-10-09 `v1.14.1` run as executed.
+
 ## Host-issued identities (2026-10-09 run)
 
 - QEMU bridge: `talosb8c871e1` on `10.79.0.1/24`, four guests

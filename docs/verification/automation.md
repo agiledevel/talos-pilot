@@ -114,3 +114,74 @@ Foundation checks run 38050246762 (push) and Security scans run 38050249577 pass
 Foundation checks run 38050249511 (pull request) passed on every job except `desktop (macos-15-intel)`, which GitHub cancelled at the 45-minute job limit during `cargo install cargo-audit`. Every step it executed had passed. Step durations on that runner varied between the two runs of the same commit (for example 213 s and 403 s for the first Rust test step), and the job needed about 50 minutes against 38 minutes on the push run. The desktop job limit is now 75 minutes, at the owner's direction on 2026-10-10.
 
 Not executed: a run with the 75-minute limit; the next push provides it.
+
+### Fourth run at `99c7099` — first run under the 75-minute limit
+
+The limit change from [the third run](#third-run-at-88983a8) was the
+`99c7099` commit itself, so its own runs are the first under it.
+
+Foundation checks run 38054135965 (push) and run 38054138988 (pull request), and
+Security scans run 38054138960 (pull request), passed on every job. `desktop
+(macos-15-intel)` took 28.5 minutes on the push run and 28.1 on the pull-request
+run, against the cancelled 45-minute-limit attempt at `88983a8`. The limit is
+therefore confirmed sufficient with roughly 45 minutes of headroom, and the
+cancellation cause (job width, not a failing step) is confirmed.
+
+### Fifth run at `fd91ce4` — the Svelte shell on all four desktop targets
+
+Foundation checks run 38121202573 (push) and run 38121206395 (pull request), and
+Security scans run 38121206387 (pull request), passed on every job: renderer, the
+four desktop runners, Trivy, and the three CodeQL languages. `desktop
+(macos-15-intel)` took 30.4 and 37.3 minutes. This is the first hosted execution
+of the Svelte/Skeleton shell and the fixed desktop layout, including
+`pnpm test:native` and `pnpm production:check` on each runner.
+
+### Sixth run at `11d4e19` — the desktop shell layout revision, with a real failure
+
+Foundation checks run 38122849142 (push) and Security scans run 38122849140
+(push) recorded the revision [the 2026-10-11 review](../plans/foundation-completion-flash.md)
+examined. Security passed all four jobs (Trivy, CodeQL `actions`, `CodeQL
+javascript-typescript`, `CodeQL rust`). The renderer job and `desktop
+(macos-15)`, `desktop (macos-15-intel)`, and `desktop (windows-2022)` passed;
+`desktop (ubuntu-22.04)` **failed** in `cargo test --manifest-path
+src-tauri/Cargo.toml --locked --all-targets` after 5.4 minutes:
+
+```text
+test helper::supervisor::tests::helper_exit_during_status_exchange_is_reported_and_reaped ... FAILED
+panicked at src/helper/supervisor.rs:980:
+assertion failed: matches!(supervisor.refresh_status(Duration::from_secs(5)).await,
+    Err(SupervisorError::ChildExited))
+test result: FAILED. 68 passed; 1 failed; 1 ignored
+```
+
+F0 treated this as a finding rather than a platform artifact: the supervisor
+reported a generic `Pipe` error when it observed a killed helper's exit on the
+request write (`EPIPE`) instead of on the following read (end of file). The two
+classes are not interchangeable in the operator's view: in the Talos probe
+projection `ChildExited` becomes `TALOS_UNAVAILABLE` ("the endpoint or node is
+unavailable") while `Pipe` becomes `TALOS_PROBE_FAILED` ("the authenticated
+Talos read probe failed"), so the same event produced a different code and
+message depending on scheduler timing. The status projection maps both classes
+to `HELPER_UNAVAILABLE` and was already stable. Reproduced deterministically on the F0 host by killing and reaping the
+helper before the status request, which yields `Pipe(Os { code: 32, kind:
+BrokenPipe })`. Packet F0 fixed the write path to report `ChildExited` and added
+the regression test; see [the F0 entry](milestone-1.md#f0-packet-evidence--refresh-the-baseline-and-enforce-existing-contract-checks).
+The hosted failure's own rerun is the next push.
+
+### Run at `de19494` — the plan documentation commit
+
+Foundation checks run 38125472686 and Security scans run 38125472701 were
+created at 2026-10-11T08:37:42Z and were still in progress when F0 recorded this
+entry; no result is claimed for them. They changed documentation only.
+
+### Contract drift gate
+
+`pnpm contracts:check` was not a workflow step before F0, although C1 step 5
+required it as one. It is now a named step of the desktop job on every matrix
+runner, immediately after `install-protoc`, and therefore also part of the
+release gate, which reuses this workflow. Deliberate-drift evidence on the F0
+host: a `.proto` field addition exits 1 in the generation step, a DTO doc
+comment that changes the generated TypeScript declaration exits 1 with
+``Generated IPC declaration `ApplicationErrorDto.ts` is stale``, and the
+restored tree exits 0. macOS and Windows byte behaviour for this step is
+unexecuted and belongs to the next hosted run.

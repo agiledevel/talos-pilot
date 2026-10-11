@@ -303,12 +303,12 @@ Do not start a packet that depends on an unverified contract. For example, C3.1 
 
 **Behavior:** clean target systems install and launch the foundation, locate/handshake with their helper, access the OS vault, render bundled workers/themes, and close all owned resources.
 
-| Target              | Required runtime/package evidence                                                                                                                                                                 |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Linux x86_64        | Ubuntu 22.04 reference and a recorded current Fedora version; AppImage, DEB, RPM; native WebView rendering; WebKit helper/resource checks; Secret Service unavailable/locked/available paths.     |
-| macOS Apple Silicon | macOS 13 minimum and a declared current test version; arm64 app/DMG; correct helper architecture/path; Keychain and worker/CSP behavior.                                                          |
-| macOS Intel         | macOS 13 minimum and a declared current test version; x86_64 app/DMG; same native, vault, and helper checks on actual Intel hardware/runner.                                                      |
-| Windows x86_64      | Windows 11; NSIS install/uninstall, WebView2 setup, credential vault, helper lifetime/path/architecture. Windows 10 remains an explicitly recorded investigation, not a required claimed minimum. |
+| Target              | Required runtime/package evidence                                                                                                                                                                   |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Linux x86_64        | Ubuntu 22.04 reference and a recorded current Fedora version; AppImage, DEB, RPM; native WebView rendering; WebKit helper/resource checks; Secret Service unavailable/locked/available paths.       |
+| macOS Apple Silicon | macOS 13.3 minimum ([0010](../decisions/0010-macos-minimum-webview.md)) and a declared current test version; arm64 app/DMG; correct helper architecture/path; Keychain and worker/CSP behavior.     |
+| macOS Intel         | macOS 13.3 minimum ([0010](../decisions/0010-macos-minimum-webview.md)) and a declared current test version; x86_64 app/DMG; same native, vault, and helper checks on actual Intel hardware/runner. |
+| Windows x86_64      | Windows 11; NSIS install/uninstall, WebView2 setup, credential vault, helper lifetime/path/architecture. Windows 10 remains an explicitly recorded investigation, not a required claimed minimum.   |
 
 The existing Ubuntu/macOS 15/Windows Server CI build runners do not replace minimum-OS and Windows 11 runtime tests. Additional architectures are subsequent work under the locked design.
 
