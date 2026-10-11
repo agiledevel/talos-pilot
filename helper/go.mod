@@ -6,7 +6,7 @@ tool google.golang.org/protobuf/cmd/protoc-gen-go
 
 require (
 	github.com/cosi-project/runtime v1.16.3
-	github.com/siderolabs/talos/pkg/machinery v1.14.1
+	github.com/siderolabs/talos/pkg/machinery v1.14.2
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
 )

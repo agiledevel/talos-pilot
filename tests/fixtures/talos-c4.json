@@ -4,11 +4,16 @@
   "provisioner": "qemu",
   "stateDir": "/tmp/tpc4/state",
   "clusterCidr": "10.79.0.0/24",
-  "talosVersion": "v1.14.1",
+  "talosVersion": "v1.14.2",
   "kubernetesVersion": "v1.36.5",
   "contextName": "talos-pilot-c4-20261009",
+  "readerContext": "reader@talos-pilot-c4-20261009",
+  "deniedContext": "etcd:backup@talos-pilot-c4-20261009",
   "allowedEndpoints": ["10.79.0.2", "10.79.0.3", "10.79.0.4"],
   "allowedNodes": ["10.79.0.2", "10.79.0.3", "10.79.0.4", "10.79.0.5"],
   "negativeEndpoint": "10.79.0.250",
-  "topology": { "controlPlanes": 3, "workers": 1 }
+  "topology": {
+    "controlPlanes": 3,
+    "workers": 1
+  }
 }

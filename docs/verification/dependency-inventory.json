@@ -9,7 +9,7 @@
     "lockfiles": {
       "pnpmLock": "2866422870f1870801724a291e3cd0c7525bf1233d580982dce848a1d8289baa",
       "cargoLock": "7d758b32285ed27596f6e665cdea6a961d0464875cf3efb3cd94160270bed54f",
-      "goSum": "62c390213f0dd6532680d39b073a459b3c6f29f30ec3037a25fadd89837f32f7"
+      "goSum": "ffb278d2583c3268a8ca81ca86449aa64e8e2f788deea074fbfee96032f7e00b"
     }
   },
   "npm": [
@@ -8583,7 +8583,7 @@
     },
     {
       "path": "github.com/siderolabs/talos/pkg/machinery",
-      "version": "v1.14.1",
+      "version": "v1.14.2",
       "indirect": false,
       "linked": true,
       "license": "MPL-2.0",
