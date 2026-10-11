@@ -1,6 +1,6 @@
 # Milestone 1: FLASH LLM implementation plan
 
-Date: 2026-10-08. Plan revision: 1. Status: ready for incremental implementation; milestone remains incomplete.
+Date: 2026-10-08. Plan revision: 2 (2026-10-11). Status: milestone remains incomplete; remaining execution packets are in the [foundation completion plan](foundation-completion-flash.md). This document retains the milestone's original scope, contracts, and acceptance matrix; historical starting-point descriptions are not current implementation status.
 
 Audience: a fast LLM with limited reasoning, working in small, verifiable sessions. This document supplies repository context, task order, concrete starting contracts, research requirements, and stop conditions. It does not assume a particular model vendor. Creating this plan does not execute or qualify the planned features.
 
@@ -271,13 +271,13 @@ Do not start a packet that depends on an unverified contract. For example, C3.1 
 
 **Work surface:** existing shell/shared tokens, `src/components/` specialized wrappers, feasibility/settings routes, workers/assets, CSP, browser/native flows.
 
-1. Reuse ConfigProvider/App, context-aware feedback, tokens, and CSS Modules. Keep the displayed cluster/namespace attached to the original view when global selection changes.
+1. Reuse the Svelte shell, Skeleton theme tokens, Bits UI wrappers, and `.svelte.ts` state ownership from [0008](../decisions/0008-svelte-skeleton-renderer.md) and [0009](../decisions/0009-desktop-shell-layout.md). Keep the displayed cluster/namespace attached to the original view when global selection changes.
 2. Integrate Monaco with YAML language support and required workers; verify a benign syntax diagnostic and diff. Synthetic examples contain no real secret values. YAML/schema validation behavior must come from the selected integration, not an asserted type cast.
 3. Render synthetic bounded terminal output and a bounded uPlot series; test resize/theme changes and dispose on closure. These probes do not claim actual container exec, port forwarding, or historical metrics.
 4. Lazy-load specialized integrations. Verify asset/worker URLs from installed production packages rather than only the Vite development server.
 5. Assess whether the inline-style allowance that Skeleton and Bits UI style attributes currently need can be narrowed, with the packaged worker setup. Permit only the minimum documented CSP sources needed. Preserve script/remote-content restrictions; do not add wildcard allowances or disable security to fix loading.
 
-**Required tests:** theme/system preference changes; independent density; persisted preferences; keyboard navigation/visible focus/dialog return; contrast/axe; 1280×800 and 1024×700 layouts plus scaling; invalid YAML worker feedback; offline editor/terminal/chart assets; no remote requests; CSP denial of unauthorized script/origin; repeated open/close and Strict Mode cycles without leaked workers/listeners/instances; explicit connection failure/retry states; original target identity preserved.
+**Required tests:** theme/system preference changes; independent density; persisted preferences; keyboard navigation/visible focus/dialog return; contrast/axe; 1280×800, 1024×700, and 720×480 layouts plus scaling; invalid YAML worker feedback; offline editor/terminal/chart assets; no remote requests; CSP denial of unauthorized script/origin; repeated open/close, prop replacement, and Svelte attachment/effect cleanup without leaked workers/listeners/instances; explicit connection failure/retry states; original target identity preserved.
 
 **Checkpoint:** browser flows and actual packaged native flows pass under the production CSP, including workers and the component libraries' inline style attributes. Record rendered evidence on the target WebViews. CSP/native claims cannot be accepted from Chromium mocks alone.
 
@@ -434,4 +434,4 @@ For a new fast-model session, use this instruction:
 
 > Read AGENTS.md, docs/plans/milestone-1-flash.md, and the current milestone evidence. Select the first pending packet within the first pending checkpoint whose prerequisites have evidence. Read its relevant skills and source. State the packet's observable behavior and failure tests, resolve unknown pinned APIs from primary sources, then implement and verify that packet. Preserve unrelated changes and the locked architecture. Update evidence with actual results and the next packet. Do not claim milestone completion while required rows are failed or unexecuted.
 
-**First implementation packet:** C0.1, baseline inspection and evidence ledger. Continue with C0.2 dependency research, then C1.1 contracts/codecs and C1.2 helper handshake/supervision. This plan does not authorize treating mocks, compilation, configured runners, or unavailable environments as successful integration evidence.
+**Original first implementation packet:** C0.1, baseline inspection and evidence ledger; C0.1/C0.2 are now complete. For the current starting point and next packet, use [foundation completion F0](foundation-completion-flash.md#f0--refresh-the-baseline-and-enforce-existing-contract-checks) and the ledger. This plan does not authorize treating mocks, compilation, configured runners, or unavailable environments as successful integration evidence.

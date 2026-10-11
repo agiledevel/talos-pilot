@@ -1,6 +1,9 @@
 # C4 disposable Talos fixture allowlist
 
-Status: **pre-registered; not yet provisioned**
+Status: **provisioned, exercised, and destroyed on 2026-10-09; no fixture exists now.**
+The accounts of the first failed attempts below are historical. The diagnosis,
+applied remediation, and restoration sections supersede their "do not retry" and
+"no endpoint is allowlisted" statements.
 
 This allowlist authorizes only the local C4 fixture below. It does not authorize
 use of any other Docker, libvirt, Talos, or Kubernetes cluster.

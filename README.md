@@ -13,7 +13,7 @@ Talos Pilot is being built to bring cluster infrastructure and Kubernetes worklo
 
 **Current stage: foundation development, milestone 1 (C4 live probe proven; C5–C9 open).** The application provides a runnable Tauri desktop shell (a menu bar, a navigation bar, and a status bar, per [0009](docs/decisions/0009-desktop-shell-layout.md)) with light/dark themes, compact density, and an empty cluster view. C1 adds the versioned Rust/Go helper protocol, supervision, a safe status command, and target-specific helper builds. C2 adds runtime-validated renderer IPC, a real Tauri helper permission test, and a Linux production-exclusion check. C3.1 adds backend-only SQLite schema and AEAD primitives; C3.2 adds explicit native vault providers, encrypted restart, and an in-memory session-only store. C3.3 connects safe kubeconfig import and persisted appearance controls. C4 adds the session-only Talos credential store, the helper probe stream with session-scoped bounded cancellation, and an accessible read-probe view; against the allowlisted disposable QEMU fixture `pnpm talos:fixture` now proves the authenticated `Version` read, the node-pinned `MachineStatus` stream, live cancellation, endpoint failover, and `TALOS_CERTIFICATE_INVALID`/`TALOS_UNAVAILABLE` classification through the production path, after which the fixture is destroyed and the host verified back to its recorded baseline. C7.1 records a verified applicability decision for both inherited GTK3 advisories and enforces it with `pnpm advisories:check`. macOS/Windows vault runtime checks and package qualification also remain in progress. The renderer moved from React and Ant Design to Svelte 5 with Skeleton and Bits UI on 2026-10-11 ([0008](docs/decisions/0008-svelte-skeleton-renderer.md)); its browser and native checks, and those of the desktop shell layout, have run on Linux only. Preview packages demonstrate the shell and packaging; the complete v1 scope remains the [locked design](docs/design.md).
 
-The [milestone 1 FLASH LLM implementation plan](docs/plans/milestone-1-flash.md) defines the remaining foundation work in small execution packets, with context, checkpoints, required tests, and evidence for a fast implementing model.
+The [foundation completion FLASH implementation plan](docs/plans/foundation-completion-flash.md) defines the next phase: close the remaining Talos stream checks, implement the Rust Kubernetes read/watch, qualify offline workers and packaged targets, and measure performance budgets. It records the repository review, owner decisions, small execution packets, and open verification needs. The [original milestone 1 plan](docs/plans/milestone-1-flash.md) retains the full acceptance matrix.
 
 ## What Talos Pilot is building
 
@@ -38,7 +38,7 @@ The renderer does not own cluster credentials or connect directly to cluster API
 
 ## Run from source
 
-Install **Node 26.11.1**, **pnpm 12.10.1**, **Rust 1.99.0**, **Go 1.27.1**, and the [Tauri native prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS. Node and Rust are pinned in `.node-version` and `rust-toolchain.toml`; Go is pinned by `helper/go.mod`.
+Install **Node 26.11.1**, **pnpm 12.10.1**, **Rust 1.99.0**, **Go 1.27.2**, and the [Tauri native prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS. Node and Rust are pinned in `.node-version` and `rust-toolchain.toml`; Go is pinned by `helper/go.mod`.
 
 ```sh
 git clone https://github.com/agiledevel/talos-pilot.git
