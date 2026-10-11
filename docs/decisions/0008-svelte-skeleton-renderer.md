@@ -108,8 +108,10 @@ renderer framework and were not changed.
 - **WebView baseline.** Tailwind 4 needs `@property` and `color-mix()`:
   Chromium 111, Safari/WebKit 16.4. Skeleton uses `light-dark()`, which the
   production build lowers for older engines. On macOS the design's "macOS 13+"
-  baseline now effectively means the WebKit shipped with macOS 13.3 or a later
-  Safari update. This has not been exercised on macOS or Windows.
+  baseline effectively means the WebKit shipped with macOS 13.3 or a later
+  Safari update; [0010](0010-macos-minimum-webview.md) settled that and raised
+  the declared minimum to 13.3. This has not been exercised on macOS or
+  Windows.
 - **CSP unchanged.** `style-src 'self' 'unsafe-inline'` stays. Ant Design
   needed it for injected style elements; Skeleton's Zag machines and Bits UI
   apply inline style attributes for positioning. Whether the allowance can now

@@ -48,7 +48,7 @@ pnpm install --frozen-lockfile
 pnpm desktop:dev
 ```
 
-Use `pnpm dev` for the browser shell at `http://127.0.0.1:1420`. Appearance preferences last for the current session. Native builds target Linux x86_64, macOS Apple Silicon/Intel, and Windows x86_64; configured CI targets are distinct from verified operating-system compatibility.
+Use `pnpm dev` for the browser shell at `http://127.0.0.1:1420`. Appearance preferences last for the current session. Native builds target Linux x86_64, macOS 13.3 or later (Apple Silicon and Intel, per [0010](docs/decisions/0010-macos-minimum-webview.md)), and Windows x86_64; configured CI targets are distinct from verified operating-system compatibility.
 
 ## Quality checks
 

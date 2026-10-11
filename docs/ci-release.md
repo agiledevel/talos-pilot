@@ -57,7 +57,7 @@ Build matrix:
 | macOS 15 Intel         | x86_64-apple-darwin      | DMG, with app bundle built |
 | Windows Server 2022    | x86_64-pc-windows-msvc   | NSIS installer             |
 
-These are build runners; Windows Server compilation does not qualify Windows 11 runtime behavior, and macOS 15 does not prove the macOS 13 minimum. A separate release-only [Tauri configuration](../.github/tauri.release.conf.json) enables bundling. macOS previews are ad-hoc signed and not notarized; Windows previews are not publisher-signed. Production signing credentials and updater artifacts are not simulated.
+These are build runners; Windows Server compilation does not qualify Windows 11 runtime behavior, and macOS 15 does not prove the macOS 13.3 minimum ([0010](decisions/0010-macos-minimum-webview.md)). A separate release-only [Tauri configuration](../.github/tauri.release.conf.json) enables bundling. macOS previews are ad-hoc signed and not notarized; Windows previews are not publisher-signed. Production signing credentials and updater artifacts are not simulated.
 
 The desktop QA and release asset jobs install Go **1.27.2** from `helper/go.mod`
 with `actions/setup-go` **v6.5.0**, pinned to commit

@@ -404,7 +404,7 @@ Initial performance fixture: 20 saved profiles, 3 active clusters, 100 nodes in 
 | Platform | Initial targets and packages |
 | --- | --- |
 | Linux | x86_64; Ubuntu 22.04+ reference build and a current Fedora test; AppImage, DEB, RPM; document WebKitGTK/runtime requirements |
-| macOS | Apple Silicon and Intel; macOS 13+ baseline; app/DMG with production signing and notarization |
+| macOS | Apple Silicon and Intel; macOS 13.3+ baseline ([0010](decisions/0010-macos-minimum-webview.md)); app/DMG with production signing and notarization |
 | Windows | x86_64; Windows 11 reference test with Windows 10 compatibility subject to verification; NSIS installer and WebView2 setup |
 
 Linux ARM64 and Windows ARM64 follow the initial targets. Windows 11 is the v1 release gate; Windows 10 compatibility is an investigation target until verified. The foundation and packaging milestones verify these OS targets and document runtime installation requirements. Any necessary change to a minimum OS target is recorded as a design change; listing an OS here does not imply verification has already occurred. [Tauri distribution](https://v2.tauri.app/distribute/).
