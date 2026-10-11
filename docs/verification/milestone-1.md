@@ -4,6 +4,25 @@ Date opened: 2026-10-08. Base revision: `2926f4c58312a415fb430eca2c014e500f436d6
 
 This is the active evidence record for [milestone 1](../plans/milestone-1-flash.md); the [foundation completion plan](../plans/foundation-completion-flash.md) defines its next execution packets. It distinguishes current checks from historical evidence in [initialization](initialization.md) and [automation](automation.md). A checkpoint remains open until its observable acceptance criteria and required evidence pass on the final changed revision.
 
+## Readiness recheck at `f0731cf` — 2026-10-11
+
+The owner requested verification of foundation completion and a next-phase FLASH
+plan. The [source and evidence review](foundation-readiness-2026-10-11.md) could
+not establish completion: C5 has no implemented Rust adapter, F1 steps 4–5 are
+undelivered, and C6/C8/C9 remain open. No checkpoint is promoted by this
+planning change. The prepared [milestone 2 plan](../plans/milestone-2-flash.md)
+is gated on foundation acceptance. Next executable packet: remaining F1
+reconnect/resync and live interruption qualification, then F2–F10. This recheck
+uses current source plus attributed historical evidence; it does not rerun
+application, native, fixture, platform or security gates.
+
+The review also read the hosted runs at `f0731cf`. `desktop (windows-2022)`
+executed and passed the reworked contract step, so the F0 entry's unexecuted
+Windows row now has hosted evidence; see the
+[automation record](automation.md#eighth-run-at-f0731cf--the-reworked-contract-step-on-windows).
+This promotes no checkpoint: hosted Windows Server is not C8's Windows 11
+qualification.
+
 ## Checkpoint status and acceptance criteria
 
 | Checkpoint                       | Status                                                     | Acceptance criteria                                                                                                                                                                                                                                      |

@@ -236,12 +236,26 @@ Windows line (`protoc-gen-go.exe v1.36.12`) is accepted while
 `protoc-gen-go.exe v1.37.0` is rejected. The Windows runner itself has not yet
 executed the reworked step.
 
+### Eighth run at `f0731cf` — the reworked contract step on Windows
+
+Foundation checks run 38158295458 and Security scans run 38158295539 (push,
+`main`) were read at 2026-10-11T17:28Z by the
+[readiness review](foundation-readiness-2026-10-11.md#hosted-ci-at-the-reviewed-revision).
+`renderer`, `desktop (ubuntu-22.04)`, `desktop (macos-15)` and
+`desktop (windows-2022)` succeeded, and so did all four security jobs.
+`desktop (macos-15-intel)` was still running and has no recorded result here.
+The Windows job ran every step through `Verify generated contracts are current`.
+That is the first hosted Windows execution of the reworked step, and it closes
+the unexecuted row recorded under the seventh run.
+
 ### Contract drift gate
 
 `pnpm contracts:check` was not a workflow step before F0, although C1 step 5
 required it as one. It is now a named step of the desktop job on every matrix
-runner, immediately after `install-protoc`, and therefore also part of the
-release gate, which reuses this workflow. Deliberate-drift evidence on the F0
+runner and therefore also part of the release gate, which reuses this workflow.
+F0 first placed it immediately after `install-protoc`. `dd96539` moved it to
+the end of the job, after `pnpm advisories:check`, for the reason given under
+the seventh run. Deliberate-drift evidence on the F0
 host: a `.proto` field addition exits 1 in the generation step, a DTO doc
 comment that changes the generated TypeScript declaration exits 1 with
 ``Generated IPC declaration `ApplicationErrorDto.ts` is stale``, and the
