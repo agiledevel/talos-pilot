@@ -38,9 +38,11 @@ describe("native helper status command", () => {
 });
 
 describe("native storage and appearance commands", () => {
-  it("renders storage state loaded through the native IPC transport", async () => {
-    const text = await browser.tauri.execute(() => document.body.innerText);
-    assert.match(text, /Session-only: credentials remain in memory/u);
+  it("names storage state loaded through the native IPC transport in the status bar", async () => {
+    const text = await browser.tauri.execute(
+      () => document.querySelector("footer")?.innerText ?? "",
+    );
+    assert.match(text, /Credentials:\s*session-only/u);
   });
 
   it("stores and reads appearance preferences through the Rust command boundary", async () => {
@@ -116,6 +118,69 @@ describe("native storage and appearance commands", () => {
       withExecuteOptions({ windowLabel: "unauthorized" }),
     );
     assert.equal(result, "denied");
+  });
+});
+
+describe("native desktop shell", () => {
+  /*
+   * The native-test application has two windows, and a raw WebDriver element
+   * command acts on whichever one the driver holds. Every step therefore runs
+   * in the main window through the service. The menu opens on `pointerdown`,
+   * as it does for a real pointer, so that event is dispatched. An item counts
+   * as shown only when it is the topmost element at its own centre, which
+   * holds once the positioning styles have been applied under the packaged
+   * content security policy.
+   */
+  async function chooseTheme(label: string): Promise<void> {
+    await browser.tauri.execute(() => {
+      document
+        .querySelector('[role="menubar"] [role="menuitem"]')
+        ?.dispatchEvent(
+          new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerType: "mouse" }),
+        );
+    });
+    await browser.waitUntil(
+      async () =>
+        await browser.tauri.execute((_tauri, wanted) => {
+          const item = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(
+            (candidate) => candidate.textContent.trim() === wanted,
+          );
+          if (item === undefined) {
+            return false;
+          }
+          const box = item.getBoundingClientRect();
+          const topmost = document.elementFromPoint(
+            box.left + box.width / 2,
+            box.top + box.height / 2,
+          );
+          if (box.width === 0 || topmost === null || !item.contains(topmost)) {
+            return false;
+          }
+          item.click();
+          return true;
+        }, label),
+      { timeoutMsg: `The "${label}" item of the View menu was never shown.` },
+    );
+  }
+
+  async function recordedMode(): Promise<string | null> {
+    return await browser.tauri.execute(() => document.documentElement.dataset.mode ?? null);
+  }
+
+  it("applies a theme chosen from the View menu under the packaged content security policy", async () => {
+    await chooseTheme("Dark");
+    await browser.waitUntil(async () => (await recordedMode()) === "dark");
+    assert.deepEqual(
+      await browser.tauri.execute(({ core }) => core.invoke("get_appearance_settings")),
+      { theme: "dark", density: "comfortable" },
+    );
+
+    await chooseTheme("System");
+    await browser.waitUntil(async () => (await recordedMode()) === null);
+    assert.deepEqual(
+      await browser.tauri.execute(({ core }) => core.invoke("get_appearance_settings")),
+      { theme: "system", density: "comfortable" },
+    );
   });
 });
 

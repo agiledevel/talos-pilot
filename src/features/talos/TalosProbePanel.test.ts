@@ -2,7 +2,8 @@ import { render, screen, waitFor } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { MockedFunction } from "vitest";
-import type { IpcTransport } from "../lib/ipc/transport";
+import type { IpcTransport } from "../../lib/ipc/transport";
+import { TalosProbePanelState } from "../../lib/state/talosProbe.svelte";
 import TalosProbePanel from "./TalosProbePanel.svelte";
 
 const SESSION = {
@@ -66,6 +67,11 @@ function createProbeTransport(rejection?: unknown): {
   };
 }
 
+/** Renders the panel with probe state for `transport`, as the shell provides it. */
+function renderPanel(transport: IpcTransport | undefined): void {
+  render(TalosProbePanel, { props: { probe: new TalosProbePanelState(transport) } });
+}
+
 async function importContext(user: ReturnType<typeof userEvent.setup>): Promise<void> {
   await user.click(screen.getByRole("button", { name: "Import Talos config" }));
   await screen.findByRole("button", { name: /Start read probe/u });
@@ -73,13 +79,13 @@ async function importContext(user: ReturnType<typeof userEvent.setup>): Promise<
 
 describe("Talos read probe panel", () => {
   it("keeps native probe actions disabled in a browser without an injected transport", () => {
-    render(TalosProbePanel, { props: { transport: undefined } });
+    renderPanel(undefined);
     expect(screen.getByRole("button", { name: "Import Talos config" })).toBeDisabled();
   });
 
   it("shows only the bounded session label and target identities after import", async () => {
     const user = userEvent.setup();
-    render(TalosProbePanel, { props: { transport: createProbeTransport().transport } });
+    renderPanel(createProbeTransport().transport);
 
     await importContext(user);
     expect(await screen.findByText(/Session-only context “synthetic-demo”/u)).toBeInTheDocument();
@@ -90,7 +96,7 @@ describe("Talos read probe panel", () => {
   it("renders the streamed healthy projection and closes only its own session", async () => {
     const user = userEvent.setup();
     const { transport, invoke, emit, settleProbe, channelCalls } = createProbeTransport();
-    render(TalosProbePanel, { props: { transport } });
+    renderPanel(transport);
 
     await importContext(user);
     await user.click(screen.getByRole("button", { name: /Start read probe/u }));
@@ -121,7 +127,7 @@ describe("Talos read probe panel", () => {
     const user = userEvent.setup();
     const { transport, invoke, channelCalls } = createProbeTransport();
     invoke.mockResolvedValueOnce({ ...SESSION, nodes: ["10.79.0.4", "10.79.0.5"] });
-    render(TalosProbePanel, { props: { transport } });
+    renderPanel(transport);
 
     await importContext(user);
     const picker = screen.getByRole("combobox", { name: "Talos node target" });
@@ -146,7 +152,7 @@ describe("Talos read probe panel", () => {
   it("requests cancellation scoped to the active session from the stop action", async () => {
     const user = userEvent.setup();
     const { transport, invoke, emit } = createProbeTransport();
-    render(TalosProbePanel, { props: { transport } });
+    renderPanel(transport);
 
     await importContext(user);
     await user.click(screen.getByRole("button", { name: /Start read probe/u }));
@@ -166,7 +172,7 @@ describe("Talos read probe panel", () => {
       retryable: false,
       message: "Talos rejected the configured permissions.",
     });
-    render(TalosProbePanel, { props: { transport } });
+    renderPanel(transport);
 
     await importContext(user);
     await user.click(screen.getByRole("button", { name: /Start read probe/u }));
@@ -186,7 +192,7 @@ describe("Talos read probe panel", () => {
       retryable: false,
       message: "The bundled helper cannot run this Talos probe. Update or restart the application.",
     });
-    render(TalosProbePanel, { props: { transport } });
+    renderPanel(transport);
 
     await importContext(user);
     await user.click(screen.getByRole("button", { name: /Start read probe/u }));
@@ -200,7 +206,7 @@ describe("Talos read probe panel", () => {
   it("reports a malformed native event as a contract failure and cancels its session", async () => {
     const user = userEvent.setup();
     const { transport, invoke, emit, settleProbe } = createProbeTransport();
-    render(TalosProbePanel, { props: { transport } });
+    renderPanel(transport);
 
     await importContext(user);
     await user.click(screen.getByRole("button", { name: /Start read probe/u }));
@@ -218,7 +224,7 @@ describe("Talos read probe panel", () => {
   it("marks a gap in a previously healthy stream stale instead of reusing the last values", async () => {
     const user = userEvent.setup();
     const { transport, emit, settleProbe } = createProbeTransport();
-    render(TalosProbePanel, { props: { transport } });
+    renderPanel(transport);
 
     await importContext(user);
     await user.click(screen.getByRole("button", { name: /Start read probe/u }));
@@ -235,7 +241,7 @@ describe("Talos read probe panel", () => {
   it("associates a rejected import with the import action", async () => {
     const user = userEvent.setup();
     const { transport, invoke } = createProbeTransport();
-    render(TalosProbePanel, { props: { transport } });
+    renderPanel(transport);
 
     invoke.mockRejectedValueOnce({
       code: "TALOS_CONFIG_INVALID",
@@ -258,7 +264,7 @@ describe("Talos read probe panel", () => {
   it("associates a failed cancellation with the stop action", async () => {
     const user = userEvent.setup();
     const { transport, invoke, emit } = createProbeTransport();
-    render(TalosProbePanel, { props: { transport } });
+    renderPanel(transport);
 
     await importContext(user);
     await user.click(screen.getByRole("button", { name: /Start read probe/u }));
@@ -283,7 +289,7 @@ describe("Talos read probe panel", () => {
   it("keeps the session visible when the in-memory close fails", async () => {
     const user = userEvent.setup();
     const { transport, invoke } = createProbeTransport();
-    render(TalosProbePanel, { props: { transport } });
+    renderPanel(transport);
 
     await importContext(user);
     invoke.mockRejectedValueOnce({
@@ -299,22 +305,5 @@ describe("Talos read probe panel", () => {
       await screen.findByText("The in-memory Talos session could not be accessed."),
     ).toBeInTheDocument();
     expect(screen.getByText(/Session-only context “synthetic-demo”/u)).toBeInTheDocument();
-  });
-
-  it("cancels and closes the retained session when the view unmounts", async () => {
-    const user = userEvent.setup();
-    const { transport, invoke, emit } = createProbeTransport();
-    const view = render(TalosProbePanel, { props: { transport } });
-
-    await importContext(user);
-    await user.click(screen.getByRole("button", { name: /Start read probe/u }));
-    emit(HEALTHY_EVENT);
-    await screen.findByText("Talos: healthy");
-
-    view.unmount();
-    await vi.waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith("stop_talos_probe", { sessionId: SESSION.session_id });
-      expect(invoke).toHaveBeenCalledWith("close_talos_session", { sessionId: SESSION.session_id });
-    });
   });
 });

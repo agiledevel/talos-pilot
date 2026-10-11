@@ -40,6 +40,7 @@ describe("shell state without a transport", () => {
     expect(shell.canImport).toBe(false);
     expect(shell.storageMode).toBeNull();
     expect(shell.appearance.theme).toBe("system");
+    expect(shell.loadError).toBeNull();
     expect(shell.error).toBeNull();
   });
 });
@@ -53,7 +54,8 @@ describe("loading shell state", () => {
         "Local storage is unavailable.",
       );
     });
-    expect(shell.error).toBe("Local storage is unavailable.");
+    expect(shell.loadError).toBe("Local storage is unavailable.");
+    expect(shell.error).toBeNull();
     expect(shell.storageMode).toBeNull();
   });
 
@@ -61,7 +63,7 @@ describe("loading shell state", () => {
     const shell = await loadedShell((command) =>
       command === "get_appearance_settings" ? { theme: "neon", density: "comfortable" } : null,
     );
-    expect(shell.error).toMatch(/returned invalid settings data/u);
+    expect(shell.loadError).toMatch(/returned invalid settings data/u);
     expect(shell.appearance.theme).toBe("system");
   });
 
@@ -69,8 +71,8 @@ describe("loading shell state", () => {
     const shell = await loadedShell(() => {
       throw new Error("secret-bearing transport detail");
     });
-    expect(shell.error).toMatch(/could not load settings/u);
-    expect(shell.error).not.toMatch(/secret-bearing/u);
+    expect(shell.loadError).toMatch(/could not load settings/u);
+    expect(shell.loadError).not.toMatch(/secret-bearing/u);
   });
 });
 

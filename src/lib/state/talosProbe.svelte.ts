@@ -159,7 +159,7 @@ export class TalosProbePanelState {
   }
 
   /**
-   * Releases everything this instance owns when its view goes away: cancels a
+   * Releases everything this instance owns when its owner goes away: cancels a
    * running probe and closes the session. Failures are ignored because no view
    * remains to report them; the backend drops session-only state on exit.
    */

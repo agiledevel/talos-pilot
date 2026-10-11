@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 /**
  * Scripts Tauri's IPC entry point before the application loads, so the real
@@ -44,16 +44,26 @@ async function scriptNativeResponses(page: Page): Promise<void> {
   });
 }
 
-/**
- * Scans the settled page. A save briefly disables the appearance controls, and
- * a scan taken mid-change would measure blended colours, so callers first wait
- * for the state they expect and this waits for the controls to be usable again.
- */
 async function expectNoAccessibilityViolations(page: Page): Promise<void> {
-  await expect(
-    page.getByRole("radiogroup", { name: "Theme" }).getByRole("radio", { name: "System" }),
-  ).toBeEnabled();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+}
+
+function viewMenu(page: Page): Locator {
+  return page
+    .getByRole("menubar", { name: "Application menu" })
+    .getByRole("menuitem", { name: "View" });
+}
+
+/** Chooses one item of the View menu with the pointer; choosing closes the menu. */
+async function chooseFromViewMenu(page: Page, option: string): Promise<void> {
+  await viewMenu(page).click();
+  await page.getByRole("menuitemradio", { name: option }).click();
+  await expect(page.getByRole("menu")).toBeHidden();
+}
+
+async function openView(page: Page, name: string): Promise<void> {
+  await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name }).click();
+  await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -66,11 +76,12 @@ test("themes follow the system until one is chosen and stay accessible", async (
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
   await page.goto("/");
   const root = page.locator("html");
-  const theme = page.getByRole("radiogroup", { name: "Theme" });
-  await expect(page.getByText(/operating system vault is unavailable/i)).toBeVisible();
+  const statusBar = page.getByRole("contentinfo", { name: "Status bar" });
+  await expect(statusBar).toContainText("Credentials: vault unavailable");
 
   // "System" records no explicit mode and resolves from the emulated preference.
-  await expect(theme.getByRole("radio", { name: "System" })).toBeChecked();
+  await viewMenu(page).click();
+  await expect(page.getByRole("menuitemradio", { name: "System" })).toBeChecked();
   await expect(root).not.toHaveAttribute("data-mode");
   await expect(root).toHaveCSS("color-scheme", "dark");
   const darkBackground = await root.evaluate(
@@ -78,7 +89,7 @@ test("themes follow the system until one is chosen and stay accessible", async (
   );
   await expectNoAccessibilityViolations(page);
 
-  await theme.getByText("Light").click();
+  await page.getByRole("menuitemradio", { name: "Light" }).click();
   await expect(root).toHaveAttribute("data-mode", "light");
   await expect(root).toHaveCSS("color-scheme", "light");
   await expect(root).not.toHaveCSS("background-color", darkBackground);
@@ -86,23 +97,57 @@ test("themes follow the system until one is chosen and stay accessible", async (
 
   // An explicit dark choice must win over a light system preference.
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
-  await theme.getByText("Dark").click();
+  await chooseFromViewMenu(page, "Dark");
   await expect(root).toHaveAttribute("data-mode", "dark");
   await expect(root).toHaveCSS("color-scheme", "dark");
   await expect(root).toHaveCSS("background-color", darkBackground);
-  await expect(theme.getByRole("radio", { name: "Dark" })).toBeChecked();
   await expectNoAccessibilityViolations(page);
+
+  await viewMenu(page).click();
+  await expect(page.getByRole("menuitemradio", { name: "Dark" })).toBeChecked();
+  await expect(page.getByRole("menuitemradio", { name: "System" })).not.toBeChecked();
+  await expectNoAccessibilityViolations(page);
+});
+
+test("the View menu works from the keyboard and returns focus to its trigger", async ({ page }) => {
+  await page.goto("/");
+  const root = page.locator("html");
+  await expect(page.getByRole("contentinfo", { name: "Status bar" })).toContainText(
+    "Credentials: vault unavailable",
+  );
+
+  // Open with the keyboard; focus lands on the first item, then moves down to "Dark".
+  await viewMenu(page).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menuitemradio", { name: "System" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("menuitemradio", { name: "Dark" })).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  await expect(root).toHaveAttribute("data-mode", "dark");
+  await expect(page.getByRole("menu")).toBeHidden();
+  await expect(viewMenu(page)).toBeFocused();
+
+  // Escape dismisses without a change.
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("menu")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toBeHidden();
+  await expect(viewMenu(page)).toBeFocused();
+  await expect(root).toHaveAttribute("data-mode", "dark");
 });
 
 test("compact density tightens controls without losing accessibility", async ({ page }) => {
   await page.goto("/");
+  await openView(page, "Settings");
   const importButton = page.getByRole("button", { name: "Import kubeconfig" });
   await expect(page.getByText(/operating system vault is unavailable/i)).toBeVisible();
   const height = async (): Promise<number> => (await importButton.boundingBox())?.height ?? 0;
   const comfortable = await height();
   expect(comfortable).toBeGreaterThan(0);
 
-  await page.getByRole("radiogroup", { name: "Density" }).getByText("Compact").click();
+  await chooseFromViewMenu(page, "Compact");
   await expect(page.locator("html")).toHaveAttribute("data-density", "compact");
   await expect.poll(height).toBeLessThan(comfortable);
   await expect.poll(height).toBeGreaterThan(0);
@@ -111,8 +156,12 @@ test("compact density tightens controls without losing accessibility", async ({ 
 
 test("the Talos node picker works with pointer and keyboard in both themes", async ({ page }) => {
   await page.goto("/");
+  await openView(page, "Talos");
   await page.getByRole("button", { name: "Import Talos config" }).click();
   await expect(page.getByText(/Session-only context “synthetic-demo”/u)).toBeVisible();
+  await expect(page.getByRole("contentinfo", { name: "Status bar" })).toContainText(
+    "Talos: synthetic-demo (session-only)",
+  );
   const picker = page.getByRole("combobox", { name: "Talos node target" });
   await expect(picker).toHaveText(/10\.79\.0\.4/u);
 
@@ -142,7 +191,7 @@ test("the Talos node picker works with pointer and keyboard in both themes", asy
   await expect(list).toBeHidden();
   await expect(picker).toHaveText(/10\.79\.0\.6/u);
 
-  await page.getByRole("radiogroup", { name: "Theme" }).getByText("Dark").click();
+  await chooseFromViewMenu(page, "Dark");
   await expect(page.locator("html")).toHaveAttribute("data-mode", "dark");
   await picker.click();
   await expect(list).toBeVisible();

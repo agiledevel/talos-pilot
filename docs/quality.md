@@ -96,7 +96,7 @@ Test cleanup on failure as well as success. Confirm resources are released by ob
 
 ## 6. Frontend and native UX quality
 
-Use Skeleton components and theme tokens, and Bits UI primitives wrapped in `src/components/ui/` for components Skeleton does not provide. Review light/dark themes, compact density, high data volume, resizing, keyboard shortcuts, and target visibility. Test keyboard navigation, visible focus, dialog focus return, screen-reader labels, error association, and status conveyed through text as well as color.
+Use Skeleton components and theme tokens, and Bits UI primitives wrapped in `src/components/ui/` for components Skeleton does not provide. Review light/dark themes, compact density, high data volume, resizing, keyboard shortcuts, and target visibility. Check the [desktop shell layout](design.md#desktop-shell-layout) at 1280×800, 1024×700, and the 720×480 minimum window size: the menu bar, navigation bar, and status bar stay in place, the window does not scroll, and the status bar names the context a change affects. Test keyboard navigation, including the menu bar, visible focus, dialog and menu focus return, screen-reader labels, error association, and status conveyed through text as well as color.
 
 Run automated accessibility checks in renderer flows and manually exercise the main keyboard paths. Treat component-library defaults as a starting point, not proof of accessibility. Validate Monaco, xterm.js, charts, the bundled stylesheet, the inline style attributes applied by Skeleton and Bits UI, and fonts/workers under the packaged CSP.
 

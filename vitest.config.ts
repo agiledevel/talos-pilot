@@ -15,6 +15,9 @@ export default defineConfig({
       reporter: ["text", "lcov"],
       include: [
         "src/components/**/*.svelte",
+        "src/components/ui/menu.ts",
+        "src/features/**/*.svelte",
+        "src/lib/format/**/*.ts",
         "src/lib/state/**/*.svelte.ts",
         "src/lib/ipc/transport.ts",
         "src/lib/ipc/validation.ts",

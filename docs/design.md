@@ -134,7 +134,7 @@ Initial source layout:
 ```text
 docs/                       design, decisions, roadmap, verification records
 src/                        Svelte application
-  features/                 clusters, talos, kubernetes, helm, operations
+  features/                 clusters, talos, kubernetes, helm, operations, settings
   components/               shared UI, editors, terminal, tables
   lib/                      typed IPC, UI state, formatting
 src-tauri/src/              commands and Rust application services
@@ -184,7 +184,33 @@ Centralize typography, spacing, radii, color, and density in the Skeleton theme 
 
 Provide three reusable page patterns: a searchable resource list; a detail view with summary, conditions, events, YAML, and related resources; and a guided operation with targets, preflight, preview, execution, and results. Reuse these patterns for built-in resources and discovered custom resources.
 
-The shell consists of a cluster switcher, navigation sidebar, current context/namespace header, main content, and a collapsible activity panel. Cluster names and namespace scope remain visible in editors, terminals, and operation reviews. Work tabs remember their cluster; changing the global selection does not silently retarget an open tab.
+### Desktop shell layout
+
+The window is one fixed shell that fills the viewport. Its bars stay in place and only the content area scrolls; the window itself never does. [0009](decisions/0009-desktop-shell-layout.md) records the layout decision.
+
+```text
+┌──────────────────────────────────────────────────────────┐
+│ Menu bar                                                 │
+├────────────┬─────────────────────────────────────────────┤
+│ Navigation │ Content                                     │
+│ bar        │   view title, then the page patterns        │
+│            │                                             │
+│            ├─────────────────────────────────────────────┤
+│            │ Activity panel (collapsible)                │
+├────────────┴─────────────────────────────────────────────┤
+│ Status bar                                               │
+└──────────────────────────────────────────────────────────┘
+```
+
+| Region | Holds | Rules |
+| --- | --- | --- |
+| Menu bar | Application menus. The View menu holds the UI adjustments: theme and density. Further menus arrive with the commands they hold | An in-window menu bar following the ARIA menubar pattern. UI adjustments and application-wide commands live in menus, not in buttons along the top edge. A menu lists implemented commands only; a command that is temporarily unavailable stays listed and disabled |
+| Navigation bar | The navigation groups below, with the cluster switcher above them once cluster profiles exist | A vertical bar on the left edge with one entry per group that has an implemented view. The current entry is marked for assistive technology and by more than color. Navigating never discards a session, stream, or draft owned by the shell |
+| Content | The active view: its title, then the page patterns | Left-aligned with a bounded line length. A view's own actions stay in the view, next to what they act on, with their errors |
+| Activity panel | Active jobs and their progress | Collapsible, above the status bar; it arrives with the operation engine |
+| Status bar | Persistent context: cluster, namespace, Talos context with its live target and state, and credential storage; a trailing note for the build stage | Text along the bottom edge that reads the same from every view. It is not a live region and never the only place an error appears |
+
+Cluster names and namespace scope also remain visible in editors, terminals, and operation reviews. Work tabs remember their cluster; changing the global selection does not silently retarget an open tab.
 
 Navigation groups:
 
@@ -200,7 +226,7 @@ Navigation groups:
 | Custom resources | CRDs and discovery-driven resource views |
 | Helm | Repositories, charts, releases, values, history |
 | Operations | Active jobs, results, backups, recovery workflows |
-| Settings | Connections, credentials, appearance, retention, updates |
+| Settings | Connections, credentials, retention, updates; appearance is in the View menu |
 
 The UI shows what the server provides and what the current user can access. Missing CRDs or optional metrics services produce informative empty states. They do not cause the whole cluster view to fail.
 
@@ -302,22 +328,22 @@ Persist the plan and checkpoints before mutations. Retry transient reads with ba
 
 ### Appearance
 
-Use system font stacks, familiar desktop controls, native window decorations, restrained surfaces, and a single blue accent. Support system, light, and dark themes. Bundle all assets and avoid remote fonts or UI dependencies at runtime. Use an 8-pixel spacing rhythm, approximately 14-pixel body text, 6–8-pixel control radii, and 40-pixel default table rows. Provide a compact density option.
+Use system font stacks, familiar desktop controls, native window decorations, restrained surfaces, and a single blue accent. The native decoration carries the window title; the shell does not repeat it. Support system, light, and dark themes. Bundle all assets and avoid remote fonts or UI dependencies at runtime. Use an 8-pixel spacing rhythm, approximately 14-pixel body text, 6–8-pixel control radii, and 40-pixel default table rows. Provide a compact density option.
 
 Apply these guidelines through the Skeleton theme tokens, including the light and dark color pairings and the compact density. Share tokens with editor and chart themes so the application feels consistent. Verify keyboard interaction, focus, and screen-reader behavior in the assembled workflows.
 
-Charts support an operational question. Overview cards summarize health; tables and details support investigation. Avoid decorative animation, heavy gradients, and excessive transparency. Short transitions respect reduced-motion preferences. Target a comfortable 1280×800 workspace, adapt down to 1024×700, and support scaling and high-DPI screens.
+Charts support an operational question. Overview cards summarize health; tables and details support investigation. Avoid decorative animation, heavy gradients, and excessive transparency. Short transitions respect reduced-motion preferences. Target a comfortable 1280×800 workspace, adapt down to 1024×700, stay usable at the 720×480 minimum window size, and support scaling and high-DPI screens. Narrower, phone-sized layouts are not a target.
 
 ### Behavior and accessibility
 
 | Guideline | Application |
 | --- | --- |
-| Persistent context | Cluster, environment label, namespace, and exact targets remain visible |
+| Persistent context | Cluster, environment label, namespace, and exact targets remain visible; the status bar names the current context from every view |
 | Guided by default | Creation, upgrades, reset, and recovery have steps; expert YAML stays available |
 | Progressive disclosure | Common inputs first; advanced fields and raw resources on demand |
 | Honest status | Distinguish connecting, healthy, degraded, unavailable, unauthorized, unsupported, and stale |
 | Accessible feedback | Combine color with text/icons; keyboard navigation, visible focus, screen-reader labels, and sufficient contrast |
-| Keyboard conventions | Cmd on macOS and Ctrl elsewhere; command palette, search, tab navigation, copy, and Escape |
+| Keyboard conventions | Cmd on macOS and Ctrl elsewhere; menu bar traversal with the arrow keys, command palette, search, tab navigation, copy, and Escape |
 | Clear errors | Explain the failed action, affected target, known cause, and available next step |
 | Mutation review | Show a meaningful diff, targets, expected interruption, and per-target outcome |
 | Destructive confirmation | Name the cluster/node/resource and wipe scope; require typed identity for reset/restore/bulk deletion |

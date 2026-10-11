@@ -11,6 +11,13 @@ Read [AGENTS.md](../../../AGENTS.md), the frontend/design guidelines in [design.
 
 Use the shared resource-list, resource-detail, and guided-operation page patterns. Preserve the clean native-feeling shell and visible cluster/namespace identity. An open work tab keeps its original cluster when the global selection changes.
 
+The window is one fixed desktop shell, defined in the design's [desktop shell layout](../../../docs/design.md#desktop-shell-layout) and decided in [0009](../../../docs/decisions/0009-desktop-shell-layout.md): a menu bar, a navigation bar, the content area, and a status bar, composed in [PilotApp.svelte](../../../src/components/PilotApp.svelte). Only the content area scrolls.
+
+- **Menu bar.** A UI adjustment or application-wide command goes into a menu of [MenuBar.svelte](../../../src/components/ui/MenuBar.svelte), never into a button along the top edge. List implemented commands only.
+- **Navigation bar.** A new destination is one entry, added together with its view under `src/features/<area>/`. Do not add entries for views that do not exist.
+- **Views.** A view renders the state it is given and keeps its actions and their errors beside what they act on. State that must survive navigation, such as an imported session or a stream, is owned by the shell and released in its effect cleanup.
+- **Status bar.** Persistent context goes into [StatusBar.svelte](../../../src/components/ui/StatusBar.svelte) as text from a pure function in [src/lib/format/](../../../src/lib/format/). It is not a live region and never the only place an error appears: a failure that is not tied to one view, such as the settings load, is reported under the menu bar. Do not remove an item that keeps a held credential or a running stream visible.
+
 The renderer is a client-only Svelte 5 application built by Vite and mounted from [src/main.ts](../../../src/main.ts). It is not a SvelteKit application: there are no routes, `load` functions, `$app/*` modules, or server code. Translate SvelteKit examples to plain Svelte before using them.
 
 ## Put logic where it is checked
@@ -57,6 +64,6 @@ Run `pnpm check`: Oxfmt, Oxlint with type diagnostics, `svelte-check` with warni
 
 Add user-interaction tests with Testing Library for Svelte for target preservation, permission/error states, validation, confirmation, and changed failure behavior. Prefer accessible queries over internal selectors. jsdom performs no layout: positioned popups stay hidden there and have no computed accessible name, so cover their visibility, keyboard paths, and focus in Playwright. Extend [src/test-setup.ts](../../../src/test-setup.ts) only with an inert stand-in for a browser API that jsdom lacks, and say what it does not prove.
 
-Exercise the affected flow with Playwright, including an axe scan of each new state in both colour modes after the page has settled; [appearance.spec.ts](../../../tests/e2e/appearance.spec.ts) shows how to script native responses at Tauri's IPC entry point. Use actual native Tauri checks for IPC/desktop behavior. Review light/dark themes, keyboard/focus behavior, resize/density, and the packaged CSP as relevant. Cosmetic edits need a rendered check, not artificial tests of exact wording or CSS internals.
+Exercise the affected flow with Playwright, including an axe scan of each new state in both colour modes after the page has settled; [appearance.spec.ts](../../../tests/e2e/appearance.spec.ts) shows how to script native responses at Tauri's IPC entry point. Use actual native Tauri checks for IPC/desktop behavior. Review light/dark themes, keyboard/focus behavior, resize/density, and the packaged CSP as relevant; check a shell or view change at 1280×800, 1024×700, and 720×480 as [shell.spec.ts](../../../tests/e2e/shell.spec.ts) does. Cosmetic edits need a rendered check, not artificial tests of exact wording or CSS internals.
 
 Document each reusable component with an `@component` comment and each exported state class with TSDoc: behavioral contract, context and resource ownership, cleanup, and sensitive fields. Update user-flow documentation alongside behavior, review the final diff, and report executed evidence without treating mock transport as native verification.

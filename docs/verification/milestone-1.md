@@ -360,6 +360,12 @@ Expected: a probe cancelled before the helper sends `TALOS_PROBE_RESPONSE` produ
 
 Evidence, including the new test's failures against the previous code, is in the [automation record](automation.md#amendment-first-ft-foundation-ci-run).
 
+### Desktop shell layout revision
+
+Owner-directed on 2026-10-11 and recorded in [0009](../decisions/0009-desktop-shell-layout.md), with its acceptance criteria and the executed checks: the single scrolling page became a fixed shell with a View menu for theme and density, a navigation bar (Home, Talos, Settings), and a status bar naming the cluster, Talos, and credential context. No IPC command, capability, Tauri configuration, backend, helper, or dependency changed, so no checkpoint status above changes. The Talos probe state moved from the probe panel to the shell so an imported session survives a change of view; its lifetime is still the window's.
+
+The C0.1 and C3.3 rows that describe radio-group appearance controls and "narrow layouts" are superseded for the current shell: the controls are menu radio items, and the tested window sizes are 1280×800, 1024×700, and 720×480. The shell state gained a load error separate from the credential-action error, so a failed settings load is reported under the menu bar from every view. Evidence is Linux x86_64 only.
+
 ### Review remediation follow-ups
 
 | ID                | Severity | Acceptance case                                                                                                                                                           | Owner decision or reason deferred                                                                                                                                                                           |

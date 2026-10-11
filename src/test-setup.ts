@@ -7,14 +7,6 @@ import "@testing-library/jest-dom/vitest";
  * behaviours are covered by the Playwright and native checks.
  */
 
-/** Skeleton's segmented control observes its items to place a decorative indicator. */
-class InertResizeObserver implements ResizeObserver {
-  observe(): void {}
-  unobserve(): void {}
-  disconnect(): void {}
-}
-globalThis.ResizeObserver ??= InertResizeObserver;
-
 /** Bits UI's select releases implicit pointer capture and scrolls the highlighted option into view. */
 const INERT_ELEMENT_METHODS = {
   hasPointerCapture: () => false,

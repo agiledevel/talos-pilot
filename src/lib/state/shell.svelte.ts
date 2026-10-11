@@ -27,8 +27,9 @@ const APPEARANCE_SAVE_FAILED =
  * One instance belongs to one transport. Without a transport every action is a
  * no-op, which keeps the browser shell inert instead of falling back to a mock.
  * Components read the reactive fields; only this class writes them. Actions
- * report failures through {@link ShellState.error} or
- * {@link ShellState.appearanceError} and never reject. No credential material
+ * report failures through {@link ShellState.loadError},
+ * {@link ShellState.error}, or {@link ShellState.appearanceError} and never
+ * reject. No credential material
  * is held here: the backend returns only storage modes and context names.
  */
 export class ShellState {
@@ -36,7 +37,12 @@ export class ShellState {
   appearance = $state.raw(DEFAULT_APPEARANCE);
   /** Credential storage mode, or `null` until the backend has reported it. */
   storageMode = $state<CredentialStorageModeDto | null>(null);
-  /** Safe message for the last failed load or credential action. */
+  /**
+   * Safe message for a failed load. The appearance then stays at its default
+   * and the storage mode stays unreported, whichever view is open.
+   */
+  loadError = $state<string | null>(null);
+  /** Safe message for the last failed credential action. */
   error = $state<string | null>(null);
   /** Safe message for the last failed appearance save. */
   appearanceError = $state<string | null>(null);
@@ -85,9 +91,9 @@ export class ShellState {
       const storage = await getCredentialStorageStatus(transport);
       this.appearance = settings;
       this.storageMode = storage.mode;
-      this.error = null;
+      this.loadError = null;
     } catch (cause: unknown) {
-      this.error = loadFailureMessage(cause);
+      this.loadError = loadFailureMessage(cause);
     }
   }
 

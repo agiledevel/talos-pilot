@@ -2,37 +2,29 @@
 @component
 Lets a user import a native talosconfig and run one read-only Talos probe.
 
-The panel owns the imported session for its lifetime. Destroying it cancels a
-running probe and closes the in-memory session, so no helper stream or
-credential outlives the view. A stream that ends or fails after a healthy
-event is shown as stale; its last values are never presented as current.
+The panel renders the probe state it is given and owns none of it: the shell
+owns the imported session, so leaving this view keeps the context and a running
+stream, and the status bar keeps naming them. A stream that ends or fails after
+a healthy event is shown as stale; its last values are never presented as
+current.
 -->
 <script lang="ts">
-  import type { IpcTransport } from "../lib/ipc/transport";
-  import { TalosProbePanelState } from "../lib/state/talosProbe.svelte";
-  import SelectField from "./ui/SelectField.svelte";
-  import StatusMessage from "./ui/StatusMessage.svelte";
+  import SelectField from "../../components/ui/SelectField.svelte";
+  import StatusMessage from "../../components/ui/StatusMessage.svelte";
+  import type { TalosProbePanelState } from "../../lib/state/talosProbe.svelte";
 
   interface Props {
-    /** Native command boundary; `undefined` in an ordinary browser. */
-    transport: IpcTransport | undefined;
+    /** Probe state owned by the shell, which releases it. */
+    probe: TalosProbePanelState;
   }
 
-  let { transport }: Props = $props();
+  let { probe }: Props = $props();
 
-  // One state object per transport; the cleanup releases the one it replaces
-  // and the last one when the panel is destroyed.
-  const probe = $derived(new TalosProbePanelState(transport));
   const errorDescription = $derived(probe.error === null ? undefined : "talos-probe-error");
-
-  $effect(() => {
-    const owned = probe;
-    return () => owned.dispose();
-  });
 </script>
 
-<section class="mx-auto mt-12 grid max-w-3xl gap-4" aria-labelledby="talos-probe-title">
-  <h3 id="talos-probe-title" class="h4">Talos read probe</h3>
+<section class="grid max-w-3xl gap-4" aria-labelledby="talos-probe-title">
+  <h2 id="talos-probe-title" class="h5">Talos read probe</h2>
   {#if probe.session === null}
     <p>
       Import a Talos context from the native picker. Its inline mTLS credentials stay in memory
