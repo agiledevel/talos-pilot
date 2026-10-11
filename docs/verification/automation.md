@@ -177,17 +177,22 @@ entry; no result is claimed for them. They changed documentation only.
 ### Seventh run at `fae291d` — the first hosted run of the contract step
 
 Foundation checks run 38155107982 (push, `ft-foundation-completion`) is the first
-hosted execution of the F0 commits. At the time of this record the run was still
-in progress: the renderer job had passed, and `desktop (windows-2022)` had
-failed.
+hosted execution of the F0 commits. It completed with four jobs green and one
+failing:
 
-| Job                      | `Verify generated contracts are current`             |
-| ------------------------ | ---------------------------------------------------- |
-| renderer                 | not applicable; the renderer job has no protoc or Go |
-| desktop (ubuntu-22.04)   | passed                                               |
-| desktop (macos-15)       | passed                                               |
-| desktop (macos-15-intel) | still running                                        |
-| desktop (windows-2022)   | **failed**                                           |
+| Job                      | Result  | Duration | `Verify generated contracts are current`             |
+| ------------------------ | ------- | -------- | ---------------------------------------------------- |
+| renderer                 | success | 1.1 min  | not applicable; the renderer job has no protoc or Go |
+| desktop (ubuntu-22.04)   | success | 16.2 min | passed                                               |
+| desktop (macos-15)       | success | 16.2 min | passed                                               |
+| desktop (macos-15-intel) | success | 38.5 min | passed                                               |
+| desktop (windows-2022)   | failure | 2.4 min  | **failed**                                           |
+
+`desktop (ubuntu-22.04)` is the job that failed at `11d4e19` on
+`helper_exit_during_status_exchange_is_reported_and_reaped`; it passed here, so
+the F0 supervisor fix is confirmed on the hosted Linux runner. `macos-15-intel`
+finished in 38.5 minutes, well inside the 75-minute limit, and all three POSIX
+runners executed the new contract step successfully.
 
 The Windows failure is a harness defect, not a difference in generated output.
 The step stopped in the pinned-tool version assertion:
