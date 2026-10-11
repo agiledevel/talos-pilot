@@ -6,19 +6,19 @@ This is the active evidence record for [milestone 1](../plans/milestone-1-flash.
 
 ## Checkpoint status and acceptance criteria
 
-| Checkpoint                       | Status                                | Acceptance criteria                                                                                                                                                                                                                                      |
-| -------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| C0.1 baseline and ledger         | Complete                              | Reproduce frozen install, renderer, coverage, browser, icon, Rust, advisory, workflow, and native release-build checks; record actual command results, host/tool versions, failures, and next actions.                                                   |
-| C0.2 dependency/harness research | Complete                              | Pin compatible Go/Talos, Rust-to-TypeScript and Protobuf generation/runtime tools, and Tauri native harness packages from primary sources; run minimal compatibility probes and record limits.                                                           |
-| C1 helper and contracts          | In progress (C8 runtime)              | Deterministically generate documented Rust/Go/TypeScript protocol and DTO outputs; reject malformed, oversized, unknown, and incompatible frames; exercise actual packaged Rust↔Go handshake, bounded supervision, failure cleanup, and safe status IPC. |
-| C2 native IPC harness            | In progress (final target refresh)    | Runtime-validate renderer DTOs; use an explicit browser mock; run Tauri/WebdriverIO allowed and denied IPC flows; demonstrate cleanup and prove production excludes mock/driver/test commands.                                                           |
-| C3 encrypted storage             | Complete on Linux (C8 OS matrix open) | Verify schema/migration atomicity, AEAD integrity and redaction, actual OS-vault success/failure, encrypted restart, explicit session-only behavior, and native credential import with exec-auth rejection.                                              |
-| C4 Talos probe                   | In progress (live read/stream proven) | On an allowlisted disposable Talos 1.14 fixture, demonstrate authenticated nonsensitive read and bounded COSI stream, TLS/authorization failures, cancellation/reconnect, and native shutdown cleanup.                                                   |
-| C5 Kubernetes probe              | Pending                               | On disposable Kubernetes 1.36, demonstrate scoped paginated Rust reads and watch/relist behavior with RBAC/TLS/scope faults and cleanup; run affected read/watch cases on 1.35 and 1.37.                                                                 |
-| C6 UI, workers, and CSP          | Pending                               | Qualify system/light/dark and density behavior, accessible feasibility states, lazy offline editor workers, bounded terminal/chart wrappers and disposal, restrictive CSP, and packaged asset behavior.                                                  |
-| C7 advisories and inventory      | Complete on Linux (C8 scans open)     | Resolve or record applicability for each advisory without silent exclusions; generate/review dependency inventory and notices; preserve exact-revision security automation.                                                                              |
-| C8 package/platform runtime      | Pending                               | Qualify clean install/launch/shutdown/uninstall and helper/vault/assets on Linux, macOS Intel/Apple Silicon, and Windows 11; inspect production exclusion and signing/integrity feasibility.                                                             |
-| C9 budgets and review            | Pending                               | Measure declared synthetic and native workloads on recorded hardware, derive and enforce budgets, complete acceptance matrix and separate final review, and hand off with all failed/unrun evidence visible.                                             |
+| Checkpoint                       | Status                                                     | Acceptance criteria                                                                                                                                                                                                                                      |
+| -------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C0.1 baseline and ledger         | Complete                                                   | Reproduce frozen install, renderer, coverage, browser, icon, Rust, advisory, workflow, and native release-build checks; record actual command results, host/tool versions, failures, and next actions.                                                   |
+| C0.2 dependency/harness research | Complete                                                   | Pin compatible Go/Talos, Rust-to-TypeScript and Protobuf generation/runtime tools, and Tauri native harness packages from primary sources; run minimal compatibility probes and record limits.                                                           |
+| C1 helper and contracts          | In progress (C8 runtime)                                   | Deterministically generate documented Rust/Go/TypeScript protocol and DTO outputs; reject malformed, oversized, unknown, and incompatible frames; exercise actual packaged Rust↔Go handshake, bounded supervision, failure cleanup, and safe status IPC. |
+| C2 native IPC harness            | In progress (final target refresh)                         | Runtime-validate renderer DTOs; use an explicit browser mock; run Tauri/WebdriverIO allowed and denied IPC flows; demonstrate cleanup and prove production excludes mock/driver/test commands.                                                           |
+| C3 encrypted storage             | Complete on Linux (C8 OS matrix open)                      | Verify schema/migration atomicity, AEAD integrity and redaction, actual OS-vault success/failure, encrypted restart, explicit session-only behavior, and native credential import with exec-auth rejection.                                              |
+| C4 Talos probe                   | In progress (live read/stream and restricted roles proven) | On an allowlisted disposable Talos 1.14 fixture, demonstrate authenticated nonsensitive read and bounded COSI stream, TLS/authorization failures, cancellation/reconnect, and native shutdown cleanup.                                                   |
+| C5 Kubernetes probe              | Pending                                                    | On disposable Kubernetes 1.36, demonstrate scoped paginated Rust reads and watch/relist behavior with RBAC/TLS/scope faults and cleanup; run affected read/watch cases on 1.35 and 1.37.                                                                 |
+| C6 UI, workers, and CSP          | Pending                                                    | Qualify system/light/dark and density behavior, accessible feasibility states, lazy offline editor workers, bounded terminal/chart wrappers and disposal, restrictive CSP, and packaged asset behavior.                                                  |
+| C7 advisories and inventory      | Complete on Linux (C8 scans open)                          | Resolve or record applicability for each advisory without silent exclusions; generate/review dependency inventory and notices; preserve exact-revision security automation.                                                                              |
+| C8 package/platform runtime      | Pending                                                    | Qualify clean install/launch/shutdown/uninstall and helper/vault/assets on Linux, macOS Intel/Apple Silicon, and Windows 11; inspect production exclusion and signing/integrity feasibility.                                                             |
+| C9 budgets and review            | Pending                                                    | Measure declared synthetic and native workloads on recorded hardware, derive and enforce budgets, complete acceptance matrix and separate final review, and hand off with all failed/unrun evidence visible.                                             |
 
 ## Repository review and next phase — 2026-10-11
 
@@ -113,7 +113,7 @@ Host: openSUSE Tumbleweed Linux x86_64 with a desktop session. Pinned toolchain 
 
 The separate review pass is recorded under "Separate final review" below and produced four documentation/comment corrections and one test improvement, all applied before this revision.
 
-Deliberate-drift evidence for the new CI step, on the same host: adding a field to `proto/helper/v1/envelope.proto` exits 1 inside the generation step; changing a DTO doc comment so the generated `ApplicationErrorDto.ts` differs exits 1 with ``Generated IPC declaration `ApplicationErrorDto.ts` is stale``; the restored tree exits 0. Two first attempts were environmental, not product failures: `pnpm test:e2e` could not find the browser because the session's `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty temporary directory, and a first `pnpm test:native` run failed one case because the packet's own `TALOS_PILOT_BUILD_ID=f0-gates-local` override does not match the suite's 40-hex build-identity assertion. Both passed once corrected; the suite derives the identity from the git revision when the variable is unset, as CI supplies.
+Deliberate-drift evidence for the new CI step, on the same host: adding a field to `proto/helper/v1/envelope.proto` exits 1 inside the generation step; changing a DTO doc comment so the generated `ApplicationErrorDto.ts` differs exits 1 with ``Generated IPC declaration `ApplicationErrorDto.ts` is stale``; the restored tree exits 0. The first hosted run of the step, on the F0 commits, then showed the platform limit the plan anticipated: it passes on `ubuntu-22.04` and `macos-15` and fails on `windows-2022` because the pinned Go plugin reports its own file name there (`protoc-gen-go.exe v1.36.12`) before any byte is compared. The step is now conditioned on `runner.os != 'Windows'` with the two harness gaps recorded in the automation record; the byte comparison is unchanged and no comparison was weakened. Two first attempts were environmental, not product failures: `pnpm test:e2e` could not find the browser because the session's `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty temporary directory, and a first `pnpm test:native` run failed one case because the packet's own `TALOS_PILOT_BUILD_ID=f0-gates-local` override does not match the suite's 40-hex build-identity assertion. Both passed once corrected; the suite derives the identity from the git revision when the variable is unset, as CI supplies.
 
 ### Reproduction and fix of the hosted failure
 
@@ -152,6 +152,103 @@ Findings and their resolution:
 ### Next smallest packet and prerequisites
 
 **F1 — close Talos read/stream qualification gaps.** Prerequisites: this packet's accepted handoff; owner confirmation to re-apply the fixture-scoped remediation, now recorded for F1–F5; and a deliberate fixture refresh that moves `pkg/machinery`, `talosctl`, the Talos image, and the fixture manifest to **v1.14.2** together. F1 must also amend the allowlist for the fixture-local actions it uses, the denied `os:reader` identity, and the Kubernetes API endpoint F3 will need, before performing any of them.
+
+## F1 packet evidence, part 1: provisioning refresh and restricted identities
+
+Packet F1 of the [foundation completion plan](../plans/foundation-completion-flash.md#f1--close-talos-readstream-qualification-gaps),
+steps 1–3, mapped to C4 and FND-004. Base revision `fae291d`; the final revision is the commit carrying this entry. **F1 remains in progress**: steps 4 and 5, the mid-stream reconnect/resync implementation and the live multi-event and interruption evidence, are not delivered here and are named under "Not delivered" below.
+
+### Trigger, behavior, and invariants
+
+F0 established that the current stable Talos 1.14 patch is `v1.14.2`, while the module, the `talosctl` binary, the fixture image, and the fixture manifest all pinned `v1.14.1`. C4 was also open for restricted-role coverage: no identity other than the fixture's admin credential had ever been exercised through the production path.
+
+Three invariants this packet demonstrates:
+
+1. Every Talos pin moves together. A mixed module/CLI/image/manifest version is not observable in any passing case, so the refresh is one coordinated change and the fixture manifest is the one the harness compares against.
+2. An identity with a genuine permission gap surfaces as the permission state, not as an unavailable or failed state, and is never retried.
+3. A read path that is permitted by a role is permitted for that role only because the pinned upstream rule allows it, not because the client fell back to a broader credential.
+
+### What changed
+
+| File                                                       | Change                                                                                                                                                                       |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `helper/go.mod`, `helper/go.sum`                           | `github.com/siderolabs/talos/pkg/machinery` v1.14.1 → v1.14.2; `go mod tidy`                                                                                                 |
+| `tests/fixtures/talos-c4.json`                             | `talosVersion` → `v1.14.2`; added the `readerContext` and `deniedContext` labels the fixture derives                                                                         |
+| `src-tauri/.local-tools/talosctl` (ignored, not committed) | v1.14.1 → v1.14.2, digest-verified against the release's published `sha256sum.txt`                                                                                           |
+| `src-tauri/tests/talos_fixture.rs`                         | `import` now takes the allowlisted context label for the credential it imports; new live test `reads_with_a_reader_identity_and_denies_a_credential_without_the_probe_roles` |
+| `scripts/talos-fixture.ts`                                 | `--reader-talosconfig` and `--denied-talosconfig`, both required file references validated exactly like `--talosconfig`                                                      |
+| [C4 allowlist](fixtures/talos-c4-disposable.md)            | F1's three fixture-local actions, the derived-config procedure, the corrected Kubernetes endpoint, and the active-zone comparison rule                                       |
+| [dependencies.md](../dependencies.md)                      | The Talos pin statement and its primary-source basis                                                                                                                         |
+
+### Upstream rule evidence
+
+The pinned rules map is [`machined.go` v1.14.2](https://github.com/siderolabs/talos/blob/v1.14.2/internal/app/machined/pkg/system/services/machined.go), read from a `v1.14.2` checkout:
+
+- `/machine.MachineService/Version` → `os:admin`, `os:operator`, `os:reader`;
+- `/cosi.resource.State/Watch` (also `Get`/`List`) → the same three;
+- `os:etcd:backup` is granted exactly four methods (`EtcdAlarmList`, `EtcdMemberList`, `EtcdSnapshot`, `EtcdStatus`), and `Authorizer.FallbackRoles` is `os:admin`, so every other method is denied to it;
+- `/machine.MachineService/Reboot` → `os:admin`, `os:operator` only; `Reset` and `Upgrade` are `os:admin` only and stay unused.
+
+`os:reader` therefore permits both probe APIs and `os:etcd:backup` permits neither, which is what the plan predicted without having checked. Role-scoped credentials come from `/machine.MachineService/GenerateClientConfiguration`, which is `os:admin` only and signs from the machine's existing secrets bundle without persisting anything on the node.
+
+### Fixture identity, versions, topology, and cleanup
+
+Provisioned on 2026-10-11 with the owner-approved fixture-scoped remediation: `talosctl` v1.14.2, `cluster create qemu --name talos-pilot-c4-20261009 --cidr 10.79.0.0/24 --talos-version v1.14.2 --kubernetes-version v1.36.5 --controlplanes 3 --workers 1 --presets iso --state /tmp/tpc4/state`. It completed end to end this time, `PROVISION-EXIT=0`, including bootstrap, with no manual bootstrap step:
+
+- bridge `talosb8c871e1` on `10.79.0.1/24`, the same deterministic name as the 2026-10-09 run, bound to the `talos-pilot-c4` zone together with its four `veth` peers;
+- control planes `10.79.0.2`, `10.79.0.3`, `10.79.0.4` and worker `10.79.0.5`, exactly the recorded addresses, all `Talos (v1.14.2)` per `get members`;
+- contexts: `talos-pilot-c4-20261009` (`os:admin`), `reader@talos-pilot-c4-20261009` (`os:reader`), `etcd:backup@talos-pilot-c4-20261009` (`os:etcd:backup`), each with the three recorded endpoints and the four recorded nodes;
+- Kubernetes API endpoint `https://10.79.0.1:6443` (the cluster VIP on the bridge gateway), which F3 must add as a Kubernetes endpoint rather than reuse a Talos endpoint.
+
+After the run the fixture was destroyed and the host restored: no `qemu-system` process, no `talos*` bridge or fixture `veth`, no `/tmp/tpc4`, no synthetic credential file, both `iptables` counters back to `0`, the 12-zone list restored, default zone `public`, and active zones back to the baseline captured immediately before provisioning (`docker`/`public`; `libvirt` is absent on this host now because `libvirtd` is inactive).
+
+### Commands and results
+
+Host: openSUSE Tumbleweed Linux x86_64, Node 26.11.1, pnpm 12.10.1, Rust 1.99.0, Go 1.27.2, protoc 36.2, `talosctl` v1.14.2. Harness command:
+
+```sh
+pnpm talos:fixture -- --manifest tests/fixtures/talos-c4.json \
+  --talosconfig /tmp/tpc4/talosconfig \
+  --reader-talosconfig /tmp/tpc4/talosconfig.reader \
+  --denied-talosconfig /tmp/tpc4/talosconfig.etcdbackup
+```
+
+Result: **4 passed; 0 failed** in 24.17 s, through the production path (`TalosSessionStore` → `HelperService` → packaged helper → official Talos client), with these printed projections:
+
+```text
+fixture read: Talos v1.14.2, stage Some("running"), ready Some(true), projected events: 1
+os:reader read: Talos Some("v1.14.2"), stage Some("running"), projected events: 1
+worker node 10.79.0.5 read: stage Some("running"), ready Some(true)
+failover read with a dead leading endpoint: stage Some("running"), ready Some(true)
+os:etcd:backup denied: TALOS_UNAUTHORIZED (retryable: false, message: Talos rejected the configured permissions.) after 4.163409ms
+```
+
+An independent CLI-level check with the same credentials confirms the classification comes from the cluster, not from the harness: `talosctl --talosconfig talosconfig.reader --nodes 10.79.0.5 version` returns the server version, while the same command and `get machinestatus --watch` with `talosconfig.etcdbackup` both fail with `rpc error: code = PermissionDenied desc = not authorized`.
+
+Go and Rust gates on the final revision: `gofmt`, `go vet`, `go test`, `go test -race`, `go mod verify`, `go build`; Rust `fmt`, Clippy with `-D warnings` in both feature sets, all-target tests in both feature sets, rustdoc, build, `pnpm check`, `pnpm contracts:check`, `pnpm production:check`, `pnpm test:native`, `pnpm test:e2e`, `pnpm audit:go`, `pnpm inventory:check`, and `git diff --check`.
+
+### Evidence class
+
+Real cluster through the production path: the four harness cases above, on the allowlisted disposable fixture. Real cluster at the CLI level: the denial and permission cross-check. Not used as the C4 proof here: any mock or synthetic event stream.
+
+### Passed, failed, and unexecuted
+
+Passed: the coordinated v1.14.2 refresh (module, `talosctl`, image, manifest); authenticated read and node-pinned stream on v1.14.2; endpoint failover; the worker-node identity split; fail-closed target and authority cases; `os:reader` permitted read and stream; `os:etcd:backup` denial as a non-retryable permission state; `pnpm inventory:check` after regenerating the inventory for the new `go.sum`.
+
+**Not delivered, and therefore still open in C4:**
+
+- F1 step 4, mid-stream reconnect/resync. Nothing reconnects today: a stream that fails mid-flight ends, and the renderer marks the last projection stale. A replacement-snapshot generation with preserved sequence identity, the bounded retry policy that excludes permission and TLS failures, and the deterministic framed tests for order, gap, and slow-consumer faults are unimplemented.
+- F1 step 5's live multi-event and interruption evidence. The stable fixture projected one event inside the settle window on both runs, so ordering is asserted on whatever arrives and no live interruption case was executed. Producing several real status events and a real network interruption needs the step 4 behavior to be worth observing, so the two steps belong to one increment.
+- A prohibited sensitive-resource subscription remains inexpressible in protocol v1: the probe has no resource selector, so a denied read of a sensitive resource cannot be requested at all. Recorded rather than manufactured, as the plan requires.
+- Packaged-installer helper startup, the macOS/Windows fixture matrix, and every C5–C9 row.
+
+### Separate review
+
+The F0 review's findings are recorded in the F0 entry above. This packet's own review checked: that the new manifest fields cannot be satisfied by a credential for the wrong cluster (the asserted context labels are the ones `config new` derives, and a mismatch fails the import); that the denial assertion cannot pass vacuously (the test fails if any projection is accepted, and asserts both the code and non-retryability); that the extra credentials are file references, never inline, and stay outside the repository; that the version refresh cannot be a partial mix (module, CLI, manifest, and fixture all moved, and the manifest is what the harness enforces); and that no new fixture action exceeds the amendment. Two harness defects were found and fixed during the live run: the added `import` parameter had one missed call site, and `oxfmt` does not format Rust, so the fixture test is covered by `cargo fmt` instead.
+
+### Next increment
+
+**F1, part 2**: implement mid-stream reconnect/resync and obtain the live multi-event and interruption evidence, then close F1. Its prerequisites are this packet's accepted refresh and a fixture reprovisioning under the same owner-approved remediation, which the allowlist already authorizes for F1–F5.
 
 ## C0.1 baseline evidence
 
