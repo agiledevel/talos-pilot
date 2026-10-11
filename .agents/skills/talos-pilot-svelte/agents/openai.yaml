@@ -1,0 +1,6 @@
+interface:
+  display_name: "Talos Pilot Svelte"
+  short_description: "Build accessible Svelte workflows with Skeleton and Bits UI"
+  default_prompt: "Use $talos-pilot-svelte to implement and verify the requested Talos Pilot change."
+policy:
+  allow_implicit_invocation: true

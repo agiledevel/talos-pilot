@@ -1,9 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { MockedFunction } from "vitest";
 import type { IpcTransport } from "../lib/ipc/transport";
-import { PilotApp } from "./PilotApp";
+import PilotApp from "./PilotApp.svelte";
 
 function createTransport(): {
   readonly transport: IpcTransport;
@@ -33,7 +33,7 @@ describe("appearance and credential settings", () => {
   it("persists theme and density independently and keeps session status visible", async () => {
     const user = userEvent.setup();
     const { transport, invoke } = createTransport();
-    render(<PilotApp transport={transport} />);
+    render(PilotApp, { props: { transport } });
 
     await screen.findByText(/operating system vault is unavailable/i);
     await user.click(screen.getByText("Dark"));
@@ -47,9 +47,34 @@ describe("appearance and credential settings", () => {
     expect(screen.getByText(/operating system vault is unavailable/i)).toBeInTheDocument();
   });
 
+  it("applies the saved theme and density to the document and removes them on unmount", async () => {
+    const user = userEvent.setup();
+    const view = render(PilotApp, { props: { transport: createTransport().transport } });
+    await screen.findByText(/operating system vault is unavailable/i);
+    expect(document.documentElement).not.toHaveAttribute("data-mode");
+    expect(document.documentElement).not.toHaveAttribute("data-density");
+
+    await user.click(screen.getByText("Dark"));
+    await waitFor(() => {
+      expect(document.documentElement).toHaveAttribute("data-mode", "dark");
+    });
+    await user.click(screen.getByText("Compact"));
+    await waitFor(() => {
+      expect(document.documentElement).toHaveAttribute("data-density", "compact");
+    });
+    await user.click(screen.getByText("System"));
+    await waitFor(() => {
+      expect(document.documentElement).not.toHaveAttribute("data-mode");
+    });
+    expect(document.documentElement).toHaveAttribute("data-density", "compact");
+
+    view.unmount();
+    expect(document.documentElement).not.toHaveAttribute("data-density");
+  });
+
   it("shows session-only operation after the explicit choice", async () => {
     const user = userEvent.setup();
-    render(<PilotApp transport={createTransport().transport} />);
+    render(PilotApp, { props: { transport: createTransport().transport } });
     await user.click(await screen.findByRole("button", { name: "Use session-only storage" }));
     await user.click(screen.getByText("Dark"));
     expect(
@@ -62,7 +87,7 @@ describe("appearance and credential settings", () => {
 
   it("keeps earlier session credentials visibly distinct after vault retry", async () => {
     const user = userEvent.setup();
-    render(<PilotApp transport={createTransport().transport} />);
+    render(PilotApp, { props: { transport: createTransport().transport } });
     await user.click(await screen.findByRole("button", { name: "Use session-only storage" }));
     await user.click(await screen.findByRole("button", { name: "Retry operating system vault" }));
     expect(
@@ -77,7 +102,7 @@ describe("appearance and credential settings", () => {
   it("associates failed preference saves with their controls", async () => {
     const user = userEvent.setup();
     const { transport, invoke } = createTransport();
-    render(<PilotApp transport={transport} />);
+    render(PilotApp, { props: { transport } });
     await screen.findByText(/operating system vault is unavailable/i);
     invoke.mockRejectedValueOnce({
       code: "STORAGE_UNAVAILABLE",
@@ -92,12 +117,14 @@ describe("appearance and credential settings", () => {
       "aria-describedby",
       "appearance-error",
     );
+    expect(screen.getByRole("radio", { name: "System" })).toBeChecked();
+    expect(document.documentElement).not.toHaveAttribute("data-mode");
   });
 
   it("associates import errors with the import action", async () => {
     const user = userEvent.setup();
     const { transport, invoke } = createTransport();
-    render(<PilotApp transport={transport} />);
+    render(PilotApp, { props: { transport } });
     await user.click(await screen.findByRole("button", { name: "Use session-only storage" }));
     invoke.mockRejectedValueOnce({
       code: "IMPORT_EXEC_AUTH_UNSUPPORTED",
@@ -115,7 +142,7 @@ describe("appearance and credential settings", () => {
   });
 
   it("keeps native storage actions disabled in a browser without an explicit test transport", () => {
-    render(<PilotApp />);
+    render(PilotApp);
     expect(screen.getByRole("button", { name: "Import kubeconfig" })).toBeDisabled();
     expect(screen.getByText(/available in the native desktop application/i)).toBeInTheDocument();
   });

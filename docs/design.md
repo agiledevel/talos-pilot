@@ -13,9 +13,9 @@ Talos Pilot is a desktop application for operating Talos Linux clusters and mana
 | --- | --- | --- |
 | Desktop platforms | Linux, macOS, and Windows | Locked |
 | Application framework | Tauri for the backend host, desktop integration, and WebView rendering | Locked |
-| Frontend | React and TypeScript | Locked |
+| Frontend | Svelte and TypeScript | Locked ([0008](decisions/0008-svelte-skeleton-renderer.md)) |
 | Frontend development tools | Oxc stack, including Oxlint and Oxfmt | Locked |
-| Component framework | Ant Design | Locked |
+| Component framework | Skeleton, with Bits UI for custom components | Locked ([0008](decisions/0008-svelte-skeleton-renderer.md)) |
 | Talos integration | Rust backend supervising a bundled Go helper that uses Talos APIs and upstream libraries | Locked |
 | First release scope | Full Talos lifecycle and a complete Kubernetes management UI | Locked |
 | Provisioning boundary | Configure machines already booted into Talos maintenance mode | Locked |
@@ -68,13 +68,13 @@ Upstream's current maintained release branches are 1.35–1.37. Existing cluster
 | --- | --- | --- |
 | Desktop host and application backend | Tauri 2, Rust, Tokio | Native integration and asynchronous application services |
 | Rendering | Tauri's native WebView with bundled frontend assets | Uses the requested desktop framework |
-| Frontend | React, strict TypeScript, Vite 8, pnpm | Static frontend build with Oxc transforms and Rolldown bundling |
-| Frontend quality tools | Oxlint, `oxlint-tsgolint`, Oxfmt | Oxc linting, type-aware diagnostics, type checking, and formatting |
-| UI foundation | Ant Design (`antd`), `@ant-design/icons` | Shared components for tables, forms, navigation, and guided operations |
-| Styling and theme | Ant Design tokens and ConfigProvider; CSS Modules for custom layout | Consistent light/dark themes, density, and application-specific styling |
-| Routing | React Router in hash mode | Internal navigation in a packaged static application |
-| Data projections | TanStack Query | Query status and cache updates from backend subscriptions |
-| UI state | Zustand | Tabs, filters, selections, and panel layout; cluster state stays in the backend |
+| Frontend | Svelte 5 in runes mode, strict TypeScript, Vite 8, pnpm | Static client-only build with the Svelte compiler and Rolldown bundling |
+| Frontend quality tools | Oxlint, `oxlint-tsgolint`, Oxfmt, `svelte-check` | Oxc linting, type-aware diagnostics, type checking, and formatting; Svelte template, prop, and accessibility diagnostics |
+| UI foundation | Skeleton (`@skeletonlabs/skeleton`, `@skeletonlabs/skeleton-svelte`); Bits UI for custom components; Lucide icons | Shared components for tables, forms, navigation, and guided operations |
+| Styling and theme | Tailwind CSS 4 with Skeleton theme tokens in one stylesheet | Consistent light/dark themes, density, and application-specific styling |
+| Routing | Hash-based client routing; the router is selected with the first routed view ([0008](decisions/0008-svelte-skeleton-renderer.md)) | Internal navigation in a packaged static application |
+| Data projections | TanStack Query (Svelte adapter) | Query status and cache updates from backend subscriptions |
+| UI state | Svelte rune modules (`.svelte.ts`) and context | Tabs, filters, selections, and panel layout; cluster state stays in the backend |
 | YAML and diff editing | Monaco Editor with YAML language support | Shared editor for machine configuration and Kubernetes resources |
 | Container terminals | xterm.js | Interactive container terminal rendering |
 | Charts | uPlot | Resource usage trends with bounded time-series data |
@@ -84,17 +84,17 @@ Upstream's current maintained release branches are 1.35–1.37. Existing cluster
 | Persistence | SQLite through `rusqlite`, with migrations | Local profiles, preferences, and operation records |
 | Secret storage | OS credential vault for the encryption key; authenticated encryption for sensitive stored data | Keep credentials and full configurations out of plain database rows |
 | Contracts | Serde DTOs with generated TypeScript types; Protobuf for Rust/helper messages | Keep IPC types explicit across languages |
-| Verification | Rust and Go tests, Vitest/React Testing Library, Playwright, WebdriverIO Tauri service | Exercise logic, renderer flows, native integration, and real clusters |
+| Verification | Rust and Go tests, Vitest/Testing Library for Svelte, Playwright, WebdriverIO Tauri service | Exercise logic, renderer flows, native integration, and real clusters |
 
-Pin compatible package versions and toolchains during the foundation milestone. Commit Cargo, Go, and pnpm lock data. Verify TypeScript compatibility with the selected Oxlint type-aware engine, which currently requires TypeScript 7+. Use Vite 8 with `@vitejs/plugin-react` v6 for Oxc-based TypeScript/JSX and React Refresh transforms. Exact package pins are established during implementation. [Oxlint type-aware requirements](https://oxc.rs/docs/guide/usage/linter/type-aware.html), [Vite 8 React integration](https://vite.dev/blog/announcing-vite8).
+Pin compatible package versions and toolchains during the foundation milestone. Commit Cargo, Go, and pnpm lock data. Verify TypeScript compatibility with the selected Oxlint type-aware engine, which currently requires TypeScript 7+. Use Vite 8 with `@sveltejs/vite-plugin-svelte` v7 and the Tailwind CSS Vite plugin. `svelte-check` needs the TypeScript 6 compiler API beside the TypeScript 7 engine; [0008](decisions/0008-svelte-skeleton-renderer.md) records that arrangement. Exact package pins are established during implementation. [Oxlint type-aware requirements](https://oxc.rs/docs/guide/usage/linter/type-aware.html), [Vite 8](https://vite.dev/blog/announcing-vite8), [vite-plugin-svelte](https://github.com/sveltejs/vite-plugin-svelte).
 
-Primary technology references: [React](https://react.dev/), [Vite](https://vite.dev/guide/), [Oxc](https://oxc.rs/), [Oxlint](https://oxc.rs/docs/guide/usage/linter.html), [Oxfmt](https://oxc.rs/docs/guide/usage/formatter.html), [Ant Design](https://ant.design/), [TanStack Query](https://tanstack.com/query/latest/docs/framework/react/overview), [Monaco](https://microsoft.github.io/monaco-editor/), [xterm.js](https://xtermjs.org/), [kube-rs](https://docs.rs/kube/latest/kube/), [Helm SDK](https://helm.sh/docs/sdk/).
+Primary technology references: [Svelte](https://svelte.dev/docs/svelte/overview), [Vite](https://vite.dev/guide/), [Oxc](https://oxc.rs/), [Oxlint](https://oxc.rs/docs/guide/usage/linter.html), [Oxfmt](https://oxc.rs/docs/guide/usage/formatter.html), [Skeleton](https://www.skeleton.dev/docs/svelte/get-started/introduction), [Bits UI](https://www.bits-ui.com/docs/getting-started), [Tailwind CSS](https://tailwindcss.com/docs), [TanStack Query](https://tanstack.com/query/latest/docs/framework/svelte/overview), [Monaco](https://microsoft.github.io/monaco-editor/), [xterm.js](https://xtermjs.org/), [kube-rs](https://docs.rs/kube/latest/kube/), [Helm SDK](https://helm.sh/docs/sdk/).
 
 ### Runtime boundaries
 
 ```mermaid
 flowchart LR
-    UI[React UI in Tauri WebView] <-->|Commands and channels| Rust[Tauri Rust application services]
+    UI[Svelte UI in Tauri WebView] <-->|Commands and channels| Rust[Tauri Rust application services]
     Rust <--> DB[(SQLite)]
     Rust <--> Vault[OS credential vault]
     Rust <-->|Private framed messages| Go[Bundled Go helper]
@@ -133,7 +133,7 @@ Initial source layout:
 
 ```text
 docs/                       design, decisions, roadmap, verification records
-src/                        React application
+src/                        Svelte application
   features/                 clusters, talos, kubernetes, helm, operations
   components/               shared UI, editors, terminal, tables
   lib/                      typed IPC, UI state, formatting
@@ -149,11 +149,11 @@ tests/                      integration scenarios and synthetic fixtures
 
 ## 4. Frontend technology and interaction model
 
-Use a bundled React SPA. Lazy-load editors, terminals, charts, and specialized resource views. Keep protocol buffers, SDK objects, and raw API errors behind adapter boundaries. Export stable application DTOs for the UI.
+Use a bundled, client-only Svelte application mounted from one entry module; it is not a SvelteKit application. Keep asynchronous and IPC logic in `.svelte.ts` state modules and keep components to markup and wiring. Lazy-load editors, terminals, charts, and specialized resource views. Keep protocol buffers, SDK objects, and raw API errors behind adapter boundaries. Export stable application DTOs for the UI.
 
 ### Oxc development workflow
 
-Use Oxlint as the frontend linter with correctness, React/Hooks, TypeScript, import, accessibility, and test rules. Install the matching `oxlint-tsgolint` package for type-aware checks. The lint command also enables type-check diagnostics; Vite's Oxc transformation performs transpilation rather than type checking. Use Oxfmt for source and supported configuration/document formatting. Commit tool configuration and keep generated files and build outputs out of formatting/lint scopes. [Oxlint](https://oxc.rs/docs/guide/usage/linter.html), [type-aware checks](https://oxc.rs/docs/guide/usage/linter/type-aware.html), [Vite TypeScript handling](https://vite.dev/guide/features.html), [Oxfmt](https://oxc.rs/docs/guide/usage/formatter.html).
+Use Oxlint as the frontend linter with correctness, TypeScript, promise, import, and test rules. Install the matching `oxlint-tsgolint` package for type-aware checks. The lint command also enables type-check diagnostics; Vite and the Svelte compiler perform transpilation rather than type checking. Oxlint's type-aware rules cover `.ts` and `.svelte.ts` files and only its syntactic rules reach `.svelte` script blocks, so run `svelte-check` with warnings as errors for types in Svelte scripts, templates, and component props, and for the compiler's accessibility diagnostics. Use Oxfmt for source, Svelte components, Tailwind class order, and supported configuration/document formatting. Commit tool configuration and keep generated files and build outputs out of formatting/lint scopes. [Oxlint](https://oxc.rs/docs/guide/usage/linter.html), [type-aware checks](https://oxc.rs/docs/guide/usage/linter/type-aware.html), [Vite TypeScript handling](https://vite.dev/guide/features.html), [Oxfmt](https://oxc.rs/docs/guide/usage/formatter.html).
 
 Planned package scripts:
 
@@ -167,19 +167,20 @@ Planned package scripts:
 | `format:check` | `oxfmt --check` |
 | `format:rust` | `cargo fmt` over the Tauri crate, using `src-tauri/rustfmt.toml` |
 | `format:rust:check` | `cargo fmt --check` over the Tauri crate |
-| `test:run` | Vitest and React Testing Library in non-watch mode |
+| `lint:svelte` | `svelte-check --tsgo` over `tsconfig.svelte.json`, failing on warnings |
+| `test:run` | Vitest and Testing Library for Svelte in non-watch mode |
 | `test:e2e` | Playwright renderer flows with the explicit mock transport |
 | `test:native` | WebdriverIO with the Tauri service against an actual test build |
 | `contracts:check` | Deterministic regeneration and comparison of DTO/Protobuf artifacts |
-| `check` | Formatting check, lint/type diagnostics, renderer tests, and frontend build |
+| `check` | Formatting check, lint/type diagnostics, Svelte diagnostics, renderer tests, and frontend build |
 
-Configure the same checks for local development and CI from milestone 1. Verify the pinned tools against React, Ant Design, Monaco workers, and the generated IPC types before accepting the foundation milestone.
+Configure the same checks for local development and CI from milestone 1. Verify the pinned tools against Svelte, Skeleton, Bits UI, Monaco workers, and the generated IPC types before accepting the foundation milestone.
 
-### Ant Design component foundation
+### Skeleton and Bits UI component foundation
 
-Wrap the application in Ant Design's `ConfigProvider` and `App` providers. Use `Layout`, `Menu`, `Tabs`, and `Breadcrumb` for the shell; `Table` for resource lists; `Form`, `Steps`, and `Descriptions` for guided operations and details; and `Drawer`, `Modal`, `Alert`, and `Result` for contextual feedback. Use virtual tables and backend pagination for large lists. Keep Monaco, xterm.js, and uPlot as specialized editor, terminal, and chart components. [Ant Design with Vite](https://ant.design/docs/react/use-with-vite/), [Table](https://ant.design/components/table/).
+Use Skeleton as the component framework: its Tailwind components (buttons, cards, badges, forms, tables, typography) for static structure, and its Svelte components (`AppBar`, `Navigation`, `Tabs`, `Steps`, `Dialog`, `Menu`, `Toast`, `Pagination`, `SegmentedControl`, and the rest) for interactive patterns. Where Skeleton has no component, build one on a headless Bits UI primitive, style it with Skeleton tokens, and expose it from `src/components/ui/` behind a narrow prop contract; views do not import Bits UI directly. Use virtualized tables and backend pagination for large lists. Keep Monaco, xterm.js, and uPlot as specialized editor, terminal, and chart components. [Skeleton with Vite and Svelte](https://www.skeleton.dev/docs/svelte/get-started/installation/vite-svelte), [Bits UI integration](https://www.skeleton.dev/docs/svelte/integrations/bits-ui).
 
-Centralize light/dark algorithms, typography, spacing, radii, color, and density in theme tokens. Use component tokens and CSS Modules for custom layout. Context-aware messages and modals inherit the active theme. Verify dynamic styles and ConfigProvider's CSP support in packaged Tauri builds. [Theme customization](https://ant.design/docs/react/customize-theme/), [ConfigProvider](https://ant.design/components/config-provider/).
+Centralize typography, spacing, radii, color, and density in the Skeleton theme tokens of one stylesheet. Record the selected theme as `data-mode` and the density as `data-density` on the root element; without an explicit mode the stylesheet follows the operating system preference. Use color pairings and Tailwind utilities for layout instead of literal colors, so every surface, including popups, follows the active mode. Verify the bundled stylesheet and the inline style attributes applied by the component libraries under the packaged CSP in Tauri builds. [Skeleton themes](https://www.skeleton.dev/docs/svelte/design/themes), [dark mode](https://www.skeleton.dev/docs/svelte/guides/mode).
 
 Provide three reusable page patterns: a searchable resource list; a detail view with summary, conditions, events, YAML, and related resources; and a guided operation with targets, preflight, preview, execution, and results. Reuse these patterns for built-in resources and discovered custom resources.
 
@@ -303,7 +304,7 @@ Persist the plan and checkpoints before mutations. Retry transient reads with ba
 
 Use system font stacks, familiar desktop controls, native window decorations, restrained surfaces, and a single blue accent. Support system, light, and dark themes. Bundle all assets and avoid remote fonts or UI dependencies at runtime. Use an 8-pixel spacing rhythm, approximately 14-pixel body text, 6–8-pixel control radii, and 40-pixel default table rows. Provide a compact density option.
 
-Apply these guidelines through Ant Design theme and component tokens, including default, dark, and compact algorithms where appropriate. Share tokens with editor and chart themes so the application feels consistent. Verify keyboard interaction, focus, and screen-reader behavior in the assembled workflows.
+Apply these guidelines through the Skeleton theme tokens, including the light and dark color pairings and the compact density. Share tokens with editor and chart themes so the application feels consistent. Verify keyboard interaction, focus, and screen-reader behavior in the assembled workflows.
 
 Charts support an operational question. Overview cards summarize health; tables and details support investigation. Avoid decorative animation, heavy gradients, and excessive transparency. Short transitions respect reduced-motion preferences. Target a comfortable 1280×800 workspace, adapt down to 1024×700, and support scaling and high-DPI screens.
 
@@ -345,7 +346,7 @@ Build in vertical increments with a runnable result at each step. Each task reco
 | Milestone | Deliverable | Completion criteria |
 | --- | --- | --- |
 | 0. Design baseline — complete 2026-10-08 | Locked design, AGENTS.md, development skills, mandatory quality standards | Product scope, architecture, and v1 boundaries settled by the owner |
-| 1. Feasibility and foundation | Tauri/React/Ant Design shell, Oxc development checks, packaged helper, typed IPC, secure storage, test harness | Launches on all three OSes; Oxlint/Oxfmt checks, Ant Design themes/CSP, helper handshake, mTLS Talos read/stream, Rust Kubernetes read/watch, editor workers, and vault behavior demonstrated |
+| 1. Feasibility and foundation | Tauri/Svelte/Skeleton shell, Oxc development checks, packaged helper, typed IPC, secure storage, test harness | Launches on all three OSes; Oxlint/Oxfmt and `svelte-check` checks, Skeleton themes/CSP, helper handshake, mTLS Talos read/stream, Rust Kubernetes read/watch, editor workers, and vault behavior demonstrated |
 | 2. Connections and read views | Context import/linking, overview, Talos nodes/services/logs, Kubernetes discovery/browser | Invalid credentials, partial permissions, unavailable nodes, and reconnects produce usable states |
 | 3. Creation and configuration | Maintenance onboarding, generator, editor, patches, bootstrap/add-node workflows | Create a disposable cluster, join a node, preserve shared identity, apply/stage/try changes, and verify results |
 | 4. Kubernetes management | Resource CRUD, workloads, network/storage/access views, logs, exec, forwarding | Complete namespace-scoped operator workflow; editor conflicts, stream lifetimes, RBAC, and port cleanup verified |
@@ -388,10 +389,10 @@ The five requested areas are defined: tech stack (section 3), development course
 
 The owner has locked the design, including the name, Kubernetes 1.36 development baseline with 1.35–1.37 core tests, local credential model, Rust Kubernetes adapter plus Go Talos/Helm workflows, initial platform targets, and milestone order. Milestone 0 is complete. Milestone 1 is the next development step.
 
-Milestone 1 resolves exact compatible toolchain/library pins, cross-platform secret-vault support, Ant Design styles and Monaco workers under the packaged CSP, helper packaging/signing, and native test harness integration. Implement and verify these within the selected architecture. The full lifecycle remains a release requirement.
+Milestone 1 resolves exact compatible toolchain/library pins, cross-platform secret-vault support, Skeleton and Bits UI styles and Monaco workers under the packaged CSP, helper packaging/signing, and native test harness integration. Implement and verify these within the selected architecture. The full lifecycle remains a release requirement.
 
 Routine implementation decisions, dependency patch updates, fixes, and verification proceed under this baseline. A material change to stack, architecture, release scope, security boundaries, or platform targets requires an owner-directed decision, with rationale and consequences recorded here or in a linked architecture decision record. Prepare concrete evidence and a proposed resolution when feasibility requires such a change; do not silently substitute technologies or shrink v1.
 
-All contributors must follow [AGENTS.md](../AGENTS.md), the [quality standards](quality.md), and the relevant [Rust](../.agents/skills/talos-pilot-rust/SKILL.md), [React](../.agents/skills/talos-pilot-react/SKILL.md), [Tauri](../.agents/skills/talos-pilot-tauri/SKILL.md), and [TypeScript](../.agents/skills/talos-pilot-typescript/SKILL.md) skills.
+All contributors must follow [AGENTS.md](../AGENTS.md), the [quality standards](quality.md), and the relevant [Rust](../.agents/skills/talos-pilot-rust/SKILL.md), [Svelte](../.agents/skills/talos-pilot-svelte/SKILL.md), [Tauri](../.agents/skills/talos-pilot-tauri/SKILL.md), and [TypeScript](../.agents/skills/talos-pilot-typescript/SKILL.md) skills.
 
 This document is a researched design. No application implementation, live-cluster integration, performance result, or platform build has been validated yet.

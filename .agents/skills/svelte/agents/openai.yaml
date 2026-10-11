@@ -1,0 +1,6 @@
+interface:
+  display_name: "Svelte 5"
+  short_description: "Write runes-mode Svelte 5 components and modules"
+  default_prompt: "Use $svelte to write or review the requested Svelte 5 code."
+policy:
+  allow_implicit_invocation: true

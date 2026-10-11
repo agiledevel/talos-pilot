@@ -1,11 +1,66 @@
-body {
-  margin: 0;
-  font-family: system-ui, sans-serif;
+@import "tailwindcss";
+
+@import "@skeletonlabs/skeleton";
+@import "@skeletonlabs/skeleton-svelte";
+@import "@skeletonlabs/skeleton/themes/cerberus";
+
+/*
+ * Dark mode follows the operating system until the user picks a fixed theme.
+ * The shell records that choice as `data-mode` on the root element, so every
+ * `dark:` utility and Skeleton colour pairing resolves from one place,
+ * including content that a headless component portals outside the app root.
+ */
+@custom-variant dark {
+  &:where([data-mode="dark"], [data-mode="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-mode="light"]), :root:not([data-mode="light"]) *) {
+      @slot;
+    }
+  }
 }
-* {
-  box-sizing: border-box;
+
+/*
+ * Application tokens over the stock Cerberus theme: 14-pixel body text on the
+ * system font stack, and a compact density that tightens Skeleton's spacing
+ * and type scale together.
+ */
+:root[data-theme="cerberus"] {
+  --text-scaling: 0.875;
+  --typo-base--font-family: system-ui, sans-serif;
+  --typo-base--font-size: var(--text-base);
+  --typo-base--line-height: 1.5;
 }
-:focus-visible {
-  outline: 2px solid #1668dc;
-  outline-offset: 4px;
+:root[data-theme="cerberus"][data-density="compact"] {
+  --spacing: 0.2rem;
+  --text-scaling: 0.8125;
+}
+
+/*
+ * Fill for the primary action of a view. The stock primary-500 fill reaches
+ * only 3.6:1 against its label at body size; this pairing meets WCAG AA
+ * (4.5:1) in both colour modes.
+ */
+@utility preset-primary-action {
+  @apply preset-filled-primary-700-300;
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+  }
+}
+
+/* Transitions are decorative, so a reduced-motion preference removes them. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
 }

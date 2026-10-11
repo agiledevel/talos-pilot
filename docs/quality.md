@@ -17,7 +17,7 @@ Pin tools and dependencies, commit lockfiles, and use reproducible installation 
 | Changed area | Required evidence before completion |
 | --- | --- |
 | Documentation or skills only | Consistent design/instructions; valid local links; valid skill frontmatter and UI metadata when changed; no placeholders; `git diff --check` |
-| TypeScript or React behavior | Oxfmt; Oxlint including type checking; meaningful renderer tests; frontend production build; accessibility and relevant UI flow checks |
+| TypeScript or Svelte behavior | Oxfmt; Oxlint including type checking; `svelte-check` with warnings as errors; meaningful renderer tests; frontend production build; accessibility and relevant UI flow checks |
 | Rust backend | rustfmt; Clippy with warnings denied; affected unit/integration tests; rustdoc checks and relevant examples; affected build |
 | Go helper | gofmt with empty difference; go vet; unit/integration tests; race checks on supported test targets; affected helper build |
 | IPC or generated contracts | Both producer and consumer gates; deterministic regeneration; malformed/versioned-message tests; actual Tauri/helper integration |
@@ -36,9 +36,10 @@ The foundation milestone must provide the following scripts and document exact n
 | --- | --- |
 | Frontend format | `pnpm format:check` runs `oxfmt --check` |
 | Frontend lint and types | `pnpm lint` runs `oxlint --type-aware --type-check --deny-warnings` with the matching `oxlint-tsgolint` engine |
-| Frontend tests | `pnpm test:run` runs Vitest once with React Testing Library where applicable; coverage collection is available for review |
+| Svelte diagnostics | `pnpm lint:svelte` runs `svelte-check --tsgo --tsconfig ./tsconfig.svelte.json --fail-on-warnings`: types in Svelte scripts, templates, and component props, and Svelte compiler warnings including accessibility, all as errors |
+| Frontend tests | `pnpm test:run` runs Vitest once with Testing Library for Svelte where applicable; coverage collection is available for review |
 | Frontend build | `pnpm build` runs the production Vite build, including specialized editor workers |
-| Frontend aggregate | `pnpm check` executes format, lint/types, renderer tests, and build, failing on any failed command |
+| Frontend aggregate | `pnpm check` executes format, lint/types, Svelte diagnostics, renderer tests, and build, failing on any failed command |
 | Browser flows | `pnpm test:e2e` runs Playwright against the explicit mock-transport harness |
 | Native flows | `pnpm test:native` runs WebdriverIO with the Tauri service against an actual test-built application |
 | Rust format | `pnpm format:rust:check` runs `cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check` using `src-tauri/rustfmt.toml`; `pnpm format:rust` applies it |
@@ -54,7 +55,7 @@ The foundation milestone must provide the following scripts and document exact n
 | Go vulnerabilities | `pnpm audit:go` installs the pinned `govulncheck` into a private `GOBIN`, runs it over `helper/`, and fails on any finding in the linked call graph |
 | Dependency inventory | `pnpm inventory:check` regenerates `docs/verification/dependency-inventory.json` from the lockfiles, `cargo metadata`, `pnpm licenses`, and the Go module graph, and fails on any difference; `pnpm inventory:generate` writes it. Generated inventories are never hand-edited |
 
-The TypeScript compiler configuration is strict, including unchecked indexed access and exact optional-property behavior. Enable relevant Oxlint correctness, React/Hooks, TypeScript, promise, import, accessibility, and test rules supported by the pinned tools. Vite transpilation does not replace type checking. Do not add a parallel default ESLint/Prettier stack. Verify the selected Oxc engine's TypeScript requirements against its [official guide](https://oxc.rs/docs/guide/usage/linter/type-aware.html).
+The TypeScript compiler configuration is strict, including unchecked indexed access and exact optional-property behavior. Enable relevant Oxlint correctness, TypeScript, promise, import, and test rules supported by the pinned tools. Vite and Svelte compilation do not replace type checking. Oxlint's type-aware rules and type check apply to `.ts` and `.svelte.ts` files; inside `.svelte` files only its syntactic rules run, on the script block. `svelte-check` therefore owns type diagnostics for Svelte scripts, templates, and component props. It type-checks a separate program, `tsconfig.svelte.json`, that differs from `tsconfig.json` only by skipping third-party declaration files, whose mutual conflicts Oxlint never reported. Keep promise handling and other logic that depends on type-aware lint rules in `.svelte.ts` modules, and do not silence a Svelte compiler warning with `svelte-ignore` without the justification required for any local suppression. Do not add a parallel default ESLint/Prettier stack. Verify the selected Oxc engine's TypeScript requirements against its [official guide](https://oxc.rs/docs/guide/usage/linter/type-aware.html).
 
 Enable `missing_docs` diagnostics for maintained Rust application crates and fail rustdoc warnings in CI. Generated code may have a narrow generated-module exemption with its source identified. Review TypeScript/Go documentation contracts with the implementation; do not satisfy documentation gates with repetitive or empty comments.
 
@@ -95,9 +96,9 @@ Test cleanup on failure as well as success. Confirm resources are released by ob
 
 ## 6. Frontend and native UX quality
 
-Use Ant Design through the application's ConfigProvider/App foundation and shared tokens. Review light/dark themes, compact density, high data volume, resizing, keyboard shortcuts, and target visibility. Test keyboard navigation, visible focus, dialog focus return, screen-reader labels, error association, and status conveyed through text as well as color.
+Use Skeleton components and theme tokens, and Bits UI primitives wrapped in `src/components/ui/` for components Skeleton does not provide. Review light/dark themes, compact density, high data volume, resizing, keyboard shortcuts, and target visibility. Test keyboard navigation, visible focus, dialog focus return, screen-reader labels, error association, and status conveyed through text as well as color.
 
-Run automated accessibility checks in renderer flows and manually exercise the main keyboard paths. Treat component-library defaults as a starting point, not proof of accessibility. Validate Monaco, xterm.js, charts, dynamic Ant Design styles, and fonts/workers under the packaged CSP.
+Run automated accessibility checks in renderer flows and manually exercise the main keyboard paths. Treat component-library defaults as a starting point, not proof of accessibility. Validate Monaco, xterm.js, charts, the bundled stylesheet, the inline style attributes applied by Skeleton and Bits UI, and fonts/workers under the packaged CSP.
 
 Browser tests exercise UI behavior with a named mock boundary. Native tests exercise real IPC, channels, helper supervision, persistence/vault handling, file workflows, and shutdown. Keep results distinct in verification records.
 

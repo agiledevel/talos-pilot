@@ -6,7 +6,7 @@ These instructions apply to the entire repository and every human or automated c
 
 - Read [docs/design.md](docs/design.md) before architecture or feature work. It is the locked implementation baseline.
 - Follow its milestone order. The design baseline is complete; feasibility and foundation are next. Internal previews do not reduce the complete Talos and Kubernetes v1 scope.
-- Use Tauri 2, Rust, a bundled Go Talos/Helm helper, React, strict TypeScript, Vite, pnpm, Oxc, and Ant Design as specified. Use the Rust Kubernetes adapter for ordinary Kubernetes management.
+- Use Tauri 2, Rust, a bundled Go Talos/Helm helper, Svelte, strict TypeScript, Vite, pnpm, Oxc, Skeleton, and Bits UI as specified. Use the Rust Kubernetes adapter for ordinary Kubernetes management.
 - Keep cluster credentials and API clients in the backend/helper. The renderer uses typed application IPC and bounded projections.
 - Proceed autonomously with implementation, fixes, documentation, and verification within the agreed scope. Routine choices do not need renewed confirmation.
 - Do not silently change the selected stack, release scope, security boundaries, or platform targets. For a material design change, prepare evidence and a concrete proposed resolution for the owner, then record the owner-directed decision in the design or a linked architecture decision record.
@@ -19,11 +19,19 @@ Read and apply each relevant skill before changing its domain. For work crossing
 | Domain | Skill | Location |
 | --- | --- | --- |
 | Rust services, adapters, concurrency, storage | `$talos-pilot-rust` | [.agents/skills/talos-pilot-rust/SKILL.md](.agents/skills/talos-pilot-rust/SKILL.md) |
-| React components, hooks, Ant Design, accessibility | `$talos-pilot-react` | [.agents/skills/talos-pilot-react/SKILL.md](.agents/skills/talos-pilot-react/SKILL.md) |
+| Svelte components, rune state modules, Skeleton, Bits UI, accessibility | `$talos-pilot-svelte` | [.agents/skills/talos-pilot-svelte/SKILL.md](.agents/skills/talos-pilot-svelte/SKILL.md) |
 | Tauri commands, channels, capabilities, sidecars, packaging | `$talos-pilot-tauri` | [.agents/skills/talos-pilot-tauri/SKILL.md](.agents/skills/talos-pilot-tauri/SKILL.md) |
 | TypeScript models, runtime validation, IPC types, Oxc | `$talos-pilot-typescript` | [.agents/skills/talos-pilot-typescript/SKILL.md](.agents/skills/talos-pilot-typescript/SKILL.md) |
 
-React implementation normally also requires the TypeScript skill. Tauri backend implementation normally also requires the Rust skill. Go work follows the same architecture, documentation, and QA rules, including the Go gates in [docs/quality.md](docs/quality.md).
+Svelte implementation normally also requires the TypeScript skill. Tauri backend implementation normally also requires the Rust skill. Go work follows the same architecture, documentation, and QA rules, including the Go gates in [docs/quality.md](docs/quality.md).
+
+The Svelte skill builds on framework reference skills extracted from the official [Svelte documentation](https://svelte.dev/llms.txt). Read the relevant one when its subject comes up; the project skills above take precedence where they differ.
+
+| Subject | Skill | Location |
+| --- | --- | --- |
+| Svelte 5 runes, template syntax, styling, runtime, TypeScript, testing | `$svelte` | [.agents/skills/svelte/SKILL.md](.agents/skills/svelte/SKILL.md) |
+| `svelte-check`, the `sv` CLI, the official Svelte AI tools | `$svelte-tooling` | [.agents/skills/svelte-tooling/SKILL.md](.agents/skills/svelte-tooling/SKILL.md) |
+| SvelteKit, which this project does not use; for evaluation and for translating examples | `$sveltekit` | [.agents/skills/sveltekit/SKILL.md](.agents/skills/sveltekit/SKILL.md) |
 
 ## Clean code requirements
 
@@ -32,7 +40,7 @@ React implementation normally also requires the TypeScript skill. Tauri backend 
 - Validate untrusted data at runtime boundaries. Use explicit domain types, exhaustive state machines, structured errors, and documented retry/cancellation semantics.
 - Handle expected failures without panics, ignored errors, or silent fallback. Preserve action, target, and cause in errors while redacting sensitive data.
 - Bound buffers, task concurrency, retained data, retries, and timeouts. Every watch, terminal, port forward, helper process, and background task needs an explicit owner and cleanup path.
-- Keep functions testable through narrow boundaries and injectable external dependencies. Do not move business logic into React components or Tauri command wrappers.
+- Keep functions testable through narrow boundaries and injectable external dependencies. Do not move business logic into Svelte components or Tauri command wrappers.
 - Avoid `any`, unchecked casts, non-null assertions, production `unwrap`/`expect`, and `unsafe`. A necessary exception must be narrow, explain its invariant, and receive suitable verification.
 - Never disable quality checks, weaken strict types, or add broad lint suppressions to make a change pass. A justified local suppression must explain the tool limitation and retain equivalent verification.
 - Keep secrets out of logs, telemetry, browser persistence, fixtures, process arguments, environment variables, and plaintext storage. Preserve the explicit reveal/export flows in the design.
@@ -42,7 +50,7 @@ React implementation normally also requires the TypeScript skill. Tauri backend 
 
 ## Code and product documentation
 
-- Document public Rust APIs with rustdoc, TypeScript module APIs and reusable hooks/components with TSDoc, and exported Go APIs with Go doc comments. Explain purpose and behavior; do not merely repeat a signature.
+- Document public Rust APIs with rustdoc, TypeScript module APIs and rune state modules with TSDoc, reusable Svelte components with an `@component` comment and documented props, and exported Go APIs with Go doc comments. Explain purpose and behavior; do not merely repeat a signature.
 - Document significant internal invariants, state transitions, resource ownership, cancellation, error behavior, and sensitive fields. Comments should explain decisions that the code alone cannot express.
 - Include Rust `Errors`, `Panics`, and `Safety` sections where applicable, and executable examples when they help a caller use the API correctly.
 - Update API/protocol, migration, setup, user workflow, and recovery documentation in the same change as the behavior. Mark generated documentation and its source.

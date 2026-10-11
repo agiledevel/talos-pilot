@@ -7,7 +7,7 @@
     "rustc": "1.99.0",
     "go": "1.27.2",
     "lockfiles": {
-      "pnpmLock": "56175c31751464fb880216ea7dbaf7afce10a70f966570fd1c7c6f5c7125e698",
+      "pnpmLock": "2866422870f1870801724a291e3cd0c7525bf1233d580982dce848a1d8289baa",
       "cargoLock": "7d758b32285ed27596f6e665cdea6a961d0464875cf3efb3cd94160270bed54f",
       "goSum": "62c390213f0dd6532680d39b073a459b3c6f29f30ec3037a25fadd89837f32f7"
     }
@@ -17,62 +17,6 @@
       "name": "@adobe/css-tools",
       "versions": [
         "4.5.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@ant-design/colors",
-      "versions": [
-        "8.0.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@ant-design/cssinjs",
-      "versions": [
-        "2.1.2"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@ant-design/cssinjs-utils",
-      "versions": [
-        "2.1.2"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@ant-design/fast-color",
-      "versions": [
-        "3.0.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@ant-design/icons",
-      "versions": [
-        "6.3.4"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@ant-design/icons-svg",
-      "versions": [
-        "4.6.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@ant-design/react-slick",
-      "versions": [
-        "2.0.0"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -136,8 +80,7 @@
     {
       "name": "@babel/runtime",
       "versions": [
-        "7.29.10",
-        "8.0.7"
+        "7.29.10"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -215,22 +158,6 @@
       "hasNotice": false
     },
     {
-      "name": "@emotion/hash",
-      "versions": [
-        "0.8.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@emotion/unitless",
-      "versions": [
-        "0.7.5"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
       "name": "@esbuild/linux-x64",
       "versions": [
         "0.28.2"
@@ -242,6 +169,30 @@
       "name": "@exodus/bytes",
       "versions": [
         "1.16.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@floating-ui/core",
+      "versions": [
+        "1.8.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@floating-ui/dom",
+      "versions": [
+        "1.8.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@floating-ui/utils",
+      "versions": [
+        "0.2.12"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -375,6 +326,15 @@
       "hasNotice": false
     },
     {
+      "name": "@internationalized/date",
+      "versions": [
+        "3.12.3",
+        "3.12.4"
+      ],
+      "license": "Apache-2.0",
+      "hasNotice": false
+    },
+    {
       "name": "@isaacs/cliui",
       "versions": [
         "8.0.2"
@@ -426,6 +386,22 @@
       "name": "@jest/types",
       "versions": [
         "30.5.1"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@jridgewell/gen-mapping",
+      "versions": [
+        "0.3.13"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@jridgewell/remapping",
+      "versions": [
+        "2.3.5"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -519,350 +495,6 @@
       "hasNotice": false
     },
     {
-      "name": "@rc-component/async-validator",
-      "versions": [
-        "6.0.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/cascader",
-      "versions": [
-        "1.22.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/checkbox",
-      "versions": [
-        "2.0.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/collapse",
-      "versions": [
-        "1.2.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/color-picker",
-      "versions": [
-        "3.1.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/context",
-      "versions": [
-        "2.0.2"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/dialog",
-      "versions": [
-        "1.10.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/drawer",
-      "versions": [
-        "1.4.2"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/dropdown",
-      "versions": [
-        "1.0.3"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/form",
-      "versions": [
-        "1.8.6"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/image",
-      "versions": [
-        "1.10.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/input",
-      "versions": [
-        "1.3.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/input-number",
-      "versions": [
-        "1.6.2"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/listy",
-      "versions": [
-        "1.2.3"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/mentions",
-      "versions": [
-        "1.12.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/menu",
-      "versions": [
-        "1.5.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/mini-decimal",
-      "versions": [
-        "1.1.4"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/motion",
-      "versions": [
-        "1.3.3"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/mutate-observer",
-      "versions": [
-        "2.0.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/notification",
-      "versions": [
-        "2.0.9"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/overflow",
-      "versions": [
-        "1.0.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/pagination",
-      "versions": [
-        "1.4.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/picker",
-      "versions": [
-        "1.12.2"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/portal",
-      "versions": [
-        "2.2.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/progress",
-      "versions": [
-        "1.0.3"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/qrcode",
-      "versions": [
-        "2.0.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/rate",
-      "versions": [
-        "1.0.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/resize-observer",
-      "versions": [
-        "1.1.2"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/segmented",
-      "versions": [
-        "1.4.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/select",
-      "versions": [
-        "1.10.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/slider",
-      "versions": [
-        "1.1.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/steps",
-      "versions": [
-        "1.2.3"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/switch",
-      "versions": [
-        "1.0.3"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/table",
-      "versions": [
-        "1.11.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/tabs",
-      "versions": [
-        "1.13.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/tooltip",
-      "versions": [
-        "1.5.2"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/tour",
-      "versions": [
-        "2.4.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/tree",
-      "versions": [
-        "1.4.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/tree-select",
-      "versions": [
-        "1.16.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/trigger",
-      "versions": [
-        "3.10.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/upload",
-      "versions": [
-        "1.1.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/util",
-      "versions": [
-        "1.13.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@rc-component/virtual-list",
-      "versions": [
-        "1.5.2"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
       "name": "@rolldown/binding-linux-x64-gnu",
       "versions": [
         "1.2.13"
@@ -898,6 +530,94 @@
       "name": "@sindresorhus/merge-streams",
       "versions": [
         "4.0.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@skeletonlabs/skeleton",
+      "versions": [
+        "5.0.1"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@skeletonlabs/skeleton-common",
+      "versions": [
+        "5.0.1"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@skeletonlabs/skeleton-svelte",
+      "versions": [
+        "5.0.1"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@sveltejs/acorn-typescript",
+      "versions": [
+        "1.0.13"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@sveltejs/load-config",
+      "versions": [
+        "0.2.3"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@sveltejs/vite-plugin-svelte",
+      "versions": [
+        "7.3.1"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@swc/helpers",
+      "versions": [
+        "0.5.23"
+      ],
+      "license": "Apache-2.0",
+      "hasNotice": false
+    },
+    {
+      "name": "@tailwindcss/node",
+      "versions": [
+        "4.3.3"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@tailwindcss/oxide",
+      "versions": [
+        "4.3.3"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@tailwindcss/oxide-linux-x64-gnu",
+      "versions": [
+        "4.3.3"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@tailwindcss/vite",
+      "versions": [
+        "4.3.3"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -951,9 +671,17 @@
       "hasNotice": false
     },
     {
-      "name": "@testing-library/react",
+      "name": "@testing-library/svelte",
       "versions": [
-        "16.3.3"
+        "5.4.2"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@testing-library/svelte-core",
+      "versions": [
+        "1.1.3"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -1048,22 +776,6 @@
       "hasNotice": false
     },
     {
-      "name": "@types/react",
-      "versions": [
-        "19.3.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "@types/react-dom",
-      "versions": [
-        "19.3.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
       "name": "@types/sinonjs__fake-timers",
       "versions": [
         "8.1.5"
@@ -1118,14 +830,6 @@
       ],
       "license": "Apache-2.0",
       "hasNotice": true
-    },
-    {
-      "name": "@vitejs/plugin-react",
-      "versions": [
-        "6.1.2"
-      ],
-      "license": "MIT",
-      "hasNotice": false
     },
     {
       "name": "@vitest/coverage-v8",
@@ -1362,6 +1066,398 @@
       "hasNotice": false
     },
     {
+      "name": "@zag-js/accordion",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/anatomy",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/aria-hidden",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/auto-resize",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/avatar",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/carousel",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/collapsible",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/collection",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/combobox",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/core",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/date-picker",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/date-utils",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/dialog",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/dismissable",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/dom-query",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/file-upload",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/file-utils",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/floating-panel",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/focus-trap",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/focus-visible",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/i18n-utils",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/interact-outside",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/listbox",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/live-region",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/marquee",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/menu",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/pagination",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/popover",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/popper",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/progress",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/qr-code",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/radio-group",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/rating-group",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/rect-utils",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/remove-scroll",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/scroll-snap",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/slider",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/steps",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/store",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/svelte",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/switch",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/tabs",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/tags-input",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/toast",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/toggle-group",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/tooltip",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/tree-view",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/types",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@zag-js/utils",
+      "versions": [
+        "1.43.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
       "name": "@zip.js/zip.js",
       "versions": [
         "2.23.0"
@@ -1373,6 +1469,14 @@
       "name": "abort-controller",
       "versions": [
         "3.0.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "acorn",
+      "versions": [
+        "8.19.0"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -1413,14 +1517,6 @@
       "hasNotice": false
     },
     {
-      "name": "antd",
-      "versions": [
-        "6.6.5"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
       "name": "archiver",
       "versions": [
         "7.0.1"
@@ -1448,6 +1544,7 @@
       "name": "aria-query",
       "versions": [
         "5.3.0",
+        "5.3.1",
         "5.3.2"
       ],
       "license": "Apache-2.0",
@@ -1491,6 +1588,14 @@
         "4.13.0"
       ],
       "license": "MPL-2.0",
+      "hasNotice": false
+    },
+    {
+      "name": "axobject-query",
+      "versions": [
+        "4.1.0"
+      ],
+      "license": "Apache-2.0",
       "hasNotice": false
     },
     {
@@ -1561,6 +1666,14 @@
       "name": "bidi-js",
       "versions": [
         "1.1.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "bits-ui",
+      "versions": [
+        "2.19.5"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -1740,14 +1853,6 @@
       "hasNotice": false
     },
     {
-      "name": "compute-scroll-into-view",
-      "versions": [
-        "3.1.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
       "name": "concat-map",
       "versions": [
         "0.0.1"
@@ -1868,14 +1973,6 @@
       "hasNotice": false
     },
     {
-      "name": "dayjs",
-      "versions": [
-        "1.11.23"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
       "name": "debug",
       "versions": [
         "4.4.3"
@@ -1904,6 +2001,14 @@
       "name": "deep-eql",
       "versions": [
         "5.0.2"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "deepmerge",
+      "versions": [
+        "4.3.1"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -1938,6 +2043,14 @@
         "2.1.2"
       ],
       "license": "Apache-2.0",
+      "hasNotice": false
+    },
+    {
+      "name": "devalue",
+      "versions": [
+        "5.9.4"
+      ],
+      "license": "MIT",
       "hasNotice": false
     },
     {
@@ -2057,6 +2170,14 @@
       "hasNotice": false
     },
     {
+      "name": "enhanced-resolve",
+      "versions": [
+        "5.26.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
       "name": "entities",
       "versions": [
         "4.5.0",
@@ -2104,6 +2225,22 @@
       "versions": [
         "2.0.0",
         "4.0.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "esm-env",
+      "versions": [
+        "1.2.2"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "esrap",
+      "versions": [
+        "2.4.0"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -2465,6 +2602,14 @@
       "hasNotice": false
     },
     {
+      "name": "inline-style-parser",
+      "versions": [
+        "0.2.7"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
       "name": "inquirer",
       "versions": [
         "12.11.1"
@@ -2489,14 +2634,6 @@
       "hasNotice": false
     },
     {
-      "name": "is-mobile",
-      "versions": [
-        "5.0.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
       "name": "is-plain-obj",
       "versions": [
         "2.1.0",
@@ -2509,6 +2646,14 @@
       "name": "is-potential-custom-element-name",
       "versions": [
         "1.0.1"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "is-reference",
+      "versions": [
+        "3.0.3"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -2661,14 +2806,6 @@
       "hasNotice": false
     },
     {
-      "name": "json2mq",
-      "versions": [
-        "0.2.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
       "name": "json5",
       "versions": [
         "2.2.3"
@@ -2703,6 +2840,7 @@
     {
       "name": "lightningcss",
       "versions": [
+        "1.32.0",
         "1.33.0"
       ],
       "license": "MPL-2.0",
@@ -2711,6 +2849,7 @@
     {
       "name": "lightningcss-linux-x64-gnu",
       "versions": [
+        "1.32.0",
         "1.33.0"
       ],
       "license": "MPL-2.0",
@@ -2730,6 +2869,14 @@
         "2.5.0"
       ],
       "license": "Apache-2.0",
+      "hasNotice": false
+    },
+    {
+      "name": "locate-character",
+      "versions": [
+        "3.0.0"
+      ],
+      "license": "MIT",
       "hasNotice": false
     },
     {
@@ -2909,6 +3056,14 @@
       "versions": [
         "0.7.7",
         "0.8.5"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "mri",
+      "versions": [
+        "1.2.0"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -3209,6 +3364,22 @@
       "hasNotice": false
     },
     {
+      "name": "proxy-compare",
+      "versions": [
+        "3.0.1"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "proxy-memoize",
+      "versions": [
+        "3.0.1"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
       "name": "punycode",
       "versions": [
         "2.3.1"
@@ -3220,22 +3391,6 @@
       "name": "query-selector-shadow-dom",
       "versions": [
         "1.0.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "react",
-      "versions": [
-        "19.3.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "react-dom",
-      "versions": [
-        "19.3.0"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -3364,11 +3519,27 @@
       "hasNotice": false
     },
     {
+      "name": "runed",
+      "versions": [
+        "0.35.1"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
       "name": "rxjs",
       "versions": [
         "7.8.2"
       ],
       "license": "Apache-2.0",
+      "hasNotice": false
+    },
+    {
+      "name": "sade",
+      "versions": [
+        "1.8.1"
+      ],
+      "license": "MIT",
       "hasNotice": false
     },
     {
@@ -3410,22 +3581,6 @@
         "6.0.0"
       ],
       "license": "ISC",
-      "hasNotice": false
-    },
-    {
-      "name": "scheduler",
-      "versions": [
-        "0.28.0"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
-      "name": "scroll-into-view-if-needed",
-      "versions": [
-        "3.1.0"
-      ],
-      "license": "MIT",
       "hasNotice": false
     },
     {
@@ -3589,14 +3744,6 @@
       "hasNotice": false
     },
     {
-      "name": "string-convert",
-      "versions": [
-        "0.2.1"
-      ],
-      "license": "MIT",
-      "hasNotice": false
-    },
-    {
       "name": "string-width",
       "versions": [
         "4.2.3",
@@ -3650,9 +3797,9 @@
       "hasNotice": false
     },
     {
-      "name": "stylis",
+      "name": "style-to-object",
       "versions": [
-        "4.4.0"
+        "1.0.14"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -3662,6 +3809,54 @@
       "versions": [
         "7.2.0",
         "8.1.1"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "svelte",
+      "versions": [
+        "5.57.2"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "svelte-check",
+      "versions": [
+        "4.7.6"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "svelte-toolbelt",
+      "versions": [
+        "0.10.6"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "tabbable",
+      "versions": [
+        "6.5.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "tailwindcss",
+      "versions": [
+        "4.3.3"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "tapable",
+      "versions": [
+        "2.3.3"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -3688,14 +3883,6 @@
         "1.2.7"
       ],
       "license": "Apache-2.0",
-      "hasNotice": false
-    },
-    {
-      "name": "throttle-debounce",
-      "versions": [
-        "5.0.2"
-      ],
-      "license": "MIT",
       "hasNotice": false
     },
     {
@@ -3800,6 +3987,7 @@
     {
       "name": "typescript",
       "versions": [
+        "6.0.3",
         "7.0.2"
       ],
       "license": "Apache-2.0",
@@ -3828,6 +4016,14 @@
       "name": "unicorn-magic",
       "versions": [
         "0.3.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "uqr",
+      "versions": [
+        "0.1.3"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -3868,6 +4064,14 @@
       "name": "vite",
       "versions": [
         "8.3.4"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "vitefu",
+      "versions": [
+        "1.1.3"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -4094,6 +4298,14 @@
       "name": "yoctocolors-cjs",
       "versions": [
         "2.1.3"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "zimmerframe",
+      "versions": [
+        "1.1.5"
       ],
       "license": "MIT",
       "hasNotice": false

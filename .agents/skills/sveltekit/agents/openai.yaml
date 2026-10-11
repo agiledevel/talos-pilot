@@ -1,0 +1,6 @@
+interface:
+  display_name: "SvelteKit"
+  short_description: "Reference SvelteKit routing, loading, and deployment"
+  default_prompt: "Use $sveltekit to evaluate or explain the requested SvelteKit behaviour."
+policy:
+  allow_implicit_invocation: false

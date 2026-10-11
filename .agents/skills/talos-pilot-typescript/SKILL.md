@@ -1,6 +1,6 @@
 ---
 name: talos-pilot-typescript
-description: "Develop and review strict TypeScript in Talos Pilot, including application models, runtime validation, IPC adapters, generated DTO integration, asynchronous state, and Oxc tooling. Use for TS/TSX changes; pair with the React skill for UI and the Tauri skill for native contracts."
+description: "Develop and review strict TypeScript in Talos Pilot, including application models, runtime validation, IPC adapters, generated DTO integration, asynchronous state, and Oxc tooling. Use for TypeScript in `.ts`, `.svelte.ts`, and Svelte `<script lang=\"ts\">` blocks; pair with the Svelte skill for UI and the Tauri skill for native contracts."
 ---
 
 # Talos Pilot Typescript
@@ -9,7 +9,7 @@ description: "Develop and review strict TypeScript in Talos Pilot, including app
 
 Read [AGENTS.md](../../../AGENTS.md), the contracts/frontend boundaries in [design.md](../../../docs/design.md), and TypeScript/frontend gates in [quality.md](../../../docs/quality.md). Inspect the relevant generated DTOs, adapters, compiler/linter configuration, and tests before editing.
 
-Keep strict compiler settings, unchecked indexed access, and exact optional-property behavior. Use the pinned pnpm/Vite/Oxc toolchain. Apply the React skill for components/hooks and the Tauri skill for native IPC changes.
+Keep strict compiler settings, unchecked indexed access, and exact optional-property behavior. Use the pinned pnpm/Vite/Oxc toolchain. Apply the Svelte skill for components and rune state modules and the Tauri skill for native IPC changes.
 
 ## Model behavior precisely
 
@@ -30,9 +30,11 @@ Expose structured safe errors with action/target/cause and an actionable next st
 
 ## Use the Oxc quality stack
 
-Run the repository's Oxfmt, Oxlint/type, test, contract-generation, and production-build commands from quality.md. Use `oxlint --type-aware --type-check --deny-warnings` with the compatible `oxlint-tsgolint` package. Verify selected TypeScript/tool versions against [the Oxc type-aware guide](https://oxc.rs/docs/guide/usage/linter/type-aware.html); do not assume Vite transpilation checks types.
+Run the repository's Oxfmt, Oxlint/type, `svelte-check`, test, contract-generation, and production-build commands from quality.md. Use `oxlint --type-aware --type-check --deny-warnings` with the compatible `oxlint-tsgolint` package. Verify selected TypeScript/tool versions against [the Oxc type-aware guide](https://oxc.rs/docs/guide/usage/linter/type-aware.html); do not assume Vite transpilation checks types.
 
-Keep lint and compiler settings identical locally and in CI, with correctness, hooks, promise, import, accessibility, and test checks supported by the pinned version. Do not weaken strictness or add a parallel default ESLint/Prettier pipeline to resolve a failure. Consult [TypeScript's strict configuration](https://www.typescriptlang.org/tsconfig/strict.html) for compiler behavior.
+Oxlint's type-aware rules and type check cover `.ts` and `.svelte.ts` files only. Inside `.svelte` files it applies syntactic rules to the script block, and `svelte-check --tsgo` supplies the type diagnostics for scripts, templates, and component props. Keep promise-handling and other logic that depends on type-aware rules in `.svelte.ts` modules. A component imported into a `.ts` file is precisely typed only under `svelte-check`, so a green Oxlint run alone does not establish that its props are correct.
+
+Keep lint and compiler settings identical locally and in CI, with correctness, promise, import, and test checks supported by the pinned version; accessibility diagnostics come from the Svelte compiler through `svelte-check`. Do not weaken strictness or add a parallel default ESLint/Prettier pipeline to resolve a failure. Consult [TypeScript's strict configuration](https://www.typescriptlang.org/tsconfig/strict.html) for compiler behavior.
 
 ## Verify and document
 

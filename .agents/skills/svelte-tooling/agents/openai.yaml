@@ -1,0 +1,6 @@
+interface:
+  display_name: "Svelte Tooling"
+  short_description: "Run svelte-check, the sv CLI, and Svelte AI tools"
+  default_prompt: "Use $svelte-tooling to check or maintain the Svelte toolchain."
+policy:
+  allow_implicit_invocation: true

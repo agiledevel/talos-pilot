@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "react", "react-hooks", "import", "jsx-a11y", "vitest", "promise"],
+  "plugins": ["typescript", "import", "vitest", "promise"],
   "categories": { "correctness": "error" },
   "rules": {
     "typescript/no-explicit-any": "error",
@@ -10,11 +10,16 @@
     "typescript/no-unsafe-assignment": "error",
     "typescript/no-unsafe-member-access": "error",
     "typescript/no-unsafe-return": "error",
-    "react-hooks/exhaustive-deps": "error",
-    "jsx-a11y/alt-text": "error",
-    "jsx-a11y/label-has-associated-control": "error",
     "import/no-cycle": "error",
     "vitest/expect-expect": "error"
   },
-  "ignorePatterns": ["dist", "coverage", "src-tauri", "playwright-report", "test-results"]
+  "ignorePatterns": [
+    "dist",
+    "dist-native-test",
+    "coverage",
+    "src-tauri",
+    "playwright-report",
+    "test-results",
+    ".svelte-check"
+  ]
 }

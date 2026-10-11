@@ -1,8 +1,12 @@
 {
+  "svelte": true,
+  "sortTailwindcss": { "stylesheet": "./src/styles.css" },
   "ignorePatterns": [
     "pnpm-lock.yaml",
     "docs/verification/dependency-inventory.json",
     "dist",
+    "dist-native-test",
+    ".svelte-check",
     "coverage",
     "playwright-report",
     "test-results",

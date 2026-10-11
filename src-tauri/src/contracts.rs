@@ -100,9 +100,9 @@ pub struct TalosCredentialSessionDto {
 pub enum AppearanceTheme {
     /// Follow the operating system's light/dark preference.
     System,
-    /// Always use the light color algorithm.
+    /// Always use the light color scheme.
     Light,
-    /// Always use the dark color algorithm.
+    /// Always use the dark color scheme.
     Dark,
 }
 
@@ -112,7 +112,7 @@ pub enum AppearanceTheme {
 pub enum AppearanceDensity {
     /// Use standard component spacing.
     Comfortable,
-    /// Use Ant Design's compact component spacing.
+    /// Use the compact spacing and type scale.
     Compact,
 }
 

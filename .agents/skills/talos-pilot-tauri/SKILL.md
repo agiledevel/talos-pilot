@@ -9,7 +9,7 @@ description: "Develop and review Talos Pilot Tauri 2 commands, channels, capabil
 
 Read [AGENTS.md](../../../AGENTS.md), the runtime/helper/security boundaries in [design.md](../../../docs/design.md), and native/IPC gates in [quality.md](../../../docs/quality.md). Apply the Rust and/or TypeScript skill for implementation. Inspect command registration, capability configuration, frontend adapters, and build targets before editing.
 
-Use Tauri 2 as the desktop host and rendering integration. Serve bundled React assets in the native WebView. Rust owns application services; commands adapt typed requests to those services rather than embedding lifecycle logic.
+Use Tauri 2 as the desktop host and rendering integration. Serve bundled Svelte assets in the native WebView. Rust owns application services; commands adapt typed requests to those services rather than embedding lifecycle logic.
 
 ## Make IPC explicit
 
@@ -29,7 +29,7 @@ Own helper lifetime through shutdown/crash cleanup. An interrupted mutation is j
 
 ## Preserve production security and portability
 
-- Keep a restrictive CSP for bundled content. Verify Ant Design dynamic styles, Monaco workers, terminal rendering, fonts, and asset paths without broad wildcard grants or blanket security bypasses.
+- Keep a restrictive CSP for bundled content. Verify the bundled Tailwind/Skeleton stylesheet, the inline style attributes that Skeleton and Bits UI apply, Monaco workers, terminal rendering, fonts, and asset paths without broad wildcard grants or blanket security bypasses.
 - Keep credentials in the Rust/helper boundary and approved vault/encrypted storage. Test unavailable-vault behavior on the affected platform; never silently fall back to plaintext.
 - Use cross-platform path/process APIs and platform-aware shortcuts. Verify target-specific helper names, permissions, architectures, asset resolution, installer runtime dependencies, and cleanup.
 - Keep WebDriver listeners, mock transports, test commands, and bypass capabilities exclusive to explicit test builds. Inspect production artifacts/configuration for their exclusion.

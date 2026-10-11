@@ -1,17 +1,21 @@
-import react from "@vitejs/plugin-react";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { svelteTesting } from "@testing-library/svelte/vite";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  plugins: [react()],
+  // svelteTesting resolves Svelte's browser build under jsdom and unmounts
+  // rendered components after each test.
+  plugins: [svelte(), svelteTesting()],
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test-setup.ts"],
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "scripts/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
       include: [
-        "src/components/**/*.tsx",
+        "src/components/**/*.svelte",
+        "src/lib/state/**/*.svelte.ts",
         "src/lib/ipc/transport.ts",
         "src/lib/ipc/validation.ts",
         "scripts/lib/**/*.ts",

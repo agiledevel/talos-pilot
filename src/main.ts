@@ -1,6 +1,5 @@
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import { PilotApp } from "./components/PilotApp";
+import { mount } from "svelte";
+import PilotApp from "./components/PilotApp.svelte";
 import type { IpcTransport } from "./lib/ipc/transport";
 import { createNativeIpcTransport } from "./lib/ipc/transport";
 import "./styles.css";
@@ -15,8 +14,4 @@ try {
 } catch {
   transport = undefined;
 }
-createRoot(root).render(
-  <StrictMode>
-    {transport === undefined ? <PilotApp /> : <PilotApp transport={transport} />}
-  </StrictMode>,
-);
+mount(PilotApp, { target: root, props: { transport } });

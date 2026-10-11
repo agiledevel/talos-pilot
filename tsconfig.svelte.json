@@ -1,0 +1,11 @@
+{
+  // svelte-check reports diagnostics for every file in the program, while
+  // Oxlint's type check reports only the files it lints. Third-party
+  // declaration files (WebdriverIO/Mocha and Vitest globals, csstype) conflict
+  // with each other, so this program skips declaration files only; project
+  // TypeScript and Svelte sources keep every strict option from tsconfig.json.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "skipLibCheck": true
+  }
+}
