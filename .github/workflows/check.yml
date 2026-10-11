@@ -70,16 +70,6 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libdbus-1-dev libxdo-dev build-essential pkg-config xvfb
       - run: rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
       - uses: ./.github/actions/install-protoc
-      - name: Verify generated contracts are current
-        # Windows is excluded for two harness reasons, recorded with their
-        # runner log in the automation record: the pinned Go plugin reports its
-        # own file name, which is `protoc-gen-go.exe` there, and this script
-        # spawns `pnpm exec` without a shell, which cannot resolve the Windows
-        # `pnpm.cmd` shim. Neither is a difference in generated output, and the
-        # byte comparison itself is unchanged. Remove the condition once
-        # scripts/contracts.ts handles both.
-        if: runner.os != 'Windows'
-        run: pnpm contracts:check
       - run: pnpm format:rust:check
       - name: Verify Go helper source and modules
         working-directory: helper
@@ -111,3 +101,9 @@ jobs:
       - name: Verify recorded advisory applicability
         if: runner.os == 'Linux'
         run: pnpm advisories:check
+      # Last on purpose: this check is cheap and platform-independent, while the
+      # steps above it are the platform's native, packaging, and advisory
+      # evidence. Placed earlier, a harness defect in it skipped every one of
+      # them on windows-2022 in run 38155107982.
+      - name: Verify generated contracts are current
+        run: pnpm contracts:check
