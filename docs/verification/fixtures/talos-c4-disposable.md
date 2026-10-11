@@ -13,8 +13,8 @@ use of any other Docker, libvirt, Talos, or Kubernetes cluster.
 | Field                         | Authorized value                                                                                                |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | Fixture ID                    | `talos-pilot-c4-20261009`                                                                                       |
-| Provisioner                   | Local QEMU through the official pinned `talosctl` 1.14.1 binary                                                 |
-| Talos image                   | `ghcr.io/siderolabs/talos:v1.14.1`                                                                              |
+| Provisioner                   | Local QEMU through the official pinned `talosctl` 1.14.2 binary                                                 |
+| Talos image                   | `ghcr.io/siderolabs/talos:v1.14.2`                                                                              |
 | Kubernetes version            | `v1.36.5`                                                                                                       |
 | Topology                      | 3 control planes and 1 worker                                                                                   |
 | Cluster CIDR                  | `10.79.0.0/24`                                                                                                  |
@@ -51,7 +51,7 @@ sudo -n -E sh -c 'umask 077; cd /tmp/tpc4; \
     cluster create qemu \
     --name talos-pilot-c4-20261009 \
     --cidr 10.79.0.0/24 \
-    --talos-version v1.14.1 \
+    --talos-version v1.14.2 \
     --kubernetes-version v1.36.5 \
     --controlplanes 3 \
     --workers 1 \
@@ -185,6 +185,63 @@ Go module, and this manifest together — is not covered by that confirmation an
 is not yet reflected in the identity table above, which still records the
 2026-10-09 `v1.14.1` run as executed.
 
+## F1 authorized fixture-local actions (2026-10-11)
+
+Packet F1 performs three actions the earlier allowlist did not name. Each is
+confined to this fixture and none mutates a Talos or Kubernetes resource.
+
+**1. Issuing role-scoped client configurations.** The fixture issues only an
+admin talosconfig, so F1 mints the reader and denied identities from it with the
+pinned CLI, against the first control-plane endpoint:
+
+```sh
+sudo -n -E /developer/ifjkt/talos-pilot/src-tauri/.local-tools/talosctl \
+  --talosconfig /tmp/tpc4/talosconfig --nodes 10.79.0.2 \
+  config new /tmp/tpc4/talosconfig.reader --roles os:reader --crt-ttl 24h
+sudo -n -E /developer/ifjkt/talos-pilot/src-tauri/.local-tools/talosctl \
+  --talosconfig /tmp/tpc4/talosconfig --nodes 10.79.0.2 \
+  config new /tmp/tpc4/talosconfig.etcdbackup --roles os:etcd:backup --crt-ttl 24h
+```
+
+This is certificate issuance, not a cluster change: `config new` calls
+`/machine.MachineService/GenerateClientConfiguration`, whose handler in the
+pinned Talos source signs a client certificate from the machine's existing
+secrets bundle and persists nothing on the node
+([`v1alpha1_server.go`](https://github.com/siderolabs/talos/blob/v1.14.2/internal/app/machined/internal/server/v1alpha1/v1alpha1_server.go)).
+Both new contexts inherit the fixture's endpoints. Neither carries the node
+list the probe needs, so each gets it the same way the admin context does, with
+`talosctl config node 10.79.0.2 10.79.0.3 10.79.0.4 10.79.0.5`; this changes
+only the client's target selection. All three files live under `/tmp/tpc4` and
+are removed with it.
+
+**2. Producing real status events and a real interruption on the worker only.**
+The worker `10.79.0.5` is not a control plane, so neither action can affect etcd
+quorum, and the three-control-plane set stays untouched:
+
+```sh
+sudo -n -E /developer/ifjkt/talos-pilot/src-tauri/.local-tools/talosctl \
+  --talosconfig /tmp/tpc4/talosconfig --nodes 10.79.0.5 reboot
+```
+
+A reboot is the only lifecycle action authorized here. `/machine.MachineService/Reboot`
+accepts `os:admin` and `os:operator` and is not granted to `os:reader`; `/Reset`
+and `/Upgrade` remain forbidden. For a network interruption without a lifecycle
+change, the worker's own QEMU process may be suspended and resumed with
+`SIGSTOP`/`SIGCONT`, identified by the fixture's `--state` directory and machine
+name — never by a wildcard, and never a control-plane guest.
+
+**3. The Kubernetes API endpoint F3 will read.** The 2026-10-11 run resolved
+it to `https://10.79.0.1:6443`: the provisioner's cluster VIP on the bridge
+gateway, not a control-plane address. That address is outside the Talos
+endpoint allowlist above, so F3 must add it as a Kubernetes endpoint rather than
+reuse the Talos one, and must confirm the literal endpoint, CA, and server
+version from `/tmp/tpc4/kubeconfig` at its own provisioning before its first
+request. This entry records the endpoint's identity as belonging to the fixture;
+it does not authorize an unverified address.
+
+Neither action authorizes a host firewall, zone, or interface change beyond the
+remediation recorded above, and both are removed by the restoration checklist.
+
 ## Host-issued identities (2026-10-09 run)
 
 - QEMU bridge: `talosb8c871e1` on `10.79.0.1/24`, four guests
@@ -243,7 +300,15 @@ then shut down and reaped by the same service the application uses.
    `--get-default-zone` to `public`.
 4. Remove `/tmp/tpc4` and any `/tmp/talos-pilot-c4-20261009` state directory, so
    no synthetic credential file outlives the cluster; verify no `qemu-system`
-   process and no `talos*` bridge remain.
+   process and no `talos*` bridge or leftover fixture `veth` remain.
+
+Step 3's expected active-zone tuple is host-state-dependent: the 2026-10-09 run
+recorded `docker`/`libvirt`/`public`, and the 2026-10-11 run restored to
+`docker`/`public` because `libvirtd` is inactive on this host and `virbr124` no
+longer exists. Compare against the baseline captured immediately before
+provisioning, not against the older tuple. The zone _list_, the default zone,
+the two `iptables` counters, and the absence of fixture interfaces are the
+invariants that must hold.
 
 Executed on 2026-10-09 after the harness run: all four steps were verified, with
 zero fixture rules left, the zone list and active zones back to the state

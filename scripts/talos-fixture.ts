@@ -31,18 +31,23 @@ function reference(flag: string): string {
 }
 
 const manifestPath = reference("--manifest");
-const configPath = reference("--talosconfig");
+const configPath = checkedConfig("--talosconfig");
+const readerConfigPath = checkedConfig("--reader-talosconfig");
+const deniedConfigPath = checkedConfig("--denied-talosconfig");
 
-if (!relative(root, configPath).startsWith("..")) {
-  throw new Error(
-    "--talosconfig must live outside the repository so credentials cannot be committed.",
-  );
-}
-const configInfo = statSync(configPath);
-if (configInfo.size === 0 || configInfo.size > maxConfigBytes) {
-  throw new Error(
-    `--talosconfig must be between 1 and ${String(maxConfigBytes)} bytes, found ${String(configInfo.size)}.`,
-  );
+/** Validates one credential reference: outside the repository, bounded, regular. */
+function checkedConfig(flag: string): string {
+  const path = reference(flag);
+  if (!relative(root, path).startsWith("..")) {
+    throw new Error(`${flag} must live outside the repository so credentials cannot be committed.`);
+  }
+  const info = statSync(path);
+  if (info.size === 0 || info.size > maxConfigBytes) {
+    throw new Error(
+      `${flag} must be between 1 and ${String(maxConfigBytes)} bytes, found ${String(info.size)}.`,
+    );
+  }
+  return path;
 }
 
 let manifest: Record<string, unknown>;
@@ -61,7 +66,14 @@ if (manifest.fixtureId !== allowedFixtureId) {
     `manifest fixtureId ${String(manifest.fixtureId)} is not the allowlisted fixture ${allowedFixtureId}.`,
   );
 }
-for (const field of ["contextName", "talosVersion", "kubernetesVersion", "negativeEndpoint"]) {
+for (const field of [
+  "contextName",
+  "readerContext",
+  "deniedContext",
+  "talosVersion",
+  "kubernetesVersion",
+  "negativeEndpoint",
+]) {
   if (typeof manifest[field] !== "string" || (manifest[field] as string).length === 0) {
     throw new Error(`fixture manifest field ${field} is missing or empty.`);
   }
@@ -111,11 +123,13 @@ execFileSync(
       ...process.env,
       TALOS_PILOT_FIXTURE_MANIFEST: manifestPath,
       TALOS_PILOT_FIXTURE_TALOSCONFIG: configPath,
+      TALOS_PILOT_FIXTURE_READER_TALOSCONFIG: readerConfigPath,
+      TALOS_PILOT_FIXTURE_DENIED_TALOSCONFIG: deniedConfigPath,
       TALOS_PILOT_FIXTURE_HELPER: helperPath,
     },
   },
 );
 
 console.info(
-  "C4 fixture harness completed: authenticated read, bounded stream, cancellation, and failure classes.",
+  "C4 fixture harness completed: authenticated read, bounded stream, cancellation, restricted identities, and failure classes.",
 );

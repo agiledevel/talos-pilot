@@ -28,6 +28,8 @@ use zeroize::Zeroizing;
 
 const MANIFEST_ENV: &str = "TALOS_PILOT_FIXTURE_MANIFEST";
 const TALOSCONFIG_ENV: &str = "TALOS_PILOT_FIXTURE_TALOSCONFIG";
+const READER_TALOSCONFIG_ENV: &str = "TALOS_PILOT_FIXTURE_READER_TALOSCONFIG";
+const DENIED_TALOSCONFIG_ENV: &str = "TALOS_PILOT_FIXTURE_DENIED_TALOSCONFIG";
 const HELPER_ENV: &str = "TALOS_PILOT_FIXTURE_HELPER";
 const FIXTURE_ID: &str = "talos-pilot-c4-20261009";
 const FIRST_EVENT_DEADLINE: Duration = Duration::from_secs(30);
@@ -47,6 +49,10 @@ struct FixtureManifest {
     context_name: String,
     talos_version: String,
     kubernetes_version: String,
+    /// Context label `config new --roles os:reader` derives for this cluster.
+    reader_context: String,
+    /// Context label `config new --roles os:etcd:backup` derives for this cluster.
+    denied_context: String,
     allowed_endpoints: Vec<String>,
     allowed_nodes: Vec<String>,
     /// One unassigned address inside the fixture CIDR, used only to prove the
@@ -57,6 +63,8 @@ struct FixtureManifest {
 struct Fixture {
     manifest: FixtureManifest,
     config: Zeroizing<Vec<u8>>,
+    reader_config: Zeroizing<Vec<u8>>,
+    denied_config: Zeroizing<Vec<u8>>,
     helper: PathBuf,
 }
 
@@ -75,6 +83,14 @@ fn fixture() -> Fixture {
     let config = talos::read_talosconfig(&config_path).unwrap_or_else(|_| {
         panic!("{TALOSCONFIG_ENV} must reference a readable bounded talosconfig")
     });
+    let reader_config =
+        talos::read_talosconfig(&reference(READER_TALOSCONFIG_ENV)).unwrap_or_else(|_| {
+            panic!("{READER_TALOSCONFIG_ENV} must reference a readable bounded talosconfig")
+        });
+    let denied_config =
+        talos::read_talosconfig(&reference(DENIED_TALOSCONFIG_ENV)).unwrap_or_else(|_| {
+            panic!("{DENIED_TALOSCONFIG_ENV} must reference a readable bounded talosconfig")
+        });
     if !helper_path.exists() {
         panic!(
             "{HELPER_ENV} must reference the built helper, {} is absent",
@@ -85,6 +101,8 @@ fn fixture() -> Fixture {
     Fixture {
         manifest,
         config,
+        reader_config,
+        denied_config,
         helper: helper_path,
     }
 }
@@ -106,7 +124,7 @@ fn validate_identity(manifest: &FixtureManifest) {
         "the selected context must be the allowlisted cluster"
     );
     assert_eq!(
-        manifest.talos_version, "v1.14.1",
+        manifest.talos_version, "v1.14.2",
         "C4 targets the pinned Talos patch"
     );
     assert_eq!(
@@ -139,14 +157,22 @@ fn validate_identity(manifest: &FixtureManifest) {
 
 /// Imports a credential through the production session path and proves it stays
 /// inside the recorded allowlist.
-fn import(fixture: &Fixture, config: &Zeroizing<Vec<u8>>) -> (TalosSessionStore, TalosProbeInput) {
+///
+/// `expected_context` is the label the allowlist records for this credential, so
+/// a config generated for the wrong cluster or the wrong role is rejected here
+/// rather than silently probed under an unverified identity.
+fn import(
+    fixture: &Fixture,
+    config: &Zeroizing<Vec<u8>>,
+    expected_context: &str,
+) -> (TalosSessionStore, TalosProbeInput) {
     let store = TalosSessionStore::default();
     let session = store
         .insert(Zeroizing::new(config.to_vec()))
         .unwrap_or_else(|_| {
             panic!("the fixture talosconfig must import as a session-only context")
         });
-    assert_eq!(session.context_name, fixture.manifest.context_name);
+    assert_eq!(session.context_name, expected_context);
     assert_eq!(session.endpoints, fixture.manifest.allowed_endpoints);
     assert!(matches!(
         session.storage_mode,
@@ -240,7 +266,7 @@ fn describe(error: &ApplicationErrorDto) -> String {
 #[ignore = "requires the allowlisted disposable Talos fixture"]
 async fn reads_and_streams_the_allowlisted_fixture() {
     let fixture = fixture();
-    let (store, input) = import(&fixture, &fixture.config);
+    let (store, input) = import(&fixture, &fixture.config, &fixture.manifest.context_name);
     let service = HelperService::default();
 
     let status = service
@@ -344,11 +370,106 @@ async fn reads_and_streams_the_allowlisted_fixture() {
     service.shutdown().await;
 }
 
+/// The restricted identities the fixture issues from its admin credential.
+///
+/// `os:reader` is granted `/machine.MachineService/Version` and
+/// `/cosi.resource.State/Watch`, so an authenticated read and the node-pinned
+/// `MachineStatus` stream must both succeed. `os:etcd:backup` is granted only
+/// `/machine.MachineService/EtcdAlarmList`, `EtcdMemberList`, `EtcdSnapshot`,
+/// and `EtcdStatus`; every other method falls back to `os:admin`, so neither
+/// the version read nor the watch is permitted. The pinned upstream rules are
+/// [`machined.go`](https://github.com/siderolabs/talos/blob/v1.14.2/internal/app/machined/pkg/system/services/machined.go),
+/// and the denial is asserted through the production path rather than a
+/// synthetic one.
+#[tokio::test]
+#[ignore = "requires the allowlisted disposable Talos fixture"]
+async fn reads_with_a_reader_identity_and_denies_a_credential_without_the_probe_roles() {
+    let fixture = fixture();
+    let service = HelperService::default();
+
+    let (_, reader_input) = import(
+        &fixture,
+        &fixture.reader_config,
+        &fixture.manifest.reader_context,
+    );
+    let reader_events = match probe(
+        &service,
+        &fixture,
+        &reader_input,
+        reader_input.endpoints.clone(),
+        true,
+    )
+    .await
+    {
+        Ok(events) => events,
+        Err(error) => panic!(
+            "the os:reader identity must complete the probe: {}",
+            describe(&error)
+        ),
+    };
+    let reader_first = reader_events
+        .first()
+        .unwrap_or_else(|| panic!("the os:reader identity must project status"));
+    assert_eq!(reader_first.state, TalosProbeState::Healthy);
+    assert_eq!(reader_first.sequence, "0");
+    assert_eq!(
+        reader_first.version.as_deref(),
+        Some(fixture.manifest.talos_version.as_str()),
+        "the reader identity must read the pinned Talos version"
+    );
+    println!(
+        "os:reader read: Talos {:?}, stage {:?}, projected events: {}",
+        reader_first.version,
+        reader_first.stage,
+        reader_events.len()
+    );
+
+    let (_, denied_input) = import(
+        &fixture,
+        &fixture.denied_config,
+        &fixture.manifest.denied_context,
+    );
+    let started = std::time::Instant::now();
+    let error = match probe(
+        &service,
+        &fixture,
+        &denied_input,
+        denied_input.endpoints.clone(),
+        false,
+    )
+    .await
+    {
+        Ok(events) => panic!(
+            "os:etcd:backup holds neither probe role, yet {} projections were accepted",
+            events.len()
+        ),
+        Err(error) => error,
+    };
+    assert_eq!(
+        error.code,
+        "TALOS_UNAUTHORIZED",
+        "the denial must surface as the permission state: {}",
+        describe(&error)
+    );
+    assert!(
+        !error.retryable,
+        "a permission denial must not be retryable: {}",
+        describe(&error)
+    );
+    println!(
+        "os:etcd:backup denied: {} after {:?}",
+        describe(&error),
+        started.elapsed()
+    );
+
+    service.shutdown().await;
+}
+
 #[tokio::test]
 #[ignore = "requires the allowlisted disposable Talos fixture"]
 async fn fails_closed_on_targets_and_authority_that_do_not_match() {
     let fixture = fixture();
-    let (store, input) = import(&fixture, &fixture.config);
+    let (store, input) = import(&fixture, &fixture.config, &fixture.manifest.context_name);
 
     assert!(
         store
@@ -364,7 +485,11 @@ async fn fails_closed_on_targets_and_authority_that_do_not_match() {
     );
 
     let service = HelperService::default();
-    let (_foreign_store, foreign_input) = import(&fixture, &foreign_authority(&fixture.config));
+    let (_foreign_store, foreign_input) = import(
+        &fixture,
+        &foreign_authority(&fixture.config),
+        &fixture.manifest.context_name,
+    );
     let error = match probe(
         &service,
         &fixture,
@@ -424,7 +549,7 @@ async fn fails_closed_on_targets_and_authority_that_do_not_match() {
 #[ignore = "requires the allowlisted disposable Talos fixture"]
 async fn fails_over_to_a_reachable_allowlisted_endpoint() {
     let fixture = fixture();
-    let (_store, input) = import(&fixture, &fixture.config);
+    let (_store, input) = import(&fixture, &fixture.config, &fixture.manifest.context_name);
     let service = HelperService::default();
 
     // The dead address leads the list on purpose: an ordinary read that still
