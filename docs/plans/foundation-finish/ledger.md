@@ -19,7 +19,7 @@ A document is `done` only when every acceptance case in it has recorded evidence
 
 | Document                                                                        | Packet           | Status       | Last commit | Updated    | Next action                                                                                                                    |
 | ------------------------------------------------------------------------------- | ---------------- | ------------ | ----------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | blocked (Q3) | this commit | 2026-10-12 | First read hosted runs 38311908416, 38311912771, and 38311912809 to completion; resolve Q3 before the F1a live harness session |
+| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | blocked (Q3) | this commit | 2026-10-12 | First read hosted runs 38311982305, 38311987009, and 38311987259 to completion; resolve Q3 before the F1a live harness session |
 | [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | not started  | —           | 2026-10-12 | After 01                                                                                                                       |
 | [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started  | —           | 2026-10-12 | After 02                                                                                                                       |
 | [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started  | —           | 2026-10-12 | After 03                                                                                                                       |
@@ -231,6 +231,24 @@ Entries are appended below, oldest first.
 - **Assumptions confirmed or refuted:** none.
 - **Questions and blockers raised:** Q3 remains open.
 - **Next:** first run `gh pr checks 2` and inspect runs 38311908416, 38311912771, and 38311912809 to completion. Then resolve Q3 before any Kubernetes API request; if the allowlist is not amended for the version preflight, do not run the document 01 fixture tests.
+
+### 2026-10-12 — document 01, latest ledger commit run states
+
+- **Document:** 01, F1a step 4; hosted run recording only.
+- **Session:** GPT-6; base revision `6acd9b0`; final revision: this commit.
+- **Status after this session:** blocked by Q3; live acceptance evidence remains unexecuted.
+- **Acceptance cases:** (1)–(7) unexecuted, blocked by Q3 as recorded above; (8) passed in the fixture session.
+- **What changed:** Recorded the queued hosted runs created by the prior ledger update commit.
+- **Commands and results** (openSUSE Tumbleweed x86_64):
+  - `gh pr checks 2`: PR foundation run 38311982305 queued with all five jobs pending.
+  - `gh run list --branch ft-foundation-completion --limit 8 --json databaseId,headSha,name,status,conclusion,createdAt`: push foundation run 38311987009 queued and security scan 38311987259 queued. Both and the PR run target `6acd9b081b3cbf76e7291c00a27f5c8c3534df68`.
+- **Evidence class:** hosted run states only; none of these runs has completed.
+- **Fixture:** none touched; the disposable fixture remains destroyed and the host restored as recorded in the fixture session entry.
+- **Failed or unexecuted:** runs 38311982305, 38311987009, and 38311987259 are queued; they must be read to completion next session.
+- **Review findings:** none; statuses match the GitHub CLI output.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** Q3 remains open.
+- **Next:** first read runs 38311982305, 38311987009, and 38311987259 to completion with `gh pr checks 2` and `gh run view`; then resolve Q3 before any Kubernetes API request or live fixture tests.
 
 ## Entry template
 
