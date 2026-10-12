@@ -604,6 +604,21 @@ fn kubernetes_error(action: &str, error: KubernetesError) -> ApplicationErrorDto
             "The Kubernetes API server denied the request for this credential.",
             false,
         ),
+        KubernetesError::ApiNotFound => (
+            "KUBERNETES_API_UNSUPPORTED",
+            "This Kubernetes API server does not provide the Pod list API.",
+            false,
+        ),
+        KubernetesError::NamespaceNotFound => (
+            "KUBERNETES_NAMESPACE_NOT_FOUND",
+            "The selected Kubernetes namespace does not exist.",
+            false,
+        ),
+        KubernetesError::ContinuationExpired => (
+            "KUBERNETES_CONTINUATION_EXPIRED",
+            "The Kubernetes list expired. Start a new list to avoid mixing snapshots.",
+            false,
+        ),
         KubernetesError::CertificateInvalid => (
             "KUBERNETES_CERTIFICATE_INVALID",
             "Kubernetes TLS validation failed for the configured cluster certificate authority.",
@@ -872,4 +887,39 @@ fn open_storage_runtime(app: &tauri::AppHandle) -> Result<StorageRuntime, Storag
         ))
     })?;
     StorageRuntime::open(&directory)
+}
+
+#[cfg(test)]
+mod kubernetes_error_tests {
+    use super::kubernetes_error;
+    use crate::kubernetes::KubernetesError;
+
+    #[test]
+    fn list_terminal_outcomes_have_distinct_redacted_application_codes() {
+        let cases = [
+            (KubernetesError::Unauthorized, "KUBERNETES_UNAUTHORIZED"),
+            (KubernetesError::Forbidden, "KUBERNETES_FORBIDDEN"),
+            (KubernetesError::ApiNotFound, "KUBERNETES_API_UNSUPPORTED"),
+            (
+                KubernetesError::NamespaceNotFound,
+                "KUBERNETES_NAMESPACE_NOT_FOUND",
+            ),
+            (
+                KubernetesError::ContinuationExpired,
+                "KUBERNETES_CONTINUATION_EXPIRED",
+            ),
+            (
+                KubernetesError::CertificateInvalid,
+                "KUBERNETES_CERTIFICATE_INVALID",
+            ),
+        ];
+        let mut observed = std::collections::BTreeSet::new();
+        for (error, expected_code) in cases {
+            let projected = kubernetes_error("list_kubernetes_pods", error);
+            assert_eq!(projected.code, expected_code);
+            assert_eq!(projected.action, "list_kubernetes_pods");
+            assert!(!projected.retryable);
+            assert!(observed.insert(projected.code));
+        }
+    }
 }

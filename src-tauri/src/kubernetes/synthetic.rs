@@ -49,6 +49,14 @@ pub enum SyntheticResponse {
     CredentialRejected,
     /// Authenticate the caller but deny the request with HTTP 403.
     RequestDenied,
+    /// Answer core discovery without the Pod API.
+    MissingPodApi,
+    /// Answer a namespaced Pod-list request with HTTP 404.
+    MissingNamespace,
+    /// Answer a continuation request with HTTP 410 after a valid first page.
+    ExpiredContinuation,
+    /// Answer a namespaced Pod-list request with an empty successful list.
+    EmptyList,
 }
 
 /// One request the synthetic server answered.
@@ -252,6 +260,10 @@ impl SyntheticResponse {
             Self::Success => 0,
             Self::CredentialRejected => 1,
             Self::RequestDenied => 2,
+            Self::MissingPodApi => 3,
+            Self::ExpiredContinuation => 4,
+            Self::EmptyList => 5,
+            Self::MissingNamespace => 6,
         }
     }
 
@@ -259,6 +271,10 @@ impl SyntheticResponse {
         match code {
             1 => Self::CredentialRejected,
             2 => Self::RequestDenied,
+            3 => Self::MissingPodApi,
+            4 => Self::ExpiredContinuation,
+            5 => Self::EmptyList,
+            6 => Self::MissingNamespace,
             _ => Self::Success,
         }
     }
@@ -342,11 +358,12 @@ async fn serve_connection(
         recorded_requests.push(recorded);
     }
 
-    let transient = transient_failures
-        .try_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
-            remaining.checked_sub(1)
-        })
-        .is_ok();
+    let transient = request.path.starts_with("/api/v1/namespaces/")
+        && transient_failures
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+                remaining.checked_sub(1)
+            })
+            .is_ok();
     let selected = SyntheticResponse::from_code(response.load(Ordering::SeqCst));
     let authorised = request
         .authorization
@@ -364,14 +381,51 @@ async fn serve_connection(
                 "401 Unauthorized",
                 status_body(401, "Unauthorized", "synthetic rejection"),
             ),
+            SyntheticResponse::CredentialRejected if request.path == "/api/v1" => {
+                version_response(&request.path)
+            }
             SyntheticResponse::CredentialRejected => (
                 "401 Unauthorized",
                 status_body(401, "Unauthorized", "synthetic rejection"),
             ),
+            SyntheticResponse::RequestDenied if request.path == "/api/v1" => {
+                version_response(&request.path)
+            }
             SyntheticResponse::RequestDenied => (
                 "403 Forbidden",
                 status_body(403, "Forbidden", "synthetic denial"),
             ),
+            SyntheticResponse::MissingPodApi if request.path.starts_with("/api/v1") =>
+            {
+                (
+                    "404 Not Found",
+                    status_body(404, "NotFound", "synthetic API is missing"),
+                )
+            }
+            SyntheticResponse::MissingPodApi => version_response(&request.path),
+            SyntheticResponse::ExpiredContinuation if request.path.contains("continue=") => (
+                "410 Gone",
+                status_body(410, "Expired", "synthetic continuation expired"),
+            ),
+            SyntheticResponse::ExpiredContinuation => version_response(&request.path),
+            SyntheticResponse::MissingNamespace
+                if request.path.starts_with("/api/v1/namespaces/") =>
+            {
+                (
+                    "404 Not Found",
+                    status_body(404, "NotFound", "synthetic namespace is missing"),
+                )
+            }
+            SyntheticResponse::MissingNamespace => version_response(&request.path),
+            SyntheticResponse::EmptyList
+                if request.path.starts_with("/api/v1/namespaces/") =>
+            {
+                (
+                    "200 OK",
+                    r#"{"kind":"PodList","apiVersion":"v1","metadata":{"resourceVersion":"42"},"items":[]}"#.to_owned(),
+                )
+            }
+            SyntheticResponse::EmptyList => version_response(&request.path),
         }
     };
     let head = format!(
@@ -448,6 +502,10 @@ fn version_response(path: &str) -> (&'static str, String) {
             "200 OK",
             r#"{"kind":"APIVersions","versions":["v1"],"serverAddressByClientCIDRs":[]}"#
                 .to_owned(),
+        ),
+        "/api/v1" => (
+            "200 OK",
+            r#"{"kind":"APIResourceList","apiVersion":"v1","groupVersion":"v1","resources":[{"name":"pods","singularName":"pod","namespaced":true,"kind":"Pod","verbs":["get","list","watch"]}]}"#.to_owned(),
         ),
         path if path.starts_with("/api/v1/namespaces/workloads/pods?") => {
             if path.contains("labelSelector=bulk") {
@@ -577,12 +635,13 @@ mod tests {
         assert_eq!(snapshot.items[1].name, "second");
 
         let requests = server.requests();
-        assert_eq!(requests.len(), 2);
-        assert!(requests[0].path.contains("limit=200"));
-        assert!(requests[0].path.contains("labelSelector=app%3Dweb"));
-        assert!(requests[1].path.contains("continue=synthetic-next"));
+        assert_eq!(requests.len(), 3);
+        assert_eq!(requests[0].path, "/api/v1");
+        assert!(requests[1].path.contains("limit=200"));
+        assert!(requests[1].path.contains("labelSelector=app%3Dweb"));
+        assert!(requests[2].path.contains("continue=synthetic-next"));
         assert!(
-            requests
+            requests[1..]
                 .iter()
                 .all(|request| request.path.contains("/namespaces/workloads/pods?"))
         );
@@ -598,7 +657,7 @@ mod tests {
         assert!(matches!(invalid, Err(KubernetesError::InvalidQuery)));
         assert_eq!(
             server.requests().len(),
-            2,
+            3,
             "invalid input must not dispatch a request"
         );
         server.stop().await;
@@ -625,13 +684,18 @@ mod tests {
         .unwrap_or_else(|_| panic!("transient errors should retry before page collection"));
         assert!(snapshot.complete);
         let requests = server.requests();
-        assert_eq!(requests.len(), 4, "two retries plus two list pages");
+        assert_eq!(
+            requests.len(),
+            5,
+            "discovery, two retries, and two list pages"
+        );
+        assert_eq!(requests[0].path, "/api/v1");
         assert!(
-            requests[..3]
+            requests[1..4]
                 .iter()
                 .all(|request| !request.path.contains("continue="))
         );
-        assert!(requests[3].path.contains("continue=synthetic-next"));
+        assert!(requests[4].path.contains("continue=synthetic-next"));
 
         drop(snapshot);
         server.set_transient_failures(3);
@@ -647,11 +711,11 @@ mod tests {
         let requests = server.requests();
         assert_eq!(
             requests.len(),
-            7,
+            9,
             "three failed attempts must exhaust the page"
         );
         assert!(
-            requests[4..]
+            requests[6..]
                 .iter()
                 .all(|request| !request.path.contains("continue="))
         );
@@ -680,10 +744,163 @@ mod tests {
         assert_eq!(snapshot.items.len(), 10_000);
         assert!(!snapshot.complete);
         assert!(budget.load(std::sync::atomic::Ordering::Acquire) > 0);
-        assert_eq!(server.requests().len(), 51);
+        assert_eq!(server.requests().len(), 52);
         drop(snapshot);
         assert_eq!(budget.load(std::sync::atomic::Ordering::Acquire), 0);
         server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn list_errors_and_empty_results_have_distinct_outcomes() {
+        let missing = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic server should start"));
+        missing.set_response(SyntheticResponse::MissingPodApi);
+        let client = build_test_client(&missing.kubeconfig("context", "cluster"))
+            .unwrap_or_else(|_| panic!("synthetic kubeconfig should build a client"));
+        assert!(matches!(
+            collect_pods(
+                &client,
+                Arc::new(AtomicUsize::new(0)),
+                "workloads",
+                None,
+                None
+            )
+            .await,
+            Err(KubernetesError::ApiNotFound)
+        ));
+        assert_eq!(
+            missing.requests().len(),
+            1,
+            "discovery rejects the absent API"
+        );
+        missing.stop().await;
+
+        let forbidden = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic server should start"));
+        forbidden.set_response(SyntheticResponse::RequestDenied);
+        let client = build_test_client(&forbidden.kubeconfig("context", "cluster"))
+            .unwrap_or_else(|_| panic!("synthetic kubeconfig should build a client"));
+        assert!(matches!(
+            collect_pods(
+                &client,
+                Arc::new(AtomicUsize::new(0)),
+                "workloads",
+                None,
+                None
+            )
+            .await,
+            Err(KubernetesError::Forbidden)
+        ));
+        assert_eq!(forbidden.requests().len(), 2, "403 must not retry");
+        forbidden.stop().await;
+
+        let unauthorized = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic server should start"));
+        unauthorized.set_response(SyntheticResponse::CredentialRejected);
+        let client = build_test_client(&unauthorized.kubeconfig("context", "cluster"))
+            .unwrap_or_else(|_| panic!("synthetic kubeconfig should build a client"));
+        assert!(matches!(
+            collect_pods(
+                &client,
+                Arc::new(AtomicUsize::new(0)),
+                "workloads",
+                None,
+                None
+            )
+            .await,
+            Err(KubernetesError::Unauthorized)
+        ));
+        assert_eq!(unauthorized.requests().len(), 2, "401 must not retry");
+        unauthorized.stop().await;
+
+        let trusted = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic server should start"));
+        let wrong_authority = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("second synthetic server should start"));
+        let kubeconfig = trusted.kubeconfig_with_authority(
+            "context",
+            "cluster",
+            &wrong_authority.certificate_authority_base64(),
+        );
+        let client = build_test_client(&kubeconfig)
+            .unwrap_or_else(|_| panic!("the wrong-authority client should be constructible"));
+        assert!(matches!(
+            collect_pods(
+                &client,
+                Arc::new(AtomicUsize::new(0)),
+                "workloads",
+                None,
+                None
+            )
+            .await,
+            Err(KubernetesError::CertificateInvalid)
+        ));
+        assert!(
+            trusted.requests().is_empty(),
+            "TLS failure must not reach HTTP"
+        );
+        trusted.stop().await;
+        wrong_authority.stop().await;
+
+        let expired = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic server should start"));
+        expired.set_response(SyntheticResponse::ExpiredContinuation);
+        let client = build_test_client(&expired.kubeconfig("context", "cluster"))
+            .unwrap_or_else(|_| panic!("synthetic kubeconfig should build a client"));
+        let budget = Arc::new(AtomicUsize::new(0));
+        assert!(matches!(
+            collect_pods(&client, Arc::clone(&budget), "workloads", None, None).await,
+            Err(KubernetesError::ContinuationExpired)
+        ));
+        assert_eq!(expired.requests().len(), 3);
+        assert_eq!(budget.load(std::sync::atomic::Ordering::Acquire), 0);
+        expired.stop().await;
+
+        let missing_namespace = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic server should start"));
+        missing_namespace.set_response(SyntheticResponse::MissingNamespace);
+        let client = build_test_client(&missing_namespace.kubeconfig("context", "cluster"))
+            .unwrap_or_else(|_| panic!("synthetic kubeconfig should build a client"));
+        assert!(matches!(
+            collect_pods(
+                &client,
+                Arc::new(AtomicUsize::new(0)),
+                "workloads",
+                None,
+                None
+            )
+            .await,
+            Err(KubernetesError::NamespaceNotFound)
+        ));
+        assert_eq!(missing_namespace.requests().len(), 2);
+        missing_namespace.stop().await;
+
+        let empty = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic server should start"));
+        empty.set_response(SyntheticResponse::EmptyList);
+        let client = build_test_client(&empty.kubeconfig("context", "cluster"))
+            .unwrap_or_else(|_| panic!("synthetic kubeconfig should build a client"));
+        let snapshot = collect_pods(
+            &client,
+            Arc::new(AtomicUsize::new(0)),
+            "workloads",
+            None,
+            None,
+        )
+        .await
+        .unwrap_or_else(|_| panic!("the empty list should be a valid snapshot"));
+        assert!(snapshot.complete);
+        assert!(snapshot.items.is_empty());
+        assert_eq!(snapshot.resource_version, "42");
+        empty.stop().await;
     }
 
     #[tokio::test]

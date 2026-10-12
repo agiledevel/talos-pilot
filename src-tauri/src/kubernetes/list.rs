@@ -10,6 +10,7 @@ use std::{
 };
 
 use futures_util::io::{AsyncRead, AsyncReadExt};
+use http::Request as HttpRequest;
 use k8s_openapi::api::core::v1::Pod;
 use kube::{Client, api::ListParams};
 use serde::Deserialize;
@@ -115,6 +116,21 @@ struct PodList {
 }
 
 #[derive(Deserialize)]
+struct CoreApiResourceList {
+    #[serde(default)]
+    resources: Vec<CoreApiResource>,
+}
+
+#[derive(Deserialize)]
+struct CoreApiResource {
+    name: String,
+    kind: String,
+    namespaced: bool,
+    #[serde(default)]
+    verbs: Vec<String>,
+}
+
+#[derive(Deserialize)]
 struct ListMetadata {
     #[serde(rename = "resourceVersion")]
     resource_version: String,
@@ -148,6 +164,7 @@ pub(super) async fn collect_pods(
 ) -> Result<PodSnapshot, KubernetesError> {
     validate_query(namespace, label_selector, field_selector)?;
     let deadline = Instant::now() + SNAPSHOT_DEADLINE;
+    discover_pod_api(client, deadline).await?;
     let path = format!("/api/v1/namespaces/{namespace}/pods");
     let mut continuation = None;
     let mut snapshot_version: Option<String> = None;
@@ -236,22 +253,73 @@ async fn request_page(
     params: &ListParams,
     snapshot_deadline: Instant,
 ) -> Result<Vec<u8>, KubernetesError> {
+    request_bounded(
+        client,
+        || {
+            kube::core::Request::new(path)
+                .list(params)
+                .map_err(|_| KubernetesError::InvalidQuery)
+        },
+        snapshot_deadline,
+        KubernetesError::from_list_kube,
+    )
+    .await
+}
+
+async fn discover_pod_api(
+    client: &Client,
+    snapshot_deadline: Instant,
+) -> Result<(), KubernetesError> {
+    let bytes = request_bounded(
+        client,
+        || {
+            HttpRequest::get("/api/v1")
+                .body(Vec::new())
+                .map_err(|_| KubernetesError::InvalidQuery)
+        },
+        snapshot_deadline,
+        KubernetesError::from_discovery_kube,
+    )
+    .await?;
+    let discovery: CoreApiResourceList =
+        serde_json::from_slice(&bytes).map_err(|_| KubernetesError::UnsupportedResponse)?;
+    let pods_supported = discovery.resources.iter().any(|resource| {
+        resource.name == "pods"
+            && resource.kind == "Pod"
+            && resource.namespaced
+            && resource.verbs.iter().any(|verb| verb == "get")
+            && resource.verbs.iter().any(|verb| verb == "list")
+    });
+    if pods_supported {
+        Ok(())
+    } else {
+        Err(KubernetesError::ApiNotFound)
+    }
+}
+
+async fn request_bounded<F>(
+    client: &Client,
+    build_request: F,
+    snapshot_deadline: Instant,
+    classify_error: fn(&kube::Error) -> KubernetesError,
+) -> Result<Vec<u8>, KubernetesError>
+where
+    F: Fn() -> Result<HttpRequest<Vec<u8>>, KubernetesError>,
+{
     const BACKOFFS: [Option<Duration>; 3] = [
         Some(Duration::from_millis(500)),
         Some(Duration::from_secs(1)),
         None,
     ];
     for backoff in BACKOFFS {
-        let request = kube::core::Request::new(path)
-            .list(params)
-            .map_err(|_| KubernetesError::InvalidQuery)?;
+        let request = build_request()?;
         let page_deadline = Instant::now()
             + REQUEST_DEADLINE.min(snapshot_deadline.saturating_duration_since(Instant::now()));
         let attempt_result = async {
             let body = client
                 .request_stream(request)
                 .await
-                .map_err(|error| KubernetesError::from_kube(&error))?;
+                .map_err(|error| classify_error(&error))?;
             read_bounded_body(body).await
         };
         let result = tokio::time::timeout(

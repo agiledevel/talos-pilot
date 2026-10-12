@@ -31,6 +31,15 @@ pub enum KubernetesError {
     /// The API server authenticated the caller but denied the request.
     #[error("the Kubernetes API server denied the request")]
     Forbidden,
+    /// The requested core API resource does not exist on this server.
+    #[error("the Kubernetes Pod API is unavailable on this server")]
+    ApiNotFound,
+    /// The Pod API exists, but the selected namespace does not.
+    #[error("the selected Kubernetes namespace does not exist")]
+    NamespaceNotFound,
+    /// The server expired a continuation token; the partial snapshot is unusable.
+    #[error("the Kubernetes list continuation token expired")]
+    ContinuationExpired,
     /// TLS validation rejected the API server certificate.
     #[error("Kubernetes TLS validation failed")]
     CertificateInvalid,
@@ -76,6 +85,24 @@ impl KubernetesError {
             kube::Error::SerdeError(_) => Self::UnsupportedResponse,
             _ if describes_certificate_failure(error) => Self::CertificateInvalid,
             _ => Self::Unavailable,
+        }
+    }
+
+    /// Classifies list-specific terminal statuses before using shared mapping.
+    pub(super) fn from_list_kube(error: &kube::Error) -> Self {
+        match error {
+            kube::Error::Api(status) if status.code == 404 => Self::NamespaceNotFound,
+            kube::Error::Api(status) if status.code == 410 => Self::ContinuationExpired,
+            _ => Self::from_kube(error),
+        }
+    }
+
+    /// Classifies the core group discovery response without treating an
+    /// unrelated Gone status as a continuation expiry.
+    pub(super) fn from_discovery_kube(error: &kube::Error) -> Self {
+        match error {
+            kube::Error::Api(status) if status.code == 404 => Self::ApiNotFound,
+            _ => Self::from_kube(error),
         }
     }
 }
@@ -159,6 +186,33 @@ mod tests {
             let error = kube::Error::Api(Box::new(status));
             assert_eq!(KubernetesError::from_kube(&error), expected);
         }
+    }
+
+    #[test]
+    fn list_and_discovery_404_statuses_have_distinct_meanings() {
+        let status_error = |code| {
+            kube::Error::Api(Box::new(kube::core::Status {
+                code,
+                ..kube::core::Status::default()
+            }))
+        };
+
+        assert_eq!(
+            KubernetesError::from_list_kube(&status_error(404)),
+            KubernetesError::NamespaceNotFound
+        );
+        assert_eq!(
+            KubernetesError::from_list_kube(&status_error(410)),
+            KubernetesError::ContinuationExpired
+        );
+        assert_eq!(
+            KubernetesError::from_discovery_kube(&status_error(404)),
+            KubernetesError::ApiNotFound
+        );
+        assert_eq!(
+            KubernetesError::from_discovery_kube(&status_error(410)),
+            KubernetesError::UnsupportedResponse
+        );
     }
 
     #[test]

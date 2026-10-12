@@ -8,7 +8,7 @@
     "go": "1.27.2",
     "lockfiles": {
       "pnpmLock": "2866422870f1870801724a291e3cd0c7525bf1233d580982dce848a1d8289baa",
-      "cargoLock": "88ef34cd9054dcea2a19c6490c0f6fafc7c780772ab4d71a4981816a17e51717",
+      "cargoLock": "d5c5fba1edffbf4676c61d341ac33f696d3b99d6c45742350873cb766d6b4785",
       "goSum": "ffb278d2583c3268a8ca81ca86449aa64e8e2f788deea074fbfee96032f7e00b"
     }
   },
