@@ -17,18 +17,18 @@ A document is `done` only when every acceptance case in it has recorded evidence
 
 ## Status board
 
-| Document                                                                        | Packet           | Status       | Last commit | Updated    | Next action                                                                                     |
-| ------------------------------------------------------------------------------- | ---------------- | ------------ | ----------- | ---------- | ----------------------------------------------------------------------------------------------- |
-| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | in progress  | this commit | 2026-10-13 | Resume its remaining live cases after the owner-directed document 02 session completes          |
-| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | blocked (B5) | this commit | 2026-10-13 | Read hosted runs for this commit to completion; resolve B5 before the native IPC capability run |
-| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started  | —           | 2026-10-12 | After 02                                                                                        |
-| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started  | —           | 2026-10-12 | After 03                                                                                        |
-| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started  | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                           |
-| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started  | —           | 2026-10-12 | After 05                                                                                        |
-| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started  | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                        |
-| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started  | —           | 2026-10-12 | After 07                                                                                        |
-| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started  | —           | 2026-10-12 | After 08                                                                                        |
-| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred     | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                          |
+| Document                                                                        | Packet           | Status       | Last commit | Updated    | Next action                                                                                    |
+| ------------------------------------------------------------------------------- | ---------------- | ------------ | ----------- | ---------- | ---------------------------------------------------------------------------------------------- |
+| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | in progress  | this commit | 2026-10-13 | Resume its remaining live cases after the owner-directed document 02 session completes         |
+| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | blocked (B5) | this commit | 2026-10-13 | Read 06135e7 and this handoff commit's hosted runs to completion; resolve B5 before native IPC |
+| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started  | —           | 2026-10-12 | After 02                                                                                       |
+| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started  | —           | 2026-10-12 | After 03                                                                                       |
+| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started  | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                          |
+| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started  | —           | 2026-10-12 | After 05                                                                                       |
+| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started  | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                       |
+| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started  | —           | 2026-10-12 | After 07                                                                                       |
+| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started  | —           | 2026-10-12 | After 08                                                                                       |
+| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred     | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                         |
 
 ## Standing owner decisions
 
@@ -457,6 +457,25 @@ Entries are appended below, oldest first.
 - **Assumptions confirmed or refuted:** none.
 - **Questions and blockers raised:** B5.
 - **Next:** first read the hosted results for this commit to completion. Then resolve B5 before attempting the native test; when permitted, run `pnpm test:native` on a private Xvfb display with X11 and isolated XDG directories, rebuild with `pnpm desktop:build`, and run `pnpm production:check` before continuing document 02 Part C.
+
+### 2026-10-13 — document 02, hosted checks for the Pod-list IPC push
+
+- **Document:** 02, F3 Part B step 8, hosted-run handoff for the IPC commit.
+- **Session:** GPT-6; base revision `06135e7`; final revision: the commit carrying this entry.
+- **Status after this session:** blocked by B5; the implementation is pushed and deterministic checks pass, while actual Tauri/ACL verification remains unexecuted.
+- **Acceptance cases:** no acceptance status changed; see the preceding step 8 entry. Native acceptance case (11) remains blocked by B5, and real Pod-list case (13) remains unexecuted.
+- **What changed:** this ledger records the hosted jobs started for `06135e7`; the status board carries B5 and directs the next session to finish hosted inspection before a native rerun.
+- **Commands and results** (openSUSE Tumbleweed x86_64):
+  - `gh pr checks 2`: PR Foundation run `38320088624` has renderer and Ubuntu/Windows in progress, with both macOS jobs queued.
+  - `gh run list --branch ft-foundation-completion --limit 12 --json databaseId,headSha,name,status,conclusion,createdAt`: push Foundation run `38320095237` and Security run `38320095247` are queued; all three runs target `06135e7`.
+  - `gh run view 38320088624 --json status,conclusion,jobs`: PR Foundation is queued overall; renderer, Ubuntu, and Windows are in progress; macOS 15 and macOS 15 Intel are queued.
+- **Evidence class:** hosted states only; no run was read to completion in this handoff.
+- **Fixture:** none; fixture remains destroyed and host restoration is recorded in the earlier fixture entries.
+- **Failed or unexecuted:** all three hosted workflows for `06135e7` are queued or in progress. The prior B5 native-run permission denial remains unresolved; this entry does not retry it.
+- **Review findings:** none; this entry records the exact statuses returned by the GitHub CLI.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** B5 remains open.
+- **Next:** first read `gh pr checks 2` and runs `38320088624`, `38320095237`, and `38320095247` to completion, including failed logs. Resolve B5 before attempting `pnpm test:native`; then rebuild and run the production check before continuing document 02.
 
 ## Entry template
 
