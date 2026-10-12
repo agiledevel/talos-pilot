@@ -705,6 +705,104 @@ fixture harness that F1 still owes; F2 acceptance stays blocked until F1's live
 rows run on a host with root and KVM. Packaged-installer startup remains F9, and
 R3 stays deferred.
 
+## F2 recheck on the unsandboxed development host — 2026-10-12
+
+The owner asked for the unexecuted rows to be verified now that QEMU is
+available on the development host. Revision: `279e4f5`, the F2 commit; the
+gates ran on the staged tree that became that commit, and no gate changed a
+tracked file. **This recheck promotes no checkpoint**: no fixture was
+provisioned, so F1 stays in progress and F2 stays unaccepted.
+
+### Correction to the recorded limit
+
+The F1 part 2 and F2 entries above say the host has no root and no `/dev/kvm`.
+That described their sandboxed sessions, not the host. Outside the sandbox,
+`sudo -n` succeeds, `/dev/kvm` exists and the developer account is in the `kvm`
+and `libvirt` groups, and `qemu-system-x86_64` with OVMF firmware is installed.
+No QEMU guest was running. libvirt lists one owner virtual machine, shut off; it
+is not an allowlisted fixture and was not touched.
+
+The limit that actually stopped the live rows in this session is different: the
+agent session's permission policy denied the fixture-scoped firewalld zone and
+`iptables` commands from the
+[allowlist](fixtures/talos-c4-disposable.md#applied-host-remediation-owner-approved-2026-10-09)
+before they executed. The owner's recorded authorization for F1–F5 does not
+bypass that policy. Nothing was applied, and the host was checked afterwards:
+the twelve-zone list and default zone `public` are unchanged, and there is no
+`talos*` interface, no `qemu-system` process, and no `/tmp/tpc4`. The baseline
+active zones captured before the attempt were `docker`, `libvirt` (`virbr0`),
+and `public` (`enp13s0`, `tun0`).
+
+One host fact is new and matters to the next provisioning: an active VPN
+connection routes `10.0.0.0/8` over `tun0`, and the fixture CIDR `10.79.0.0/24`
+lies inside it. The fixture bridge's connected `/24` route would take precedence
+while the bridge exists, so the host would reach the fixture rather than any VPN
+host in that range. This was not exercised. The owner's Talos, Kubernetes, and
+SSH client configurations contain no `10.79.0.x` address.
+
+### Exact commands; host/toolchain/WebView; exit results
+
+Host: openSUSE Tumbleweed 20261003, Linux 7.2.8 x86_64, WebKitGTK 2.54.1
+(reported by the driver as 605.1.15), GTK 3.24.53, with the distribution's
+`-devel` packages, so no pkg-config or link shim was used. Pinned tools were
+provisioned without changing host configuration: Node 26.11.1 (nodejs.org
+`SHASUMS256.txt`), protoc 36.2 (the CI digest), and `talosctl` v1.14.2 (the
+release's `sha256sum.txt`, placed in the ignored `src-tauri/.local-tools/`);
+Go 1.27.2 from the Go toolchain module cache; Rust 1.99.0 through rustup;
+pnpm 12.10.1.
+
+| Command                                                                                                                  | Result                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| Go gates in `helper/`: `gofmt -l .`, `go vet ./...`, `go test ./...`, `go test -race ./...`, `go mod verify`, `go build` | Pass                                                                                        |
+| `cargo fmt --all -- --check`, `cargo clippy --locked --all-targets -- -D warnings` (default and `native-test`)           | Pass                                                                                        |
+| `cargo test --locked --all-targets`                                                                                      | 95 passed, 0 failed, 1 ignored (vault test)                                                 |
+| `cargo test --locked --all-targets --features native-test`                                                               | 95 lib tests + 5 integration tests passed, 7 live Talos rows ignored                        |
+| `cargo test --locked --doc`, `RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps`, `cargo build --locked`           | Pass                                                                                        |
+| `cargo test --locked --test talos_fixture --no-run`, `pnpm helper:build`                                                 | Pass: the live-test binary and the helper build here; the seven live rows were not executed |
+| `pnpm check`                                                                                                             | Pass: 115 renderer tests and the production Vite build                                      |
+| `pnpm contracts:check`                                                                                                   | Pass                                                                                        |
+| `pnpm test:e2e`                                                                                                          | Pass: 7 Playwright flows (mock transport)                                                   |
+| `pnpm test:native`                                                                                                       | Pass: 12 shell/helper specs + 4 Kubernetes specs; no helper or synthetic endpoint remained  |
+| `pnpm desktop:build`, `pnpm production:check`                                                                            | Pass, after `test:native` replaced the release executable                                   |
+| `pnpm advisories:check`, `pnpm audit:go`, `pnpm inventory:check`                                                         | Pass: 529 npm / 601 cargo / 143 Go entries                                                  |
+| `cargo test --locked --lib -- --ignored --exact storage::vault::tests::native_vault_key_survives_database_reopen`        | Pass against the KDE Secret Service (`ksecretd`)                                            |
+| `git diff --check`, `git diff --cached --check`                                                                          | Pass                                                                                        |
+
+`pnpm test:native` ran on a private `Xvfb` display with the X11 GDK backend and
+`XDG_DATA_HOME`/`XDG_CONFIG_HOME`/`XDG_CACHE_HOME` in a scratch directory, so the
+suite neither opened windows on the developer's desktop nor used the developer's
+application data.
+
+### Passed, failed, and unexecuted rows and practical limits
+
+Passed: every non-fixture gate for the F2 change set, now on an unsandboxed
+Linux host as well as the sandboxed one. The real-vault test adds current
+evidence that a synthetic vault key survives a database reopen in the Linux
+Secret Service. It stores a `synthetic` value, not a Kubernetes credential, so
+the F2 row "a real OS-vault restart of a Kubernetes credential" is narrowed and
+stays open.
+
+Failed: none. The denied firewall commands are a blocked prerequisite, not a
+product result.
+
+**Unexecuted, with the practical limit:**
+
+- All seven live Talos fixture rows, including the three F1 part 2
+  reconnect/interruption cases and the post-run restoration. The fixture could
+  not be provisioned without the host remediation, which needs the owner to run
+  it or to permit the session to run it.
+- Mutual-TLS and basic-auth client handshakes: no test exercises them; the
+  synthetic endpoint authenticates with a token.
+- macOS and Windows native rows: no such host was available.
+
+### Next smallest packet and prerequisites
+
+**Finish F1's live rows, then close F1**, unchanged. The prerequisite is now
+precise: the fixture-scoped remediation applied by the owner, or a session
+permitted to apply it, on this host. Before provisioning, capture the baseline
+again and decide whether the VPN route above may be shadowed for the run. F2
+acceptance and F3 stay blocked on that evidence.
+
 ## C0.1 baseline evidence
 
 Environment: openSUSE Tumbleweed, Linux x86_64, Node/pnpm from the repository-pinned setup, installed Rust 1.99.0 via `/home/kiss/.cargo/bin`, Go 1.27.1 installed to `/tmp/go`. The default shell `PATH` resolves `/usr/bin/rustc` 1.98.1 before the pinned Cargo installation; Rust commands must prepend `/home/kiss/.cargo/bin` on this host.
