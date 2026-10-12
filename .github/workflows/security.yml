@@ -18,6 +18,12 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request supersedes that pull request's running scans.
+# Every other event keys on its commit and is never cancelled.
+concurrency:
+  group: security-scans-${{ inputs.revision && format('release-{0}', inputs.revision) || github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   codeql:
     name: CodeQL (${{ matrix.language }})

@@ -2,6 +2,7 @@ name: Foundation checks
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_call:
     inputs:
@@ -13,7 +14,42 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request supersedes that pull request's running checks.
+# Every other event keys on its commit, so a main, release, or manual run is
+# never cancelled or replaced by a later one.
+concurrency:
+  group: foundation-checks-${{ inputs.revision && format('release-{0}', inputs.revision) || github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Decides whether a pull request's change can affect the desktop matrix. The
+  # rules and their limits are in docs/decisions/0014-ci-scope-and-caching.md.
+  scope:
+    name: Decide desktop scope
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      desktop: ${{ steps.scope.outputs.desktop }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.revision || github.event.pull_request.head.sha || github.sha }}
+          # The comparison needs the pull request's history; other events decide
+          # without reading it.
+          fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '1' }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - id: scope
+        run: node scripts/ci-desktop-scope.ts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PULL_REQUEST_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
   renderer:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -41,15 +77,26 @@ jobs:
       - run: pnpm test:coverage
 
   desktop:
+    needs: scope
+    if: needs.scope.outputs.desktop == 'true'
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-15, macos-15-intel, windows-2022]
+        # Pull requests leave out the slow macos-15-intel runner. Pushes to main,
+        # release qualification, and manual runs execute all four.
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-22.04", "macos-15", "windows-2022"]' || '["ubuntu-22.04", "macos-15", "macos-15-intel", "windows-2022"]') }}
     runs-on: ${{ matrix.os }}
     env:
       RUSTDOCFLAGS: -D warnings
       TALOS_PILOT_BUILD_ID: ${{ inputs.revision || github.sha }}
-    # The macos-15-intel runner needs up to about 50 minutes for a passing run.
+      # A clean runner recompiles every first-party crate, so incremental state
+      # is never reused. Line tables keep file and line in test backtraces while
+      # shrinking the cached dependency artifacts.
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+    # The macos-15-intel runner needed up to about 57 minutes without a
+    # dependency cache, which is what a changed Cargo.lock still costs.
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -70,6 +117,17 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libdbus-1-dev libxdo-dev build-essential pkg-config xvfb
       - run: rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
       - uses: ./.github/actions/install-protoc
+      # Compiled dependencies only: the key is the toolchain and lockfile, and
+      # first-party artifacts are removed before the save at the end of the job.
+      - name: Restore the Cargo dependency cache
+        id: cargo-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            src-tauri/target
+          key: cargo-v1-${{ matrix.os }}-${{ hashFiles('rust-toolchain.toml', 'src-tauri/Cargo.lock') }}
       - run: pnpm format:rust:check
       - name: Verify Go helper source and modules
         working-directory: helper
@@ -96,8 +154,11 @@ jobs:
       - run: pnpm production:check
       - name: Run actual Tauri IPC tests
         run: pnpm test:native
-      - run: cargo install cargo-audit --version 0.22.2 --locked
-      - run: cargo audit --file src-tauri/Cargo.lock
+      # The audit reads only Cargo.lock, which is the same file on every runner.
+      - if: runner.os == 'Linux'
+        run: cargo install cargo-audit --version 0.22.2 --locked
+      - if: runner.os == 'Linux'
+        run: cargo audit --file src-tauri/Cargo.lock
       - name: Verify recorded advisory applicability
         if: runner.os == 'Linux'
         run: pnpm advisories:check
@@ -107,3 +168,46 @@ jobs:
       # them on windows-2022 in run 38155107982.
       - name: Verify generated contracts are current
         run: pnpm contracts:check
+      # Saved only by a job that passed every step and missed the cache, so the
+      # entry for a lockfile is one complete dependency build and never grows.
+      - name: Drop first-party artifacts before the cache save
+        if: steps.cargo-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          cargo clean --manifest-path src-tauri/Cargo.toml --locked --package talos-pilot
+          cargo clean --manifest-path src-tauri/Cargo.toml --locked --package talos-pilot --release
+      - name: Save the Cargo dependency cache
+        if: steps.cargo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            src-tauri/target
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
+
+  # The one check to require in branch protection: matrix job names differ
+  # between events, and a skipped matrix reports no per-runner check at all.
+  result:
+    name: Foundation checks result
+    if: always()
+    needs: [scope, renderer, desktop]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every executed job to pass
+        env:
+          SCOPE: ${{ needs.scope.result }}
+          DESKTOP_WANTED: ${{ needs.scope.outputs.desktop }}
+          RENDERER: ${{ needs.renderer.result }}
+          DESKTOP: ${{ needs.desktop.result }}
+        run: |
+          echo "scope=$SCOPE desktop-wanted=$DESKTOP_WANTED renderer=$RENDERER desktop=$DESKTOP"
+          test "$SCOPE" = success
+          test "$RENDERER" = success
+          if [ "$DESKTOP_WANTED" = true ]; then
+            test "$DESKTOP" = success
+          else
+            test "$DESKTOP_WANTED" = false
+            test "$DESKTOP" = skipped
+          fi

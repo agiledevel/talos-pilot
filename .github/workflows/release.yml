@@ -43,6 +43,10 @@ jobs:
 
   qa:
     needs: source
+    # The called workflow's scope job reads earlier workflow runs.
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/check.yml
     with:
       revision: ${{ needs.source.outputs.revision }}
