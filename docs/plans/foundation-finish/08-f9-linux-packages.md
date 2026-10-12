@@ -61,7 +61,7 @@ A freshly installed operating system image with no development tools, no global 
 1. Add a packaging path that builds the same release-configuration bundles for a chosen revision on the four runners and uploads them as workflow artifacts with their hashes. It creates no tag and no release.
 2. Reuse the release job's steps.
 3. Validate the workflow with the pinned workflow validator, push, and trigger it for the current revision.
-4. Read the result and download the Linux artifacts. If hosted results cannot be read or artifacts cannot be downloaded from this host (blocker B2 in the ledger), record F9.0's hosted run as unexecuted, mark this document `blocked` on B2, and do only the preparation in F9.1 steps 1 and 2. Do not substitute a locally built installer and call it the reference build.
+4. Read the result and download the Linux artifacts. If hosted results cannot be read or artifacts cannot be downloaded from this host, add a blocker to the ledger, record F9.0's hosted run as unexecuted, mark this document `blocked`, and do only the preparation in F9.1 steps 1 and 2. Do not substitute a locally built installer and call it the reference build.
 
 ### F9.1: Linux
 

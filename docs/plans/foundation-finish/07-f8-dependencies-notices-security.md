@@ -70,7 +70,7 @@ Each expires on 2026-11-30. An exception is renewed only by repeating its applic
 
    Then renew the expiry with the new evidence date, or remove the exception. Record which, and why, in the ledger and in the decision record.
 
-6. **Hosted scans.** Push and read the CodeQL and Trivy results for the exact commit. If they cannot be read (blocker B2), record them as unexecuted.
+6. **Hosted scans.** Push and read the CodeQL and Trivy results for the exact commit. If they cannot be read, add a blocker to the ledger and record them as unexecuted.
 
 ## Acceptance cases
 

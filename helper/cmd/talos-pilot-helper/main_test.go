@@ -829,13 +829,14 @@ func cancelledStreamEnd(t *testing.T, outputReader *io.PipeReader) {
 }
 
 func TestProbeCancellationDuringBackoffEndsCleanly(t *testing.T) {
+	clock := newFakeClock()
 	policy := reconnectPolicy{
 		backoffs:        [reconnectMaxAttempts - 1]time.Duration{30 * time.Second, 30 * time.Second},
 		jitter:          func(duration time.Duration) time.Duration { return duration },
 		attemptDeadline: 30 * time.Second,
 		stallWindow:     time.Hour,
 		joinWindow:      5 * time.Second,
-		clock:           realClock{},
+		clock:           clock,
 	}
 	inputWriter, outputReader, serveDone, session := startScriptedProbe(t, []watchScript{
 		{statuses: []talosprobe.Status{{Stage: "running", Ready: true}}, err: status.Error(codes.Unavailable, "connection refused")},
@@ -852,6 +853,11 @@ func TestProbeCancellationDuringBackoffEndsCleanly(t *testing.T) {
 	if stale.Kind != protocolv1.MessageKind_MESSAGE_KIND_TALOS_STREAM_STALE {
 		t.Fatalf("stale marker = %#v", stale)
 	}
+	// The stale marker precedes attempt one. Wait until that attempt has
+	// failed and its backoff is pending: a cancellation that crosses the
+	// attempt's failure is reported as that failure instead, which is the
+	// terminal/cancel race disposition and not the case under test.
+	clock.waitPendingDuration(t, 30*time.Second, 1)
 
 	cancel := &protocolv1.Envelope{
 		ProtocolMajor: protocolMajor,
@@ -864,8 +870,8 @@ func TestProbeCancellationDuringBackoffEndsCleanly(t *testing.T) {
 	if err := writeRequest(inputWriter, cancel); err != nil {
 		t.Fatal(err)
 	}
-	// The 30 s backoff is pending before attempt two: cancellation must
-	// interrupt it well inside the two-second bound instead of waiting it out.
+	// The 30 s backoff is pending before attempt two and the clock never
+	// advances: cancellation must interrupt it instead of waiting it out.
 	cancelledStreamEnd(t, outputReader)
 	opens, calls := session.counts()
 	if opens != 1 || calls != 2 {

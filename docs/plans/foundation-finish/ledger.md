@@ -17,18 +17,18 @@ A document is `done` only when every acceptance case in it has recorded evidence
 
 ## Status board
 
-| Document                                                                        | Packet           | Status      | Last commit | Updated    | Next action                                                            |
-| ------------------------------------------------------------------------------- | ---------------- | ----------- | ----------- | ---------- | ---------------------------------------------------------------------- |
-| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | not started | `b662b1a`   | 2026-10-12 | Start here. Steps 1–3 are committed; step 4 needs a fixture session    |
-| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | not started | —           | 2026-10-12 | After 01                                                               |
-| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started | —           | 2026-10-12 | After 02                                                               |
-| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started | —           | 2026-10-12 | After 03                                                               |
-| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                  |
-| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started | —           | 2026-10-12 | After 05                                                               |
-| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                               |
-| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | —           | 2026-10-12 | After 07; F9.0 needs hosted CI results to be readable (B2)             |
-| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-12 | After 08                                                               |
-| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available |
+| Document                                                                        | Packet           | Status      | Last commit | Updated    | Next action                                                                                                                                  |
+| ------------------------------------------------------------------------------- | ---------------- | ----------- | ----------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | not started | `b662b1a`   | 2026-10-12 | Start here. First read the hosted result for the latest commit (see the last entry). Steps 1–3 are committed; step 4 needs a fixture session |
+| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | not started | —           | 2026-10-12 | After 01                                                                                                                                     |
+| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started | —           | 2026-10-12 | After 02                                                                                                                                     |
+| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started | —           | 2026-10-12 | After 03                                                                                                                                     |
+| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                                                                        |
+| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started | —           | 2026-10-12 | After 05                                                                                                                                     |
+| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                                                                     |
+| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | —           | 2026-10-12 | After 07                                                                                                                                     |
+| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-12 | After 08                                                                                                                                     |
+| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                                                                       |
 
 ## Standing owner decisions
 
@@ -54,10 +54,11 @@ Add a row when the owner decides something new. Quote the owner's words or cite 
 
 ## Blockers
 
-| ID  | Opened     | Blocker                                                                              | Affects                                          | Status                                                                             |
-| --- | ---------- | ------------------------------------------------------------------------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| B1  | 2026-10-12 | `git push` failed with HTTP 403 for the stored account `TIT-IT`                      | Every hosted-CI row; F9.0 in document 08         | Resolved 2026-10-12: the owner switched the remote to SSH and `b662b1a` was pushed |
-| B2  | 2026-10-12 | `gh` is not installed, and no session has yet read a hosted CI result from this host | Recording hosted-CI results; F9.0 in document 08 | Open                                                                               |
+| ID  | Opened     | Blocker                                                                                                                                                                                    | Affects                                          | Status                                                                                                     |
+| --- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| B1  | 2026-10-12 | `git push` failed with HTTP 403 for the stored account `TIT-IT`                                                                                                                            | Every hosted-CI row; F9.0 in document 08         | Resolved 2026-10-12: the owner switched the remote to SSH and `b662b1a` was pushed                         |
+| B2  | 2026-10-12 | `gh` is not installed, and no session has yet read a hosted CI result from this host                                                                                                       | Recording hosted-CI results; F9.0 in document 08 | Resolved 2026-10-12: the owner installed and configured `gh`; hosted runs were read the same day           |
+| B3  | 2026-10-12 | Hosted `desktop (windows-2022)` failed at `b662b1a` and `481421a` in `go test`: `TestProbeCancellationDuringBackoffEndsCleanly` raced its cancellation against the first reconnect attempt | Hosted evidence for every commit until fixed     | Fixed in the commit carrying the 2026-10-12 "hosted CI access" entry; hosted confirmation still to be read |
 
 ## Questions for the owner
 
@@ -107,6 +108,35 @@ Entries are appended below, oldest first.
 - **Evidence:** documentation only. `pnpm format:check`, `git diff --check`, and a local link and anchor check of the changed Markdown files.
 - **Unexecuted:** every packet in the status board.
 - **Next:** document 01.
+
+### 2026-10-12 — hosted CI access, and a flaky helper test
+
+- **Document:** none (series maintenance, before document 01).
+- **Session:** Claude Opus 5.5; base revision `481421a`; final revision: the commit carrying this entry.
+- **Status after this session:** no document status changed. Blockers B1 and B2 are resolved; B3 is fixed locally and awaits its hosted confirmation.
+- **Acceptance cases:** none.
+- **What changed:**
+  - `helper/cmd/talos-pilot-helper/main_test.go`: `TestProbeCancellationDuringBackoffEndsCleanly` now uses the injected fake clock and waits for the pending 30-second backoff before it cancels. No production code changed.
+  - Series README and documents 04, 07, and 08: `gh` is available; the conditional wording about unreadable hosted results no longer names B2.
+- **Commands and results** (openSUSE Tumbleweed x86_64, Go 1.27.2):
+  - `gh auth status`: signed in as `agiledevel`. `gh run list --branch ft-foundation-completion`: runs 38299801331 (`b662b1a`) and 38300140517 (`481421a`).
+  - Both runs, read while still in progress: `renderer` success; `desktop (windows-2022)` failure in the step "Verify Go helper source and modules", `--- FAIL: TestProbeCancellationDuringBackoffEndsCleanly`, "unexpected frame after cancellation" with an error frame; `desktop (ubuntu-22.04)`, `desktop (macos-15)`, and `desktop (macos-15-intel)` still in progress when read.
+  - Before the fix, `go test -run 'TestProbeCancellationDuringBackoffEndsCleanly$' -count=3000 ./cmd/talos-pilot-helper/`: 51 failures, so the race is not specific to Windows.
+  - After the fix: the same command with `-count=5000` passes; `-count=2000 -cpu=1,4` passes; `-race -count=300` passes; the whole package with `-count=300` passes; the whole package with `-race -count=40` passes.
+  - `gofmt -l .` prints nothing; `go vet ./...`, `go build ./...`, `go test -count=1 ./...`, and `go test -race -count=1 ./...` pass.
+  - `pnpm format:check`, `git diff --check`, and the local link and anchor check pass.
+- **Evidence class:** deterministic tests and hosted CI results only. No native run and no real cluster.
+- **Fixture:** none.
+- **Failed or unexecuted:**
+  - The hosted Ubuntu and macOS desktop jobs of both runs were not read to completion. They are in progress, not passed.
+  - The hosted run for this entry's commit has not been read. Until it is, the Windows fix is confirmed locally only.
+- **Review findings:**
+  - The test cancelled as soon as it read the stale marker. The stale marker is sent before the first reconnect attempt, so the cancellation could cross that attempt's failure. The helper then reports the failure instead of a clean cancelled end, which is its documented disposition for a terminal outcome that races a cancellation. The test was wrong, not the helper.
+  - The test dates from commit `f9d56a8`. No hosted run had executed it, because pushes had failed since `c310fbd`. The F1a handoff's stress runs covered only the `TestStall` tests.
+  - The carried row "Live cancellation during an in-flight reconnect attempt or backoff" is related: a cancellation that lands during an attempt can end with that attempt's failure. That is existing behavior and is unchanged here.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** B3.
+- **Next:** read the hosted result for this entry's commit, all five jobs, and record it in the next entry. If the Windows job still fails, fix that before document 01.
 
 ## Entry template
 

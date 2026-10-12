@@ -58,7 +58,7 @@ Pin exact patch images by digest for 1.35 and 1.37 after checking the upstream r
 4. Use synthetic namespaces and restricted identities, as in document 02. Seed only allowlisted data to cause add, change, delete, and delete-then-recreate. Keep setup authority separate from the read identity. Require the recorded namespace anchor to match before cleanup.
 5. Run the affected read and watch cases on all three versions. Run the Talos-hosted 1.36 fixture with the [fixture runbook](fixture-runbook.md).
 6. Where a live fault is impractical to generate, cover it with a deterministic TLS or 410 fault and label it as such.
-7. Wire a fixture job into CI, or into an explicit fixture workflow, with the same harness command and with evidence artifacts. Push it and read the hosted result. If the result cannot be read (blocker B2 in the ledger), validate the workflow with the pinned workflow validator and record its hosted execution as unexecuted.
+7. Wire a fixture job into CI, or into an explicit fixture workflow, with the same harness command and with evidence artifacts. Push it and read the hosted result. If the result cannot be read, add a blocker to the ledger, validate the workflow with the pinned workflow validator, and record its hosted execution as unexecuted.
 8. Destroy every fixture and verify cleanup, including after a partial setup or a failed test.
 
 ## Acceptance cases
