@@ -59,8 +59,6 @@ struct FixtureManifest {
     /// One unassigned address inside the fixture CIDR, used only to prove the
     /// unreachable-target classification.
     negative_endpoint: String,
-    /// Provisioner state directory; identifies this fixture's QEMU processes.
-    state_dir: String,
 }
 
 struct Fixture {
@@ -617,14 +615,17 @@ fn foreign_authority(config: &Zeroizing<Vec<u8>>) -> Zeroizing<Vec<u8>> {
 }
 
 // ---------------------------------------------------------------------------
-// F1 live evidence: multi-event, real interruption, reconnect outcome,
-// exhaustion, and cancellation during reconnect.
+// F1 live evidence: multi-event, real interruption, reconnect outcome, and
+// cancellation during reconnect.
 //
-// The interruption is always one of the two allowlisted fixture-local actions:
-// a worker reboot through the fixture admin identity, or suspend/resume of the
-// worker's QEMU process identified by this fixture's state directory and
-// machine name. Nothing else is touched, and every case waits for the worker to
+// The interruption is the allowlisted worker reboot through the fixture admin
+// identity. Nothing else is touched, and every case waits for the worker to
 // report running again before it finishes.
+//
+// No case suspends the worker's QEMU process, although the allowlist authorizes
+// it: a frozen worker leaves an established watch silent rather than broken
+// (decision 0011), so it cannot drive the reconnect budget to exhaustion. The
+// live exhaustion case belongs to packet F1a, together with stall detection.
 // ---------------------------------------------------------------------------
 
 /// Serializes live cases: an interrupted worker would corrupt parallel reads.
@@ -639,10 +640,6 @@ fn worker_node(fixture: &Fixture) -> String {
         .find(|node| !fixture.manifest.allowed_endpoints.contains(node))
         .unwrap_or_else(|| panic!("the fixture manifest must record a non-endpoint worker"))
         .clone()
-}
-
-fn worker_machine_name(fixture: &Fixture) -> String {
-    format!("{}-worker-1", fixture.manifest.fixture_id)
 }
 
 /// Reboots the fixture's worker through its admin identity: the allowlisted
@@ -685,100 +682,6 @@ fn reboot_worker(fixture: &Fixture, worker: &str) {
         String::from_utf8_lossy(&output.stderr)
     );
     println!("worker {worker} rebooted through the fixture admin identity");
-}
-
-/// Resolves this fixture's worker QEMU process by its state directory AND
-/// machine name; no other process is ever considered.
-fn worker_qemu_pid(fixture: &Fixture) -> u32 {
-    let machine = worker_machine_name(fixture);
-    let mut matches = Vec::new();
-    for entry in std::fs::read_dir("/proc").unwrap_or_else(|_| panic!("/proc must be readable")) {
-        let Ok(entry) = entry else {
-            continue;
-        };
-        let Ok(pid) = entry.file_name().to_string_lossy().parse::<u32>() else {
-            continue;
-        };
-        let Ok(command) = std::fs::read_to_string(entry.path().join("cmdline")) else {
-            continue;
-        };
-        let command = command.replace('\0', " ");
-        if command.contains("qemu-system")
-            && command.contains(&fixture.manifest.state_dir)
-            && command.contains(&machine)
-        {
-            matches.push(pid);
-        }
-    }
-    assert_eq!(
-        matches.len(),
-        1,
-        "exactly one QEMU process must match state {} and machine {machine}",
-        fixture.manifest.state_dir
-    );
-    matches[0]
-}
-
-/// Suspends or resumes the worker's QEMU process: the allowlisted network
-/// interruption action, signalled only to the identified fixture process.
-fn signal_worker_qemu(fixture: &Fixture, signal: &str) -> u32 {
-    let pid = worker_qemu_pid(fixture);
-    let output = std::process::Command::new("sudo")
-        .args(["-n", "kill", &format!("-{signal}"), &pid.to_string()])
-        .output()
-        .unwrap_or_else(|_| panic!("sudo must signal the identified worker QEMU process"));
-    assert!(
-        output.status.success(),
-        "SIG{signal} of worker QEMU {pid} must be accepted: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    println!("worker QEMU {pid} received SIG{signal}");
-    pid
-}
-
-/// A suspended worker QEMU process that is resumed on every exit path.
-///
-/// A live case must never leave the fixture frozen: a panicking case would
-/// otherwise poison every later case on the same worker, as the 2026-10-12
-/// packet F1 run recorded. Dropping this guard always sends SIGCONT;
-/// [`SuspendedWorker::resume`] additionally proves the signal was accepted.
-struct SuspendedWorker {
-    pid: u32,
-}
-
-impl SuspendedWorker {
-    /// Suspends this fixture's worker, resolved only by its state directory and
-    /// machine name.
-    fn stop(fixture: &Fixture) -> Self {
-        Self {
-            pid: signal_worker_qemu(fixture, "STOP"),
-        }
-    }
-
-    /// Resumes the worker and asserts the signal was accepted. Callers still
-    /// wait for the worker to report running again before the next case starts.
-    fn resume(&self) {
-        let output = std::process::Command::new("sudo")
-            .args(["-n", "kill", "-CONT", &self.pid.to_string()])
-            .output()
-            .unwrap_or_else(|_| panic!("sudo must resume the identified worker QEMU process"));
-        assert!(
-            output.status.success(),
-            "SIGCONT of worker QEMU {} must be accepted: {}",
-            self.pid,
-            String::from_utf8_lossy(&output.stderr)
-        );
-        println!("worker QEMU {} resumed", self.pid);
-    }
-}
-
-impl Drop for SuspendedWorker {
-    fn drop(&mut self) {
-        // Best effort on the panicking path; a repeated SIGCONT is harmless.
-        let _ = std::process::Command::new("sudo")
-            .args(["-n", "kill", "-CONT", &self.pid.to_string()])
-            .output();
-    }
 }
 
 /// Waits until a fresh probe projects the worker running again, so a later
@@ -1026,78 +929,6 @@ async fn live_interruption_marks_stale_then_recovers_or_exhausts_within_the_poli
         }
     }
 
-    wait_for_worker_running(&fixture, &service, &store, &input.session_id, &worker).await;
-    service.shutdown().await;
-}
-
-#[tokio::test]
-#[ignore = "requires the allowlisted disposable Talos fixture"]
-async fn live_reconnect_exhausts_while_the_worker_is_suspended() {
-    let _serial = LIVE_SERIAL.lock().await;
-    let fixture = fixture();
-    let (store, input) = import(&fixture, &fixture.config, &fixture.manifest.context_name);
-    let service = HelperService::default();
-    let worker = worker_node(&fixture);
-    let worker_input = store
-        .probe_input(&input.session_id, &worker)
-        .unwrap_or_else(|_| panic!("the worker node must be selectable"));
-    let collector = Collector::default();
-    let session_id = worker_input.session_id.clone();
-    let stream = service.talos_probe(
-        &fixture.helper,
-        Zeroizing::new(worker_input.config.to_vec()),
-        worker_input.endpoints.clone(),
-        worker_input.node.clone(),
-        session_id.clone(),
-        collector.sink(),
-    );
-    tokio::pin!(stream);
-
-    let suspend = async {
-        collector.wait_for_count(1, FIRST_EVENT_DEADLINE).await;
-        reboot_worker(&fixture, &worker);
-        collector.wait_for_stale(Duration::from_secs(60)).await;
-        // Hold the frozen worker through the reconnect budget so no later
-        // attempt can be served, and let the guard resume it on every exit.
-        SuspendedWorker::stop(&fixture)
-    };
-
-    let frozen;
-    tokio::select! {
-        _ = &mut stream => {
-            panic!("the stream may not end before the worker is suspended");
-        }
-        stopped = suspend => {
-            frozen = stopped;
-        }
-    }
-    // The three attempts (15 s deadline each, 0.5/1 s jittered backoffs) must
-    // end the subscription within their bounded window.
-    let result = tokio::time::timeout(Duration::from_secs(90), &mut stream)
-        .await
-        .unwrap_or_else(|_| {
-            panic!("the reconnect budget must end the subscription within its window")
-        });
-
-    let error = result
-        .err()
-        .unwrap_or_else(|| panic!("a frozen worker must exhaust the reconnect budget"));
-    assert_eq!(error.code, "TALOS_UNAVAILABLE", "{error:?}");
-    let events = collector.snapshot();
-    let (_sequence, _generation) = assert_live_interruption_shape(&events);
-    assert!(
-        events
-            .iter()
-            .skip_while(|event| event.state != TalosProbeState::Stale)
-            .all(|event| event.state != TalosProbeState::Healthy),
-        "the exhausted subscription must not present data as current"
-    );
-    println!(
-        "live exhaustion with a suspended worker: {}",
-        describe(&error)
-    );
-
-    frozen.resume();
     wait_for_worker_running(&fixture, &service, &store, &input.session_id, &worker).await;
     service.shutdown().await;
 }

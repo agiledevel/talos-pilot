@@ -30,7 +30,7 @@ Before M2.0 is accepted:
 
 1. Complete the remaining packets in the
    [foundation completion plan](foundation-completion-flash.md), starting with
-   F1 steps 4–5, then F2–F10. Preserve completed F0 and F1 steps 1–3.
+   F1a, then F3–F10. Preserve closed F0 and F1 and accepted F2.
 2. Record final-candidate evidence for every row of the original
    [foundation acceptance matrix](milestone-1-flash.md#8-milestone-acceptance-matrix),
    including actual Kubernetes reads/watches, offline workers, OS vaults,
@@ -586,9 +586,9 @@ changes; ownership and numeric limits; normal/invalid/denied/failure/cleanup tes
 commands, exit codes and actual hosts; mock versus native/live evidence; separate
 review findings; remaining tasks with acceptance criteria; next smallest packet.
 
-**Current next executable work:** foundation F1 steps 4–5, documented in the
-[foundation ledger](../verification/milestone-1.md#next-increment), followed by
-F2–F10. This milestone 2 plan remains prepared until that acceptance gate closes.
+**Current next executable work:** foundation F1a, named in the
+[foundation ledger](../verification/milestone-1.md#f1-closure-and-f2-acceptance--owner-decisions-2026-10-12),
+followed by F3–F10. This milestone 2 plan remains prepared until that acceptance gate closes.
 
 After foundation acceptance, use:
 

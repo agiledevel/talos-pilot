@@ -5,6 +5,9 @@ Status: **provisioned, exercised, and destroyed on 2026-10-09 and again on
 harness command with all four file references: six of the seven live rows
 passed and the live retry-exhaustion row stayed open, recorded in the
 [milestone ledger](../milestone-1.md#f1-packet-evidence-part-3-live-fixture-rows-on-the-unsandboxed-host--2026-10-12).
+The owner then re-scoped that row and removed it from the harness, which now
+holds six live rows; see the
+[closure entry](../milestone-1.md#f1-closure-and-f2-acceptance--owner-decisions-2026-10-12).
 The accounts of the first failed attempts below are historical. The diagnosis,
 applied remediation, and restoration sections supersede their "do not retry" and
 "no endpoint is allowlisted" statements.
@@ -268,6 +271,10 @@ No new mutation is authorized by this entry: the reboot remains the only
 lifecycle action, `/Reset` and `/Upgrade` remain forbidden, the three control
 planes stay untouched, and every live case ends by waiting for the worker to
 report `running` again before the next case starts.
+
+Since the 2026-10-12 closure the harness no longer suspends the worker: the live
+exhaustion row that did so was removed. The `SIGSTOP`/`SIGCONT` authority above
+is unchanged, and packet F1a's live stall row is its next user.
 
 ## Host-issued identities (2026-10-09 run)
 

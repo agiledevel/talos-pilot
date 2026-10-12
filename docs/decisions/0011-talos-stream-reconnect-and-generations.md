@@ -78,3 +78,35 @@ scripted helper fixture; `src/lib/state/talosProbe.test.ts` proves the stale
 until replacement snapshot state machine. Live evidence against the
 allowlisted disposable fixture is recorded in the
 [milestone 1 ledger](../verification/milestone-1.md).
+
+## Amendment — 2026-10-12: live evidence and owner decision
+
+The 2026-10-12 fixture run
+([F1 part 3](../verification/milestone-1.md#f1-packet-evidence-part-3-live-fixture-rows-on-the-unsandboxed-host--2026-10-12))
+confirmed the consequence above on a real cluster and showed its cost. A
+suspended worker left the established watch silent with no failure for the
+whole observation window, and after a reboot the break surfaced only once the
+worker's API was reachable again, so the first reconnect attempt succeeded at
+once. Two things follow:
+
+- Under this decision's policy, no recorded fixture-local action can exhaust the
+  reconnect budget on the live fixture. Exhaustion is proven by the
+  deterministic framed tests named under Verification, not by a live row.
+- A node that freezes, loses power, or is partitioned keeps its last projection
+  presented as current. That conflicts with the design's honest-status
+  principle, which distinguishes healthy from unavailable and stale.
+
+The owner decided on 2026-10-12:
+
+1. F1's live retry-exhaustion row is re-scoped as not producible with the
+   recorded actions under this policy. F1 closes without it; the absence is
+   recorded in the ledger as absent evidence, not as a pass.
+2. "Stall detection is out of scope for the v1 probe" no longer stands as a
+   scope statement. Bounded stall detection is delivered by packet
+   [F1a](../plans/foundation-completion-flash.md#f1a--detect-a-stalled-talos-stream),
+   whose own decision record fixes the mechanism and bounds and supersedes that
+   consequence. Until F1a is accepted, the behavior described above is the
+   implemented behavior.
+
+The retry policy, the generation and sequence invariants, and the helper's
+ownership of reconnection are unchanged.
