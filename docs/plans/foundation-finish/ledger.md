@@ -17,18 +17,18 @@ A document is `done` only when every acceptance case in it has recorded evidence
 
 ## Status board
 
-| Document                                                                        | Packet           | Status      | Last commit | Updated    | Next action                                                                                               |
-| ------------------------------------------------------------------------------- | ---------------- | ----------- | ----------- | ---------- | --------------------------------------------------------------------------------------------------------- |
-| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | in progress | this commit | 2026-10-13 | Resume its remaining live cases after the owner-directed document 02 session completes                    |
-| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | in progress | this commit | 2026-10-13 | Part A, step 3: implement setup with admin identity, restricted reader identity, and UID-anchored cleanup |
-| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started | —           | 2026-10-12 | After 02                                                                                                  |
-| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started | —           | 2026-10-12 | After 03                                                                                                  |
-| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                                     |
-| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started | —           | 2026-10-12 | After 05                                                                                                  |
-| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                                  |
-| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | —           | 2026-10-12 | After 07                                                                                                  |
-| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-12 | After 08                                                                                                  |
-| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                                    |
+| Document                                                                        | Packet           | Status      | Last commit | Updated    | Next action                                                                                                 |
+| ------------------------------------------------------------------------------- | ---------------- | ----------- | ----------- | ---------- | ----------------------------------------------------------------------------------------------------------- |
+| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | in progress | this commit | 2026-10-13 | Resume its remaining live cases after the owner-directed document 02 session completes                      |
+| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | in progress | this commit | 2026-10-13 | First read hosted runs 38315891463, 38315903164, and 38315897393 to completion; then continue Part A step 3 |
+| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started | —           | 2026-10-12 | After 02                                                                                                    |
+| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started | —           | 2026-10-12 | After 03                                                                                                    |
+| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                                       |
+| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started | —           | 2026-10-12 | After 05                                                                                                    |
+| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                                    |
+| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | —           | 2026-10-12 | After 07                                                                                                    |
+| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-12 | After 08                                                                                                    |
+| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                                      |
 
 ## Standing owner decisions
 
@@ -282,6 +282,26 @@ Entries are appended below, oldest first.
 - **Assumptions confirmed or refuted:** the fixture endpoint is `https://10.79.0.1:6443` and its server reports Kubernetes v1.36.5. The current kubeconfig's CA fingerprint and selected context were confirmed and pinned. The carried mutual-TLS authentication assumption remains unverified.
 - **Questions and blockers raised:** none. Q3 answered and B4 resolved above.
 - **Next:** continue document 02 at Part A step 3: implement admin setup, the namespace-scoped restricted reader, and cleanup that first matches the recorded namespace UID. Re-provision via the runbook, refresh the manifest CA fingerprint before any API request, and inspect whether the kubeconfig uses a client certificate before teardown.
+
+### 2026-10-13 — document 02, hosted run handoff
+
+- **Document:** 02, hosted checks for the Part A preflight commit.
+- **Session:** GPT-6; base revision `2209863`; final revision: the commit carrying this entry.
+- **Status after this session:** in progress; the preflight is committed and pushed, and the hosted runs are not complete.
+- **Acceptance cases:** no new F3 case changed; document 02 remains as recorded in the preceding entry.
+- **What changed:** recorded the hosted run states for `2209863` and made reading those runs the next action.
+- **Commands and results** (openSUSE Tumbleweed x86_64):
+  - `gh run view 38315891463`: Foundation checks for `2209863`, status queued; renderer and Windows jobs were in progress, Ubuntu and both macOS jobs queued at inspection.
+  - `gh run view 38315903164`: second Foundation checks run for the same SHA, status queued; renderer and Ubuntu were in progress, Windows and both macOS jobs queued.
+  - `gh run view 38315897393`: Security scans for the same SHA, status queued; CodeQL jobs were in progress and Trivy was queued.
+  - `gh pr checks 2`: listed the above foundation and security jobs as pending; no completed result for `2209863` was available.
+- **Evidence class:** hosted run state only; no hosted check is recorded as passed.
+- **Fixture:** none; the fixture was already destroyed and the host restored as recorded in the preceding entry.
+- **Failed or unexecuted:** every hosted job for `2209863` remains in progress or queued. Read all three runs to completion; these statuses are not passes.
+- **Review findings:** none; states were read from the GitHub CLI and API.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** none.
+- **Next:** first read hosted runs 38315891463, 38315903164, and 38315897393 to completion with `gh pr checks 2` and `gh run view`. Then continue document 02 Part A step 3, implementing admin setup, the namespace-scoped restricted reader, and UID-anchored cleanup; re-provision only through the fixture runbook and refresh the CA fingerprint before any Kubernetes request.
 
 ## Entry template
 
