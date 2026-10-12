@@ -15,12 +15,14 @@
 
 mod client;
 mod error;
+mod list;
 mod session;
 
 #[cfg(any(test, feature = "native-test"))]
 pub mod synthetic;
 
 pub use error::KubernetesError;
+pub use list::{PodProjection, PodSnapshot, ReadySummary};
 pub use session::{
     ApiserverVersion, KubernetesSessionStore, MAX_ADMITTED_REQUESTS, MAX_KUBERNETES_SESSIONS,
     OwnedSession, REQUEST_DEADLINE,

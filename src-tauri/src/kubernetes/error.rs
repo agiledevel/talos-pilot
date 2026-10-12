@@ -13,6 +13,9 @@ pub enum KubernetesError {
     /// The stored bytes no longer select a supported kubeconfig credential.
     #[error("the Kubernetes credential is not a supported kubeconfig")]
     CredentialInvalid,
+    /// The requested Kubernetes namespace or selector is malformed or outside its bound.
+    #[error("the Kubernetes list query is invalid")]
+    InvalidQuery,
     /// The adapter already owns its maximum number of sessions.
     #[error("the Kubernetes session limit is reached")]
     SessionLimit,

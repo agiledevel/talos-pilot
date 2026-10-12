@@ -4,7 +4,7 @@ use std::{
     collections::BTreeMap,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicU64, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -13,6 +13,7 @@ use secrecy::ExposeSecret;
 
 use super::KubernetesError;
 use super::client::build_client;
+use super::list::{PodSnapshot, collect_pods};
 use crate::storage::{CredentialStorageMode, ResolvedCredential};
 
 /// Maximum number of concurrent Kubernetes credential sessions.
@@ -72,6 +73,7 @@ pub struct KubernetesSessionStore {
 
 struct ClientSession {
     client: kube::Client,
+    projection_bytes: Arc<AtomicUsize>,
 }
 
 impl KubernetesSessionStore {
@@ -124,7 +126,13 @@ impl KubernetesSessionStore {
             })
             .map_err(|_| KubernetesError::RegistryUnavailable)?;
         let session_id = format!("kube-session-{id}");
-        sessions.insert(session_id.clone(), ClientSession { client });
+        sessions.insert(
+            session_id.clone(),
+            ClientSession {
+                client,
+                projection_bytes: Arc::new(AtomicUsize::new(0)),
+            },
+        );
 
         Ok(OwnedSession {
             session_id,
@@ -181,6 +189,55 @@ impl KubernetesSessionStore {
             major: bounded_version_field(info.major)?,
             minor: bounded_version_field(info.minor)?,
         })
+    }
+
+    /// Reads a complete bounded namespaced Pod projection through server-side pages.
+    ///
+    /// Kubernetes continuation tokens remain inside the adapter. Invalid
+    /// namespaces and selectors are rejected before a request is made. A list
+    /// that reaches its retained-object or projection-byte cap is returned with
+    /// `complete` set to false and must not be shown as a complete snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`KubernetesError::SessionUnknown`] for an unknown session,
+    /// [`KubernetesError::CapacityExceeded`] when no request slot is free,
+    /// [`KubernetesError::InvalidQuery`] for malformed or oversized input,
+    /// [`KubernetesError::RegistryUnavailable`] when the session registry lock
+    /// is poisoned, and a classified server, transport, TLS, or response error
+    /// for a failed page. The snapshot deadline is bounded to sixty seconds.
+    pub async fn list_pods(
+        &self,
+        session_id: &str,
+        namespace: &str,
+        label_selector: Option<&str>,
+        field_selector: Option<&str>,
+    ) -> Result<PodSnapshot, KubernetesError> {
+        super::list::validate_query(namespace, label_selector, field_selector)?;
+        let (client, projection_bytes) = {
+            let sessions = self
+                .sessions
+                .lock()
+                .map_err(|_| KubernetesError::RegistryUnavailable)?;
+            let session = sessions
+                .get(session_id)
+                .ok_or(KubernetesError::SessionUnknown)?;
+            (
+                session.client.clone(),
+                Arc::clone(&session.projection_bytes),
+            )
+        };
+        let _permit = Arc::clone(&self.admission)
+            .try_acquire_owned()
+            .map_err(|_| KubernetesError::CapacityExceeded)?;
+        collect_pods(
+            &client,
+            projection_bytes,
+            namespace,
+            label_selector,
+            field_selector,
+        )
+        .await
     }
 
     /// Closes one session, releasing its client and admission use.

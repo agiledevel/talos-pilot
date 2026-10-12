@@ -574,6 +574,11 @@ fn kubernetes_error(action: &str, error: KubernetesError) -> ApplicationErrorDto
             "The stored credential is not a supported kubeconfig.",
             false,
         ),
+        KubernetesError::InvalidQuery => (
+            "KUBERNETES_QUERY_INVALID",
+            "The Kubernetes namespace or selector is invalid or too large.",
+            false,
+        ),
         KubernetesError::SessionLimit => (
             "KUBERNETES_SESSION_LIMIT",
             "Close a Kubernetes session before opening another.",

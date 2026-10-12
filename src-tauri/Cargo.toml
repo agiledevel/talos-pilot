@@ -24,6 +24,7 @@ tauri-build = { version = "=2.7.1", features = [] }
 base64 = "=0.22.1"
 chacha20poly1305 = { version = "=0.11.0", features = ["zeroize"] }
 getrandom = "=0.4.3"
+futures-util = { version = "=0.3.34", default-features = false, features = ["io"] }
 http = "=1.5.0"
 k8s-openapi = { version = "=0.28.0", default-features = false, features = ["v1_36"] }
 kube = { version = "=4.2.0", default-features = false, features = [

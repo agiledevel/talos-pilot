@@ -16,7 +16,7 @@ use std::{
     net::SocketAddr,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicU8, Ordering},
+        atomic::{AtomicU8, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -72,6 +72,7 @@ pub struct SyntheticApiserver {
     certificate_authority_pem: String,
     token: String,
     response: Arc<AtomicU8>,
+    transient_failures: Arc<AtomicUsize>,
     requests: Arc<Mutex<Vec<RecordedRequest>>>,
     shutdown: Option<tokio::sync::oneshot::Sender<()>>,
     task: Option<tokio::task::JoinHandle<()>>,
@@ -90,10 +91,12 @@ impl SyntheticApiserver {
         let port = listener.local_addr()?.port();
         let acceptor = TlsAcceptor::from(Arc::new(authority.server_config));
         let response = Arc::new(AtomicU8::new(SyntheticResponse::Success.code()));
+        let transient_failures = Arc::new(AtomicUsize::new(0));
         let requests = Arc::new(Mutex::new(Vec::new()));
         let (shutdown, mut shutdown_signal) = tokio::sync::oneshot::channel();
 
         let task_response = Arc::clone(&response);
+        let task_transient_failures = Arc::clone(&transient_failures);
         let task_requests = Arc::clone(&requests);
         let token = authority.token.clone();
         let task_token = token.clone();
@@ -105,12 +108,20 @@ impl SyntheticApiserver {
                         let Ok((stream, _)) = accepted else { break };
                         let acceptor = acceptor.clone();
                         let response = Arc::clone(&task_response);
+                        let transient_failures = Arc::clone(&task_transient_failures);
                         let requests = Arc::clone(&task_requests);
                         let token = task_token.clone();
                         tokio::spawn(async move {
                             let _ = tokio::time::timeout(
                                 CONNECTION_DEADLINE,
-                                serve_connection(stream, acceptor, response, requests, token),
+                                serve_connection(
+                                    stream,
+                                    acceptor,
+                                    response,
+                                    transient_failures,
+                                    requests,
+                                    token,
+                                ),
                             )
                             .await;
                         });
@@ -124,6 +135,7 @@ impl SyntheticApiserver {
             certificate_authority_pem: authority.certificate_authority_pem,
             token,
             response,
+            transient_failures,
             requests,
             shutdown: Some(shutdown),
             task: Some(task),
@@ -145,6 +157,11 @@ impl SyntheticApiserver {
     /// Selects how the server answers the next requests.
     pub fn set_response(&self, response: SyntheticResponse) {
         self.response.store(response.code(), Ordering::SeqCst);
+    }
+
+    /// Makes the next number of requests fail transiently with HTTP 503.
+    pub fn set_transient_failures(&self, count: usize) {
+        self.transient_failures.store(count, Ordering::SeqCst);
     }
 
     /// Returns every request the server has answered so far.
@@ -310,6 +327,7 @@ async fn serve_connection(
     stream: TcpStream,
     acceptor: TlsAcceptor,
     response: Arc<AtomicU8>,
+    transient_failures: Arc<AtomicUsize>,
     requests: Arc<Mutex<Vec<RecordedRequest>>>,
     token: String,
 ) -> io::Result<()> {
@@ -324,25 +342,37 @@ async fn serve_connection(
         recorded_requests.push(recorded);
     }
 
+    let transient = transient_failures
+        .try_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+            remaining.checked_sub(1)
+        })
+        .is_ok();
     let selected = SyntheticResponse::from_code(response.load(Ordering::SeqCst));
     let authorised = request
         .authorization
         .as_deref()
         .is_some_and(|value| value == format!("Bearer {token}"));
-    let (status, body) = match selected {
-        SyntheticResponse::Success if authorised => version_response(&request.path),
-        SyntheticResponse::Success => (
-            "401 Unauthorized",
-            status_body(401, "Unauthorized", "synthetic rejection"),
-        ),
-        SyntheticResponse::CredentialRejected => (
-            "401 Unauthorized",
-            status_body(401, "Unauthorized", "synthetic rejection"),
-        ),
-        SyntheticResponse::RequestDenied => (
-            "403 Forbidden",
-            status_body(403, "Forbidden", "synthetic denial"),
-        ),
+    let (status, body) = if transient {
+        (
+            "503 Service Unavailable",
+            status_body(503, "ServiceUnavailable", "synthetic transient failure"),
+        )
+    } else {
+        match selected {
+            SyntheticResponse::Success if authorised => version_response(&request.path),
+            SyntheticResponse::Success => (
+                "401 Unauthorized",
+                status_body(401, "Unauthorized", "synthetic rejection"),
+            ),
+            SyntheticResponse::CredentialRejected => (
+                "401 Unauthorized",
+                status_body(401, "Unauthorized", "synthetic rejection"),
+            ),
+            SyntheticResponse::RequestDenied => (
+                "403 Forbidden",
+                status_body(403, "Forbidden", "synthetic denial"),
+            ),
+        }
     };
     let head = format!(
         "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {length}\r\nConnection: close\r\n\r\n",
@@ -419,11 +449,57 @@ fn version_response(path: &str) -> (&'static str, String) {
             r#"{"kind":"APIVersions","versions":["v1"],"serverAddressByClientCIDRs":[]}"#
                 .to_owned(),
         ),
+        path if path.starts_with("/api/v1/namespaces/workloads/pods?") => {
+            if path.contains("labelSelector=bulk") {
+                return bulk_pod_page(path);
+            }
+            let second_page = path.contains("continue=synthetic-next");
+            let (continue_field, pod_name) = if second_page {
+                ("", "second")
+            } else {
+                (r#","continue":"synthetic-next""#, "first")
+            };
+            (
+                "200 OK",
+                format!(
+                    r#"{{"kind":"PodList","apiVersion":"v1","metadata":{{"resourceVersion":"42"{continue_field}}},"items":[{{"metadata":{{"name":"{pod_name}","namespace":"workloads","uid":"uid-{pod_name}","resourceVersion":"42"}},"status":{{"phase":"Running","containerStatuses":[{{"name":"app","ready":true}}]}}}}]}}"#
+                ),
+            )
+        }
         _ => (
             "404 Not Found",
             status_body(404, "NotFound", "synthetic endpoint not found"),
         ),
     }
+}
+
+fn bulk_pod_page(path: &str) -> (&'static str, String) {
+    let page = path
+        .split_once("continue=bulk-")
+        .and_then(|(_, suffix)| suffix.split('&').next())
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(0);
+    let first_item = page * 200;
+    let item_count = if page == 50 { 1 } else { 200 };
+    let continue_field = if page < 50 {
+        format!(",\"continue\":\"bulk-{}\"", page + 1)
+    } else {
+        String::new()
+    };
+    let items = (first_item..first_item + item_count)
+        .map(|index| {
+            format!(
+                r#"{{"metadata":{{"name":"pod-{index:05}","namespace":"workloads","uid":"uid-{index:05}","resourceVersion":"42"}}}}"#
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    (
+        "200 OK",
+        format!(
+            r#"{{"kind":"PodList","apiVersion":"v1","metadata":{{"resourceVersion":"42"{continue_field}}},"items":[{items}]}}"#
+        ),
+    )
 }
 
 fn status_body(code: u16, reason: &str, message: &str) -> String {
@@ -443,7 +519,10 @@ pub(crate) fn build_test_client(kubeconfig: &str) -> Result<kube::Client, super:
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, atomic::AtomicUsize};
+
     use super::{SyntheticApiserver, SyntheticResponse, build_test_client};
+    use crate::kubernetes::{KubernetesError, list::collect_pods};
 
     #[tokio::test]
     async fn serves_a_version_read_and_records_the_authorization_header() {
@@ -470,6 +549,140 @@ mod tests {
             requests[0].authorization.as_deref(),
             Some(format!("Bearer {}", server.token()).as_str())
         );
+        server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn bounded_pod_collection_uses_continue_token_and_preserves_resource_version() {
+        let server = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic server should start"));
+        let client =
+            build_test_client(&server.kubeconfig("synthetic-context", "synthetic-cluster"))
+                .unwrap_or_else(|_| panic!("synthetic kubeconfig should build a client"));
+
+        let snapshot = collect_pods(
+            &client,
+            Arc::new(AtomicUsize::new(0)),
+            "workloads",
+            Some("app=web"),
+            None,
+        )
+        .await
+        .unwrap_or_else(|_| panic!("both synthetic pages should be collected"));
+        assert!(snapshot.complete);
+        assert_eq!(snapshot.resource_version, "42");
+        assert_eq!(snapshot.items.len(), 2);
+        assert_eq!(snapshot.items[0].name, "first");
+        assert_eq!(snapshot.items[1].name, "second");
+
+        let requests = server.requests();
+        assert_eq!(requests.len(), 2);
+        assert!(requests[0].path.contains("limit=200"));
+        assert!(requests[0].path.contains("labelSelector=app%3Dweb"));
+        assert!(requests[1].path.contains("continue=synthetic-next"));
+        assert!(
+            requests
+                .iter()
+                .all(|request| request.path.contains("/namespaces/workloads/pods?"))
+        );
+
+        let invalid = collect_pods(
+            &client,
+            Arc::new(AtomicUsize::new(0)),
+            "bad/namespace",
+            None,
+            None,
+        )
+        .await;
+        assert!(matches!(invalid, Err(KubernetesError::InvalidQuery)));
+        assert_eq!(
+            server.requests().len(),
+            2,
+            "invalid input must not dispatch a request"
+        );
+        server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn retries_transient_list_failures_up_to_the_successful_page() {
+        let server = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic server should start"));
+        server.set_transient_failures(2);
+        let client =
+            build_test_client(&server.kubeconfig("synthetic-context", "synthetic-cluster"))
+                .unwrap_or_else(|_| panic!("synthetic kubeconfig should build a client"));
+
+        let snapshot = collect_pods(
+            &client,
+            Arc::new(AtomicUsize::new(0)),
+            "workloads",
+            None,
+            None,
+        )
+        .await
+        .unwrap_or_else(|_| panic!("transient errors should retry before page collection"));
+        assert!(snapshot.complete);
+        let requests = server.requests();
+        assert_eq!(requests.len(), 4, "two retries plus two list pages");
+        assert!(
+            requests[..3]
+                .iter()
+                .all(|request| !request.path.contains("continue="))
+        );
+        assert!(requests[3].path.contains("continue=synthetic-next"));
+
+        drop(snapshot);
+        server.set_transient_failures(3);
+        let exhausted = collect_pods(
+            &client,
+            Arc::new(AtomicUsize::new(0)),
+            "workloads",
+            None,
+            None,
+        )
+        .await;
+        assert!(matches!(exhausted, Err(KubernetesError::Unavailable)));
+        let requests = server.requests();
+        assert_eq!(
+            requests.len(),
+            7,
+            "three failed attempts must exhaust the page"
+        );
+        assert!(
+            requests[4..]
+                .iter()
+                .all(|request| !request.path.contains("continue="))
+        );
+        server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn aggregate_object_cap_returns_an_incomplete_snapshot_and_releases_memory() {
+        let server = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic server should start"));
+        let client =
+            build_test_client(&server.kubeconfig("synthetic-context", "synthetic-cluster"))
+                .unwrap_or_else(|_| panic!("synthetic kubeconfig should build a client"));
+        let budget = Arc::new(AtomicUsize::new(0));
+
+        let snapshot = collect_pods(
+            &client,
+            Arc::clone(&budget),
+            "workloads",
+            Some("bulk"),
+            None,
+        )
+        .await
+        .unwrap_or_else(|_| panic!("the bounded synthetic pages should collect"));
+        assert_eq!(snapshot.items.len(), 10_000);
+        assert!(!snapshot.complete);
+        assert!(budget.load(std::sync::atomic::Ordering::Acquire) > 0);
+        assert_eq!(server.requests().len(), 51);
+        drop(snapshot);
+        assert_eq!(budget.load(std::sync::atomic::Ordering::Acquire), 0);
         server.stop().await;
     }
 
