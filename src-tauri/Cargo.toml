@@ -66,6 +66,7 @@ zeroize = "=1.9.1"
 
 [dev-dependencies]
 rcgen = "=0.14.10"
+sha2 = "=0.10.9"
 tempfile = "=3.27.0"
 tokio-rustls = { version = "=0.26.6", default-features = false, features = [
   "logging",

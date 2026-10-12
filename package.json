@@ -16,6 +16,7 @@
     "advisories:check": "node scripts/advisory-baseline.ts",
     "audit:go": "node scripts/go-vulnerability-scan.ts",
     "talos:fixture": "node scripts/talos-fixture.ts",
+    "kubernetes:fixture": "node scripts/kubernetes-fixture.ts",
     "inventory:generate": "node scripts/dependency-inventory.ts",
     "inventory:check": "node scripts/dependency-inventory.ts --check",
     "test:native": "node scripts/test-native.ts",

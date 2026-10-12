@@ -278,6 +278,51 @@ Since the 2026-10-12 closure the harness no longer suspends the worker: the live
 exhaustion row that did so was removed. The `SIGSTOP`/`SIGCONT` authority above
 is unchanged, and packet F1a's live stall row is its next user.
 
+## F3 Kubernetes list-probe actions (2026-10-13)
+
+Document 02 is the only packet authorized to use this Kubernetes API endpoint.
+The server endpoint `https://10.79.0.1:6443` and expected Kubernetes version
+`v1.36.5` were last reported on 2026-10-12; document 02 must re-confirm both
+against the current `/tmp/tpc4/kubeconfig` before its first live test. The
+current run's cluster CA fingerprint is recorded in the checked manifest after
+provisioning, then the harness verifies that it matches the kubeconfig before
+any API request. A fingerprint mismatch, endpoint mismatch, or version mismatch
+stops the run without setup or cleanup requests.
+The current kubeconfig context is `admin@talos-pilot-c4-20261009`; the harness
+checks this selected context before opening the Kubernetes session.
+
+The setup credential is the fixture's admin kubeconfig, passed only as an
+external file reference to `pnpm kubernetes:fixture`. It may perform only:
+
+- change ownership of exactly `/tmp/tpc4/kubeconfig` to the harness user and
+  keep its mode at `0600`, so the user-scoped harness can read it. This changes
+  no credential bytes; the file is removed with `/tmp/tpc4` during restoration.
+
+- `GET` the one named namespace `talos-pilot-list-probe` to prove it does not
+  already exist, then create that namespace;
+- create the `list-reader` ServiceAccount, the `list-reader` Role, and the
+  `list-reader` RoleBinding inside that namespace; the Role grants only
+  `get` and `list` on core `pods` in that namespace;
+- create exactly 201 minimal synthetic Pods named
+  `list-probe-000` through `list-probe-200` in that namespace, and request one
+  short-lived ServiceAccount token through the `serviceaccounts/token`
+  subresource for the restricted read test;
+- read the fixture server version at `/version` before any fixture test, as
+  directed by the owner on 2026-10-13.
+
+No cluster-scoped resource may be created or changed, no other namespace may be
+read or changed, and no Talos resource is changed. The generated ServiceAccount
+token is held only in zeroizing backend memory and in a temporary kubeconfig
+outside the repository; the harness removes that file on exit.
+
+Cleanup authority is limited to deleting those exact 201 generated Pod names,
+the named RoleBinding, Role, and ServiceAccount in the allowlisted namespace,
+and finally the namespace only if its UID still matches the UID recorded at
+creation. The harness verifies that the namespace is gone. It never cleans up a
+namespace it did not create, one whose UID changed, or an object outside these
+exact names. The runbook's fixture destroy-and-restore procedure remains
+mandatory whether setup, a list read, or cleanup succeeds or fails.
+
 ## Host-issued identities (2026-10-09 run)
 
 - QEMU bridge: `talosb8c871e1` on `10.79.0.1/24`, four guests
