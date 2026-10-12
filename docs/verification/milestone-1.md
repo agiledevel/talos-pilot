@@ -25,19 +25,19 @@ qualification.
 
 ## Checkpoint status and acceptance criteria
 
-| Checkpoint                       | Status                                                                                               | Acceptance criteria                                                                                                                                                                                                                                      |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| C0.1 baseline and ledger         | Complete                                                                                             | Reproduce frozen install, renderer, coverage, browser, icon, Rust, advisory, workflow, and native release-build checks; record actual command results, host/tool versions, failures, and next actions.                                                   |
-| C0.2 dependency/harness research | Complete                                                                                             | Pin compatible Go/Talos, Rust-to-TypeScript and Protobuf generation/runtime tools, and Tauri native harness packages from primary sources; run minimal compatibility probes and record limits.                                                           |
-| C1 helper and contracts          | In progress (C8 runtime)                                                                             | Deterministically generate documented Rust/Go/TypeScript protocol and DTO outputs; reject malformed, oversized, unknown, and incompatible frames; exercise actual packaged Rust↔Go handshake, bounded supervision, failure cleanup, and safe status IPC. |
-| C2 native IPC harness            | In progress (final target refresh)                                                                   | Runtime-validate renderer DTOs; use an explicit browser mock; run Tauri/WebdriverIO allowed and denied IPC flows; demonstrate cleanup and prove production excludes mock/driver/test commands.                                                           |
-| C3 encrypted storage             | Complete on Linux (C8 OS matrix open)                                                                | Verify schema/migration atomicity, AEAD integrity and redaction, actual OS-vault success/failure, encrypted restart, explicit session-only behavior, and native credential import with exec-auth rejection.                                              |
-| C4 Talos probe                   | In progress (live read/stream and restricted roles proven)                                           | On an allowlisted disposable Talos 1.14 fixture, demonstrate authenticated nonsensitive read and bounded COSI stream, TLS/authorization failures, cancellation/reconnect, and native shutdown cleanup.                                                   |
-| C5 Kubernetes probe              | In progress (client/credential-session boundary implemented; acceptance blocked on F1 live evidence) | On disposable Kubernetes 1.36, demonstrate scoped paginated Rust reads and watch/relist behavior with RBAC/TLS/scope faults and cleanup; run affected read/watch cases on 1.35 and 1.37.                                                                 |
-| C6 UI, workers, and CSP          | Pending                                                                                              | Qualify system/light/dark and density behavior, accessible feasibility states, lazy offline editor workers, bounded terminal/chart wrappers and disposal, restrictive CSP, and packaged asset behavior.                                                  |
-| C7 advisories and inventory      | Complete on Linux (C8 scans open)                                                                    | Resolve or record applicability for each advisory without silent exclusions; generate/review dependency inventory and notices; preserve exact-revision security automation.                                                                              |
-| C8 package/platform runtime      | Pending                                                                                              | Qualify clean install/launch/shutdown/uninstall and helper/vault/assets on Linux, macOS Intel/Apple Silicon, and Windows 11; inspect production exclusion and signing/integrity feasibility.                                                             |
-| C9 budgets and review            | Pending                                                                                              | Measure declared synthetic and native workloads on recorded hardware, derive and enforce budgets, complete acceptance matrix and separate final review, and hand off with all failed/unrun evidence visible.                                             |
+| Checkpoint                       | Status                                                                                                                  | Acceptance criteria                                                                                                                                                                                                                                      |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C0.1 baseline and ledger         | Complete                                                                                                                | Reproduce frozen install, renderer, coverage, browser, icon, Rust, advisory, workflow, and native release-build checks; record actual command results, host/tool versions, failures, and next actions.                                                   |
+| C0.2 dependency/harness research | Complete                                                                                                                | Pin compatible Go/Talos, Rust-to-TypeScript and Protobuf generation/runtime tools, and Tauri native harness packages from primary sources; run minimal compatibility probes and record limits.                                                           |
+| C1 helper and contracts          | In progress (C8 runtime)                                                                                                | Deterministically generate documented Rust/Go/TypeScript protocol and DTO outputs; reject malformed, oversized, unknown, and incompatible frames; exercise actual packaged Rust↔Go handshake, bounded supervision, failure cleanup, and safe status IPC. |
+| C2 native IPC harness            | In progress (final target refresh)                                                                                      | Runtime-validate renderer DTOs; use an explicit browser mock; run Tauri/WebdriverIO allowed and denied IPC flows; demonstrate cleanup and prove production excludes mock/driver/test commands.                                                           |
+| C3 encrypted storage             | Complete on Linux (C8 OS matrix open)                                                                                   | Verify schema/migration atomicity, AEAD integrity and redaction, actual OS-vault success/failure, encrypted restart, explicit session-only behavior, and native credential import with exec-auth rejection.                                              |
+| C4 Talos probe                   | In progress (live read, restricted roles, multi-event recovery, and cancellation proven; live retry exhaustion open)    | On an allowlisted disposable Talos 1.14 fixture, demonstrate authenticated nonsensitive read and bounded COSI stream, TLS/authorization failures, cancellation/reconnect, and native shutdown cleanup.                                                   |
+| C5 Kubernetes probe              | In progress (client/credential-session boundary implemented; acceptance blocked on F1's open live retry-exhaustion row) | On disposable Kubernetes 1.36, demonstrate scoped paginated Rust reads and watch/relist behavior with RBAC/TLS/scope faults and cleanup; run affected read/watch cases on 1.35 and 1.37.                                                                 |
+| C6 UI, workers, and CSP          | Pending                                                                                                                 | Qualify system/light/dark and density behavior, accessible feasibility states, lazy offline editor workers, bounded terminal/chart wrappers and disposal, restrictive CSP, and packaged asset behavior.                                                  |
+| C7 advisories and inventory      | Complete on Linux (C8 scans open)                                                                                       | Resolve or record applicability for each advisory without silent exclusions; generate/review dependency inventory and notices; preserve exact-revision security automation.                                                                              |
+| C8 package/platform runtime      | Pending                                                                                                                 | Qualify clean install/launch/shutdown/uninstall and helper/vault/assets on Linux, macOS Intel/Apple Silicon, and Windows 11; inspect production exclusion and signing/integrity feasibility.                                                             |
+| C9 budgets and review            | Pending                                                                                                                 | Measure declared synthetic and native workloads on recorded hardware, derive and enforce budgets, complete acceptance matrix and separate final review, and hand off with all failed/unrun evidence visible.                                             |
 
 ## Repository review and next phase — 2026-10-11
 
@@ -450,7 +450,207 @@ then gains its live-evidence rows and C4's remaining open rows can close.
 **F2 — establish the Kubernetes client and credential-session boundary** is the
 next packet; its pin/API research may start now, but F2 acceptance must not be
 claimed before F1's live evidence exists. Packaged startup stays with F9; R3
-stays deferred.
+stays deferred. _Executed on 2026-10-12; the live-evidence rows and outcomes are
+in part 3 below._
+
+## F1 packet evidence, part 3: live fixture rows on the unsandboxed host — 2026-10-12
+
+Packet F1 steps 1–5 executed live, mapped to C4 and FND-004. Base revision
+`101d697` (clean tree); the final revision is the commit carrying this entry,
+handed off as one working-tree change set. **F1 is not closed**: six of the
+seven live rows passed and the live retry-exhaustion row failed in both runs
+with a reproduced, recorded cause (below). C4 keeps that row open, C5's
+acceptance stays gated on F1, and F2's acceptance cannot be claimed yet. This
+run supersedes the part 2 entry's unexecuted fixture rows, and the VPN question
+left open by the [F2 recheck](#f2-recheck-on-the-unsandboxed-development-host--2026-10-12)
+was answered by the owner before provisioning (shadowing of `10.79.0.0/24`
+accepted for the run).
+
+### Trigger, observable behavior, invariants
+
+The seven `#[ignore]` live rows in `src-tauri/tests/talos_fixture.rs` ran
+against the reprovisioned `talos-pilot-c4-20261009` fixture through the recorded
+harness command. Part 2's behavior and invariants applied unchanged. One harness
+defect found by the first run was fixed in this change set:
+
+- A panicking live case left the worker's QEMU process `SIGSTOP`ped: run 1's
+  exhausted-budget case panicked before its resume step, and the three
+  subsequent worker-touching rows then failed against the frozen worker
+  (`TALOS_UNAVAILABLE` reads, a watch whose break never surfaced, an early
+  stream end). That is why run 1 recorded 3 passed / 4 failed. `SuspendedWorker`
+  now resumes the worker on every exit path including panic; no assertion,
+  deadline, or product behavior was changed.
+
+The remaining failure is a test-design limit, not a product defect: with the
+recorded actions only (admin-identity reboot, worker-QEMU `SIGSTOP`/`SIGCONT`),
+the live exhaustion scenario cannot deterministically hold the worker
+unreachable across the three reconnect attempts, because the watch break only
+surfaces once the worker's API is back, and the helper's first attempt then
+reconnects in about a millisecond, before any `SIGSTOP` can land. The frozen,
+already-reconnected stream goes silent; the helper's policy never cuts an
+established watch by the attempt deadline, so no exhaustion is produced. This
+is the open finding below.
+
+### Files/contracts/ADRs changed
+
+| File                                                 | Change                                                                                                                             |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `src-tauri/tests/talos_fixture.rs`                   | `SuspendedWorker` guard (resume-on-drop) and its use in the exhausted-budget case; assertions, deadlines, and policy are unchanged |
+| [fixture allowlist](fixtures/talos-c4-disposable.md) | Status line, 2026-10-12 host-issued identities, and the run's restoration record                                                   |
+| this ledger, `README.md`                             | Live evidence, checkpoint/stage corrections                                                                                        |
+
+The wire contract, helper, Rust supervisor, renderer, and the design/ADR set are
+unchanged.
+
+### Exact commands; host/toolchain/WebView; exit results
+
+Host: the unsandboxed openSUSE Tumbleweed x86_64 development host of the
+[F2 recheck](#f2-recheck-on-the-unsandboxed-development-host--2026-10-12)
+(`sudo -n` and `/dev/kvm` present; no host configuration was changed). Pinned
+tools were provisioned into the session scratchpad: Node 26.11.1 (nodejs.org
+`SHASUMS256.txt`), pnpm 12.10.1, protoc 36.2 (the CI SHA-256 from
+`.github/actions/install-protoc/action.yml`), Go 1.27.2 (module cache), Rust
+1.99.0 (rustup). `src-tauri/.local-tools/talosctl` already held v1.14.2; its
+SHA-256 `c6c9552b0e5f767352c595fa1c0af4f186f697488646872955057d23990a66c4`
+matches the release `sha256sum.txt` `talosctl-linux-amd64` entry, so it was not
+re-downloaded.
+
+Baseline captured before provisioning, on the final tree: the twelve-zone list
+with default `public`; active `docker`/`libvirt`/`public`; `filter-FORWARD` and
+`nat/POSTROUTING` containing only the pre-existing DOCKER/LIBVIRT rules; the
+pre-provisioning interface set; zero `qemu-system` processes; the fixture name,
+`/tmp/tpc4`, and `10.79.0.0/24` unused. The owner chose to accept `10.79.0.0/24`
+being shadowed by the fixture bridge while the fixture existed.
+
+| Command                                                                                                                                                                                                                                                | Result                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The allowlist's `cluster create qemu` command (verbatim block in the allowlist; `sudo -n -E sh -c 'umask 077; cd /tmp/tpc4; …'`)                                                                                                                       | Pass; no bootstrap timeout, so the recorded `bootstrap` fallback was not needed                                                                                                                     |
+| The allowlist's firewalld zone commands and `--change-interface` binds for `talosb8c871e1` and its four veths                                                                                                                                          | Pass                                                                                                                                                                                                |
+| The allowlist's five `iptables` rules (FORWARD ×4, `nat` POSTROUTING MASQUERADE)                                                                                                                                                                       | Pass                                                                                                                                                                                                |
+| The allowlist's `config new` issuance ×2, `config node` on all three contexts, and `chown kiss:kiss` on exactly the three credential files                                                                                                             | Pass                                                                                                                                                                                                |
+| `pnpm talos:fixture -- --manifest tests/fixtures/talos-c4.json --talosconfig /tmp/tpc4/talosconfig --reader-talosconfig /tmp/tpc4/talosconfig.reader --denied-talosconfig /tmp/tpc4/talosconfig.etcdbackup --talosctl src-tauri/.local-tools/talosctl` | Run 1: `3 passed; 4 failed` in 180.24 s (guard cascade + the open finding). Run 2 after the guard fix: `6 passed; 1 failed` in 1863.20 s (the open finding only). Full outputs kept as session logs |
+| The allowlist's `cluster destroy` command, the five `iptables -D` counterparts, `firewall-cmd --permanent --delete-zone=talos-pilot-c4` + reload, and `rm -rf /tmp/tpc4`                                                                               | Pass; restoration verified against the baseline (below)                                                                                                                                             |
+
+Diagnostics for the open finding used a temporary Go driver
+(`helper/cmd/tpdebug`, deleted before staging) over the real `talosprobe`
+package: a fresh watch against a `SIGSTOP`ped worker was bounded at 15 s per
+attempt (attempts 2 and 3 of the recorded policy), a `SIGSTOP` 2.5 s after the
+`rebooting` stage meant the watch never broke within 120 s, and a reboot's break
+surfaced only when the worker's API was back, with a fresh watch reconnecting
+within 1 ms. The harness's own run-2 output reproduces the last point: the
+`live_interruption` row recovered under generation 2 with continuous sequence 2.
+
+### Native vs mocked vs real-cluster evidence
+
+- **Real cluster (new):** run 2's row results, in order of completion —
+  `reads_and_streams_the_allowlisted_fixture` ok (fixture read Talos v1.14.2;
+  worker node read stage `running`, ready true); `live_interruption…` ok
+  (reboot → stale → replacement snapshot generation 2, sequence 2; worker
+  reports running again); `fails_over_to_a_reachable_allowlisted_endpoint` ok;
+  `reads_with_a_reader_identity…` ok (`os:reader` read succeeded;
+  `os:etcd:backup` denied `TALOS_UNAUTHORIZED`, not retried, after 3.9 ms);
+  `live_cancellation…` ok (cancellation acknowledged in 375.7 µs; stream ended
+  cleanly); `fails_closed_on_targets_and_authority…` ok;
+  `live_reconnect_exhausts…` FAILED as an open finding.
+- **Deterministic framed, native IPC, and renderer evidence:** unchanged from
+  part 2; this run re-ran only the live rows through `pnpm talos:fixture`
+  (which rebuilds the helper and runs the ignored tests). No deterministic,
+  native, or renderer suite was rerun for this documentation-and-test change,
+  so nothing here extends their status.
+
+### Fixture identity, versions, topology, allowlist, cleanup evidence
+
+Provisioned and destroyed on 2026-10-12 under the recorded identity; 4 members
+on Talos v1.14.2, Kubernetes v1.36.5 (server version via the fixture kubeconfig),
+three control planes `10.79.0.2–10.79.0.4`, worker `10.79.0.5`, bridge
+`talosb8c871e1` (`10.79.0.1/24`), Kubernetes endpoint `https://10.79.0.1:6443`.
+Contexts: `talos-pilot-c4-20261009` (admin, 1775 bytes) plus
+`reader@talos-pilot-c4-20261009` and `etcd:backup@talos-pilot-c4-20261009`
+(1789/1811 bytes), each with the node list `10.79.0.2–10.79.0.5`; the three
+files were mode 600 and readable by the unprivileged harness user. The cached
+installer ISO (`376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba`,
+v1.14.2 metal-amd64) hashed
+`e230299bf831f3de962b66226a29b45ca185d23a390a7eb2bd889c9e522846cd`.
+
+Cleanup evidence, all compared with the pre-provisioning baseline: `cluster
+destroy` removed the guests, network, and state; the five `iptables -D`
+counterparts removed the fixture rules and both `10.79.0` counters report `0`;
+no `CNI-*` chain remains; the zone list, default zone, and active zones equal the
+baseline exactly; `/tmp/tpc4` and any `/tmp/talos-pilot-c4-*` are absent; zero
+`qemu-system` processes; no `talos*` bridge and none of the fixture `veth`s; no
+interface holds a `10.79.0.x` address; `ip route get 10.79.0.2` returns through
+`tun0` again, so the accepted shadowing ended with the bridge. The VPN state
+(`tun0` up, `172.23.11.5/24`, `10.0.0.0/8` route) is otherwise unchanged.
+
+### Passed, failed, and unexecuted rows and practical limits
+
+Passed live (6 of 7): read/stream with a real event, `os:reader` read and
+`os:etcd:backup` denial, target/authority rejection without helper work,
+failover past a dead leading endpoint, reboot interruption with stale →
+replacement-snapshot recovery, and prompt cancellation.
+
+Failed (open finding): `live_reconnect_exhausts_while_the_worker_is_suspended`.
+Both runs ended the case with the 90-second window exhausted by an established,
+silent stream after the worker was frozen, panicking with "the reconnect budget
+must end the subscription within its window". The deterministic framed tests
+still cover budget exhaustion, backoff, and attempt-deadline behavior, and the
+live diagnostics above show the policy's attempt bound working against a frozen
+peer; what cannot be produced live within the recorded authority is a
+break that is detected while the worker is still unreachable.
+
+Practical limits and environment notes (some inferred, marked):
+
+- The recorded `talosctl reboot` action waits for Talos's `MachineReady` event
+  (stage `running` and ready true) with the command's default 30-minute tracker
+  timeout, so the harness's reboot step inherits that bound. After this
+  session's earlier freezes and repeated reboots, the worker's flannel/CNI
+  recovery after a reboot took roughly 9 and 16 minutes (kubelet reporting
+  `cni plugin not initialized`; the flannel DaemonSet pod stuck in
+  `Init:ContainerStatusUnknown` until recreated), which is why run 2 took
+  1863 s. The correlation with the freeze experiments is an inference; the
+  cause was not isolated. No product conclusion depends on it.
+- Because that delay postponed the reboot helper's return until long after the
+  helper had reconnected, run 2's live cancellation landed on an established
+  (reconnected) stream rather than under an in-flight attempt. The assertion
+  held; the during-attempt/during-backoff cancellation shapes remain
+  deterministic-test evidence only.
+- Unexecuted for F1: nothing else — all seven live rows executed. Packaged
+  helper startup remains F9 work and R3 remains deferred, as recorded.
+- The VPN's shadowed range was exercised only as accepted; no VPN host in
+  `10.79.0.0/24` was contacted or verified during the run.
+
+### Separate final review findings and resolutions
+
+1. **Panic-unsafe worker cleanup (fixed).** Run 1's exhausted-budget case left
+   the worker `SIGSTOP`ped, invalidating three later rows. Fixed with
+   `SuspendedWorker`'s resume-on-drop; run 2's same failure left the fixture
+   healthy (worker running and the node Ready afterwards).
+2. **Live retry exhaustion is not deterministically reproducible with the
+   recorded actions (open).** The watch break surfaces only when the worker's
+   API is back, so a test-side `SIGSTOP` cannot keep the worker unreachable
+   during the attempts; the helper reconnects within about a millisecond and
+   then holds a silent established stream that its contract never cuts. A
+   future decision needs one of: a different fixture-scoped interruption that
+   is detectable while the worker is unreachable (new authority), a product
+   change that detects a silent established watch (new behavior outside this
+   packet's stated policy), or an owner-approved re-scope of the row. The
+   product's exhaustion path itself remains proven by the deterministic framed
+   suite and by the live attempt-bound diagnostics.
+3. **Reboot helper wait (observed).** The live cases inherit the reboot
+   command's `MachineReady` wait; a fixture whose node does not re-converge
+   makes the harness slow rather than wrong. Recorded for future runs; no
+   change made.
+4. **Cancellation semantics nuance (recorded).** See the practical limits
+   above; no product or test change.
+
+### Next smallest packet and prerequisites
+
+**Resolve the open live retry-exhaustion row, then close F1.** It is the only
+missing C4 live evidence and needs an owner decision on the options in finding 2
+(no new authority exists today). Everything else F1 promised has live evidence.
+**F2's acceptance prerequisite is therefore still not met**: F2 stays
+implemented-and-green but unaccepted, and F3 stays blocked behind it.
+Packaged-installer startup stays with F9; R3 stays deferred.
 
 ## F2 packet evidence — the Kubernetes client and credential-session boundary
 
@@ -459,8 +659,10 @@ mapped to C5 step 1, the C3 contract extension, and FND-003/004. Base revision
 `f9d56a8` (clean tree); the final revision is the commit carrying this entry —
 the packet is handed off as one working-tree change set. **F2 is implemented and
 green, but not accepted**: its own live-cluster read is deliberately out of
-scope (F3 owns it), and F1's live fixture rows are still unexecuted on a host
-without root or KVM, so C5 keeps its acceptance open.
+scope (F3 owns it), and F1's live fixture rows ran on 2026-10-12 with six of
+seven passing, but the live retry-exhaustion row remains open
+([F1 part 3](#f1-packet-evidence-part-3-live-fixture-rows-on-the-unsandboxed-host--2026-10-12)),
+so C5 keeps its acceptance open.
 
 ### Trigger, observable behavior, invariants
 
@@ -701,9 +903,10 @@ endpoint) all pass.
 
 **F3 — deliver the bounded scoped Kubernetes list probe.** Its prerequisites are
 this packet's client/session boundary and the reprovisioned, amended Talos
-fixture harness that F1 still owes; F2 acceptance stays blocked until F1's live
-rows run on a host with root and KVM. Packaged-installer startup remains F9, and
-R3 stays deferred.
+fixture harness that F1 still owes; F2 acceptance stays blocked until F1's
+remaining live row is resolved
+([F1 part 3](#f1-packet-evidence-part-3-live-fixture-rows-on-the-unsandboxed-host--2026-10-12)).
+Packaged-installer startup remains F9, and R3 stays deferred.
 
 ## F2 recheck on the unsandboxed development host — 2026-10-12
 
@@ -801,7 +1004,11 @@ product result.
 precise: the fixture-scoped remediation applied by the owner, or a session
 permitted to apply it, on this host. Before provisioning, capture the baseline
 again and decide whether the VPN route above may be shadowed for the run. F2
-acceptance and F3 stay blocked on that evidence.
+acceptance and F3 stay blocked on that evidence. _Executed on 2026-10-12: the
+session applied the allowlist's remediation, the owner accepted the VPN
+shadowing, and the run's outcomes are recorded in
+[F1 part 3](#f1-packet-evidence-part-3-live-fixture-rows-on-the-unsandboxed-host--2026-10-12)._
+F2 acceptance and F3 now wait only on F1's open live retry-exhaustion row.
 
 ## C0.1 baseline evidence
 

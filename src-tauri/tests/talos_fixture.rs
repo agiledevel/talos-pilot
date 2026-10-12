@@ -736,6 +736,51 @@ fn signal_worker_qemu(fixture: &Fixture, signal: &str) -> u32 {
     pid
 }
 
+/// A suspended worker QEMU process that is resumed on every exit path.
+///
+/// A live case must never leave the fixture frozen: a panicking case would
+/// otherwise poison every later case on the same worker, as the 2026-10-12
+/// packet F1 run recorded. Dropping this guard always sends SIGCONT;
+/// [`SuspendedWorker::resume`] additionally proves the signal was accepted.
+struct SuspendedWorker {
+    pid: u32,
+}
+
+impl SuspendedWorker {
+    /// Suspends this fixture's worker, resolved only by its state directory and
+    /// machine name.
+    fn stop(fixture: &Fixture) -> Self {
+        Self {
+            pid: signal_worker_qemu(fixture, "STOP"),
+        }
+    }
+
+    /// Resumes the worker and asserts the signal was accepted. Callers still
+    /// wait for the worker to report running again before the next case starts.
+    fn resume(&self) {
+        let output = std::process::Command::new("sudo")
+            .args(["-n", "kill", "-CONT", &self.pid.to_string()])
+            .output()
+            .unwrap_or_else(|_| panic!("sudo must resume the identified worker QEMU process"));
+        assert!(
+            output.status.success(),
+            "SIGCONT of worker QEMU {} must be accepted: {}",
+            self.pid,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        println!("worker QEMU {} resumed", self.pid);
+    }
+}
+
+impl Drop for SuspendedWorker {
+    fn drop(&mut self) {
+        // Best effort on the panicking path; a repeated SIGCONT is harmless.
+        let _ = std::process::Command::new("sudo")
+            .args(["-n", "kill", "-CONT", &self.pid.to_string()])
+            .output();
+    }
+}
+
 /// Waits until a fresh probe projects the worker running again, so a later
 /// live case starts from a healthy fixture.
 async fn wait_for_worker_running(
@@ -1012,18 +1057,18 @@ async fn live_reconnect_exhausts_while_the_worker_is_suspended() {
         collector.wait_for_count(1, FIRST_EVENT_DEADLINE).await;
         reboot_worker(&fixture, &worker);
         collector.wait_for_stale(Duration::from_secs(60)).await;
-        // Hold the outage past the whole reconnect budget: the booting guest is
-        // frozen so every attempt must fail, which makes exhaustion deterministic.
-        signal_worker_qemu(&fixture, "STOP")
+        // Hold the frozen worker through the reconnect budget so no later
+        // attempt can be served, and let the guard resume it on every exit.
+        SuspendedWorker::stop(&fixture)
     };
 
-    let frozen_pid;
+    let frozen;
     tokio::select! {
         _ = &mut stream => {
             panic!("the stream may not end before the worker is suspended");
         }
-        pid = suspend => {
-            frozen_pid = Some(pid);
+        stopped = suspend => {
+            frozen = stopped;
         }
     }
     // The three attempts (15 s deadline each, 0.5/1 s jittered backoffs) must
@@ -1052,12 +1097,7 @@ async fn live_reconnect_exhausts_while_the_worker_is_suspended() {
         describe(&error)
     );
 
-    if let Some(pid) = frozen_pid {
-        std::process::Command::new("sudo")
-            .args(["-n", "kill", "-CONT", &pid.to_string()])
-            .output()
-            .ok();
-    }
+    frozen.resume();
     wait_for_worker_running(&fixture, &service, &store, &input.session_id, &worker).await;
     service.shutdown().await;
 }

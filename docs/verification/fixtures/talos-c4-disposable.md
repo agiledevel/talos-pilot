@@ -1,6 +1,10 @@
 # C4 disposable Talos fixture allowlist
 
-Status: **provisioned, exercised, and destroyed on 2026-10-09; no fixture exists now.**
+Status: **provisioned, exercised, and destroyed on 2026-10-09 and again on
+2026-10-12; no fixture exists now.** The 2026-10-12 run executed the full
+harness command with all four file references: six of the seven live rows
+passed and the live retry-exhaustion row stayed open, recorded in the
+[milestone ledger](../milestone-1.md#f1-packet-evidence-part-3-live-fixture-rows-on-the-unsandboxed-host--2026-10-12).
 The accounts of the first failed attempts below are historical. The diagnosis,
 applied remediation, and restoration sections supersede their "do not retry" and
 "no endpoint is allowlisted" statements.
@@ -180,10 +184,11 @@ destroys the fixture, and completes the restoration checklist below before it
 ends, unless the owner separately agrees to leave something in place and the
 session's ledger entry names it.
 
-The Talos patch refresh that packet F1 must perform — `talosctl`, the image, the
-Go module, and this manifest together — is not covered by that confirmation and
-is not yet reflected in the identity table above, which still records the
-2026-10-09 `v1.14.1` run as executed.
+The Talos patch refresh that packet F1 had to perform — `talosctl`, the image,
+the Go module, and this manifest together — was executed with the pins in the
+identity table above; the [2026-10-12 identities below](#host-issued-identities-2026-10-12-run)
+record the first executed run on `v1.14.2`, and the 2026-10-09 `v1.14.1`
+section remains that run's historical record.
 
 ## F1 authorized fixture-local actions (2026-10-11)
 
@@ -283,6 +288,38 @@ These values are mirrored in machine-readable form in
 [`tests/fixtures/talos-c4.json`](../../../tests/fixtures/talos-c4.json), which
 the harness verifies.
 
+## Host-issued identities (2026-10-12 run)
+
+- Provisioned and destroyed on 2026-10-12 with the same fixture ID, CIDR,
+  topology, and commands as the sections above; no bootstrap timeout, so the
+  recorded fallback was not used.
+- QEMU bridge: `talosb8c871e1` on `10.79.0.1/24`, four guests, bound to the
+  `talos-pilot-c4` zone together with its four veths while the fixture existed.
+- Talos API endpoints: `10.79.0.2`, `10.79.0.3`, `10.79.0.4`; node targets
+  `10.79.0.2`–`10.79.0.5` (the worker is deliberately not an API endpoint);
+  unassigned in-CIDR address `10.79.0.250` used only by the failure cases.
+- Talos version reported by the API: `v1.14.2`; Kubernetes server version
+  `v1.36.5`; hostnames `talos-pilot-c4-20261009-controlplane-1..3` and
+  `...-worker-1`.
+- Contexts: `talos-pilot-c4-20261009` (admin, 1,775 bytes) plus
+  `reader@talos-pilot-c4-20261009` (1,789 bytes) and
+  `etcd:backup@talos-pilot-c4-20261009` (1,811 bytes); each lists the four
+  nodes. The three files were mode 600, readable by the unprivileged harness
+  user, and removed with `/tmp/tpc4`.
+- Kubernetes API endpoint: `https://10.79.0.1:6443`, unchanged from the
+  2026-10-11 recording.
+- Cached installer image: Image Factory ISO
+  `376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba`
+  (`v1.14.2` metal-amd64), SHA-256
+  `e230299bf831f3de962b66226a29b45ca185d23a390a7eb2bd889c9e522846cd`.
+- Pinned `talosctl` v1.14.2 SHA-256
+  `c6c9552b0e5f767352c595fa1c0af4f186f697488646872955057d23990a66c4`, matching
+  the release `sha256sum.txt` `talosctl-linux-amd64` entry.
+- Restoration: both `10.79.0` rule counters `0`; zone list, default zone, and
+  active zones back to the pre-provisioning baseline; `/tmp/tpc4` and any
+  `/tmp/talos-pilot-c4-*` removed; no `qemu-system` process, `talos*` bridge, or
+  fixture veth left; `10.79.0.0/24` routed through `tun0` again.
+
 ## Harness command
 
 Run from a repository checkout while the fixture above is provisioned:
@@ -335,3 +372,9 @@ invariants that must hold.
 Executed on 2026-10-09 after the harness run: all four steps were verified, with
 zero fixture rules left, the zone list and active zones back to the state
 recorded above, and no QEMU process or bridge.
+
+Executed again on 2026-10-12 after both harness runs: all four steps were
+verified against a fresh pre-provisioning baseline, with zero fixture rules
+left, the zone list, default zone, and active zones restored exactly,
+`/tmp/tpc4` removed, and no QEMU process, `talos*` bridge, or fixture veth
+remaining.
