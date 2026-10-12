@@ -17,6 +17,7 @@ fn main() {
             "open_kubernetes_session",
             "close_kubernetes_session",
             "read_kubernetes_version",
+            "list_kubernetes_pods",
             "start_talos_probe",
             "stop_talos_probe",
             "close_talos_session",

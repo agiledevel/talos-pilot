@@ -6,6 +6,7 @@ import type { CredentialImportResultDto } from "./generated/CredentialImportResu
 import type { CredentialStorageStatusDto } from "./generated/CredentialStorageStatusDto";
 import type { HelperStatusDto } from "./generated/HelperStatusDto";
 import type { KubernetesCredentialSummaryDto } from "./generated/KubernetesCredentialSummaryDto";
+import type { KubernetesPodListDto } from "./generated/KubernetesPodListDto";
 import type { KubernetesSessionDto } from "./generated/KubernetesSessionDto";
 import type { KubernetesVersionDto } from "./generated/KubernetesVersionDto";
 import type { TalosCredentialSessionDto } from "./generated/TalosCredentialSessionDto";
@@ -18,6 +19,7 @@ import {
   parseCredentialImportResultDto,
   parseCredentialStorageStatusDto,
   parseKubernetesCredentialList,
+  parseKubernetesPodListDto,
   parseKubernetesSessionDto,
   parseKubernetesVersionDto,
   parseTalosCredentialSessionDto,
@@ -226,6 +228,22 @@ export function readKubernetesVersion(
 ): Promise<KubernetesVersionDto> {
   return invokeValidated(transport, "read_kubernetes_version", parseKubernetesVersionDto, {
     sessionId,
+  });
+}
+
+/** Lists one bounded, resource-version-consistent namespaced Pod projection. */
+export function listKubernetesPods(
+  transport: IpcTransport,
+  sessionId: string,
+  namespace: string,
+  labelSelector: string | null = null,
+  fieldSelector: string | null = null,
+): Promise<KubernetesPodListDto> {
+  return invokeValidated(transport, "list_kubernetes_pods", parseKubernetesPodListDto, {
+    sessionId,
+    namespace,
+    labelSelector,
+    fieldSelector,
   });
 }
 

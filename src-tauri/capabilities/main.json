@@ -16,6 +16,7 @@
     "allow-open-kubernetes-session",
     "allow-close-kubernetes-session",
     "allow-read-kubernetes-version",
+    "allow-list-kubernetes-pods",
     "allow-start-talos-probe",
     "allow-stop-talos-probe",
     "allow-close-talos-session"

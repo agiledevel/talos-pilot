@@ -6,8 +6,8 @@ use talos_pilot::contracts::{
     AppearanceDensity, AppearanceSettingsDto, AppearanceTheme, ApplicationErrorDto,
     CredentialImportResultDto, CredentialStorageModeDto, CredentialStorageStatusDto,
     HelperCapability, HelperState, HelperStatusDto, KubernetesCredentialSummaryDto,
-    KubernetesSessionDto, KubernetesVersionDto, TalosCredentialSessionDto, TalosProbeEventDto,
-    TalosProbeState,
+    KubernetesPodDto, KubernetesPodListDto, KubernetesPodReadinessDto, KubernetesSessionDto,
+    KubernetesVersionDto, TalosCredentialSessionDto, TalosProbeEventDto, TalosProbeState,
 };
 use ts_rs::{Config, TS};
 
@@ -40,6 +40,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         KubernetesCredentialSummaryDto::export_all(&config),
         KubernetesSessionDto::export_all(&config),
         KubernetesVersionDto::export_all(&config),
+        KubernetesPodReadinessDto::export_all(&config),
+        KubernetesPodDto::export_all(&config),
+        KubernetesPodListDto::export_all(&config),
         TalosProbeState::export_all(&config),
         TalosProbeEventDto::export_all(&config),
         TalosCredentialSessionDto::export_all(&config),

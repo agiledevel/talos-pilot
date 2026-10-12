@@ -108,6 +108,35 @@ describe("native Kubernetes credential and session boundary", () => {
       minor: "36",
     });
 
+    const pods = await readRecord("list_kubernetes_pods", {
+      sessionId,
+      namespace: "workloads",
+      labelSelector: null,
+      fieldSelector: null,
+    });
+    assert.equal(pods["session_id"], sessionId);
+    assert.equal(pods["namespace"], "workloads");
+    assert.equal(pods["resource_version"], "42");
+    assert.equal(pods["complete"], true);
+    assert.deepEqual(pods["items"], [
+      {
+        name: "first",
+        namespace: "workloads",
+        uid: "uid-first",
+        resource_version: "42",
+        phase: "Running",
+        readiness: "ready",
+      },
+      {
+        name: "second",
+        namespace: "workloads",
+        uid: "uid-second",
+        resource_version: "42",
+        phase: "Running",
+        readiness: "ready",
+      },
+    ]);
+
     const closed = await browser.tauri.execute(
       ({ core }, wanted) => core.invoke("close_kubernetes_session", { sessionId: wanted }),
       sessionId,
@@ -184,6 +213,15 @@ describe("native Kubernetes credential and session boundary", () => {
           ["list_kubernetes_credentials", {}],
           ["open_kubernetes_session", { credentialHandle: "kubecred-AAAAAAAAAAAAAAAAAAAAAA" }],
           ["read_kubernetes_version", { sessionId: "kube-session-404" }],
+          [
+            "list_kubernetes_pods",
+            {
+              sessionId: "kube-session-404",
+              namespace: "workloads",
+              labelSelector: null,
+              fieldSelector: null,
+            },
+          ],
           ["close_kubernetes_session", { sessionId: "kube-session-404" }],
         ] as const;
         const outcomes: string[] = [];

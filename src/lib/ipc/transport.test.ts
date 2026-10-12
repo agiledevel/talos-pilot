@@ -34,6 +34,7 @@ import {
   importKubeconfig,
   importTalosconfig,
   listKubernetesCredentials,
+  listKubernetesPods,
   openKubernetesSession,
   readKubernetesVersion,
   setAppearanceSettings,
@@ -74,6 +75,34 @@ describe("runtime-validated IPC transport", () => {
       protocol_major: 1,
       capabilities: ["status"],
     });
+  });
+
+  it("accepts a Pod list only from the explicitly injected browser mock", async () => {
+    const pods = await listKubernetesPods(
+      createBrowserMockTransport({
+        kind: "resolve",
+        value: {
+          session_id: VALID_SESSION_ID,
+          namespace: "workloads",
+          resource_version: "opaque-rv",
+          complete: false,
+          items: [
+            {
+              name: "web-0",
+              namespace: "workloads",
+              uid: "uid-web-0",
+              resource_version: "opaque-rv",
+              phase: "Pending",
+              readiness: "unknown",
+            },
+          ],
+        },
+      }),
+      VALID_SESSION_ID,
+      "workloads",
+    );
+    expect(pods.complete).toBe(false);
+    expect(pods.items[0]?.readiness).toBe("unknown");
   });
 
   it("rejects missing fields, unknown variants, and inconsistent readiness", () => {
@@ -418,6 +447,23 @@ describe("runtime-validated IPC transport", () => {
         major: "1",
         minor: "36",
       })
+      .mockResolvedValueOnce({
+        session_id: VALID_SESSION_ID,
+        namespace: "workloads",
+        resource_version: "42",
+        complete: true,
+        items: [
+          {
+            name: "web-0",
+            namespace: "workloads",
+            uid: "uid-web-0",
+            resource_version: "42",
+            phase: "Running",
+            readiness: "ready",
+            spec: { containers: [{ env: [{ value: "must-not-be-retained" }] }] },
+          },
+        ],
+      })
       .mockResolvedValueOnce(true);
     const transport = createNativeIpcTransport();
 
@@ -439,6 +485,22 @@ describe("runtime-validated IPC transport", () => {
       major: "1",
       minor: "36",
     });
+    await expect(listKubernetesPods(transport, VALID_SESSION_ID, "workloads")).resolves.toEqual({
+      session_id: VALID_SESSION_ID,
+      namespace: "workloads",
+      resource_version: "42",
+      complete: true,
+      items: [
+        {
+          name: "web-0",
+          namespace: "workloads",
+          uid: "uid-web-0",
+          resource_version: "42",
+          phase: "Running",
+          readiness: "ready",
+        },
+      ],
+    });
     await expect(closeKubernetesSession(transport, VALID_SESSION_ID)).resolves.toBe(true);
 
     expect(tauriApi.invoke).toHaveBeenNthCalledWith(1, "list_kubernetes_credentials");
@@ -448,9 +510,44 @@ describe("runtime-validated IPC transport", () => {
     expect(tauriApi.invoke).toHaveBeenNthCalledWith(3, "read_kubernetes_version", {
       sessionId: VALID_SESSION_ID,
     });
-    expect(tauriApi.invoke).toHaveBeenNthCalledWith(4, "close_kubernetes_session", {
+    expect(tauriApi.invoke).toHaveBeenNthCalledWith(4, "list_kubernetes_pods", {
+      sessionId: VALID_SESSION_ID,
+      namespace: "workloads",
+      labelSelector: null,
+      fieldSelector: null,
+    });
+    expect(tauriApi.invoke).toHaveBeenNthCalledWith(5, "close_kubernetes_session", {
       sessionId: VALID_SESSION_ID,
     });
+  });
+
+  it("rejects Pod summaries that cross namespace, size, or readiness bounds", async () => {
+    const item = {
+      name: "web-0",
+      namespace: "other",
+      uid: "uid-web-0",
+      resource_version: "42",
+      phase: "Running",
+      readiness: "ready",
+    };
+    const response = {
+      session_id: VALID_SESSION_ID,
+      namespace: "workloads",
+      resource_version: "42",
+      complete: false,
+      items: [item],
+    };
+    const transport: IpcTransport = {
+      invoke: async () => response,
+    };
+    await expect(listKubernetesPods(transport, VALID_SESSION_ID, "workloads")).rejects.toThrow(
+      IpcContractError,
+    );
+    item.namespace = "workloads";
+    item.readiness = "future-state";
+    await expect(listKubernetesPods(transport, VALID_SESSION_ID, "workloads")).rejects.toThrow(
+      IpcContractError,
+    );
   });
 
   it("rejects missing and oversized application error fields", () => {

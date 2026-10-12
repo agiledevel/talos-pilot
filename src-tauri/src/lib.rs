@@ -22,7 +22,8 @@ use zeroize::Zeroizing;
 use contracts::{
     AppearanceDensity, AppearanceSettingsDto, AppearanceTheme, ApplicationErrorDto,
     CredentialImportResultDto, CredentialStorageModeDto, CredentialStorageStatusDto,
-    HelperStatusDto, KubernetesCredentialSummaryDto, KubernetesSessionDto, KubernetesVersionDto,
+    HelperStatusDto, KubernetesCredentialSummaryDto, KubernetesPodDto, KubernetesPodListDto,
+    KubernetesPodReadinessDto, KubernetesSessionDto, KubernetesVersionDto,
     TalosCredentialSessionDto, TalosProbeEventDto,
 };
 use helper::service::HelperService;
@@ -448,6 +449,53 @@ async fn read_kubernetes_version(
     })
 }
 
+/// Reads bounded Pod summaries for one session and namespace.
+///
+/// Server continuation tokens remain inside the Kubernetes adapter. The
+/// response contains only allowlisted metadata and an explicit completeness
+/// flag when an aggregate retention bound stops collection.
+#[tauri::command]
+async fn list_kubernetes_pods(
+    sessions: State<'_, KubernetesSessionStore>,
+    session_id: String,
+    namespace: String,
+    label_selector: Option<String>,
+    field_selector: Option<String>,
+) -> Result<KubernetesPodListDto, ApplicationErrorDto> {
+    let snapshot = sessions
+        .list_pods(
+            &session_id,
+            &namespace,
+            label_selector.as_deref(),
+            field_selector.as_deref(),
+        )
+        .await
+        .map_err(|error| kubernetes_error("list_kubernetes_pods", error))?;
+    let items = snapshot
+        .items
+        .into_iter()
+        .map(|pod| KubernetesPodDto {
+            name: pod.name,
+            namespace: pod.namespace,
+            uid: pod.uid,
+            resource_version: pod.resource_version,
+            phase: pod.phase,
+            readiness: match pod.ready {
+                kubernetes::ReadySummary::Ready => KubernetesPodReadinessDto::Ready,
+                kubernetes::ReadySummary::NotReady => KubernetesPodReadinessDto::NotReady,
+                kubernetes::ReadySummary::Unknown => KubernetesPodReadinessDto::Unknown,
+            },
+        })
+        .collect();
+    Ok(KubernetesPodListDto {
+        session_id,
+        namespace,
+        resource_version: snapshot.resource_version,
+        complete: snapshot.complete,
+        items,
+    })
+}
+
 async fn pick_kubeconfig_file(
     app: &tauri::AppHandle,
 ) -> Result<Option<tauri_plugin_dialog::FilePath>, ApplicationErrorDto> {
@@ -810,6 +858,7 @@ pub fn run() {
             open_kubernetes_session,
             close_kubernetes_session,
             read_kubernetes_version,
+            list_kubernetes_pods,
             start_talos_probe,
             stop_talos_probe,
             close_talos_session

@@ -212,6 +212,50 @@ pub struct KubernetesVersionDto {
     pub minor: String,
 }
 
+/// Readiness category derived from bounded Pod container status fields.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum KubernetesPodReadinessDto {
+    /// At least one container is reported and all reported containers are ready.
+    Ready,
+    /// At least one reported container is not ready.
+    NotReady,
+    /// The API response omitted container status information.
+    Unknown,
+}
+
+/// Bounded, nonsensitive projection of one Kubernetes Pod.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+pub struct KubernetesPodDto {
+    /// Kubernetes object name.
+    pub name: String,
+    /// Namespace that scoped the list request.
+    pub namespace: String,
+    /// Server identity that distinguishes a recreated Pod.
+    pub uid: String,
+    /// Opaque object resource version.
+    pub resource_version: String,
+    /// Bounded phase or `Unknown` when the server omitted it.
+    pub phase: String,
+    /// Readiness summary without container names or raw status fields.
+    pub readiness: KubernetesPodReadinessDto,
+}
+
+/// Complete or explicitly partial result from one bounded namespaced Pod list.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+pub struct KubernetesPodListDto {
+    /// Session that performed the read.
+    pub session_id: String,
+    /// Namespace fixed for every page in this result.
+    pub namespace: String,
+    /// Resource version shared by all collected pages.
+    pub resource_version: String,
+    /// Whether every server-side page was collected before a bound was reached.
+    pub complete: bool,
+    /// Bounded, nonsensitive Pod summaries collected so far.
+    pub items: Vec<KubernetesPodDto>,
+}
+
 /// A stable, nonsensitive error returned over application IPC.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
 pub struct ApplicationErrorDto {
@@ -231,7 +275,8 @@ pub struct ApplicationErrorDto {
 mod tests {
     use super::{
         AppearanceDensity, AppearanceSettingsDto, AppearanceTheme, ApplicationErrorDto,
-        CredentialStorageModeDto, HelperState,
+        CredentialStorageModeDto, HelperState, KubernetesPodDto, KubernetesPodListDto,
+        KubernetesPodReadinessDto,
     };
 
     #[test]
@@ -267,6 +312,41 @@ mod tests {
             serde_json::to_value(CredentialStorageModeDto::VaultUnavailable)
                 .unwrap_or_else(|_| panic!("storage mode must serialize")),
             "vault_unavailable"
+        );
+    }
+
+    #[test]
+    fn kubernetes_pod_list_wire_projection_is_bounded_and_snake_case() {
+        let result = KubernetesPodListDto {
+            session_id: "kube-session-7".to_owned(),
+            namespace: "workloads".to_owned(),
+            resource_version: "opaque-rv".to_owned(),
+            complete: false,
+            items: vec![KubernetesPodDto {
+                name: "web-0".to_owned(),
+                namespace: "workloads".to_owned(),
+                uid: "uid-web-0".to_owned(),
+                resource_version: "opaque-rv".to_owned(),
+                phase: "Running".to_owned(),
+                readiness: KubernetesPodReadinessDto::NotReady,
+            }],
+        };
+        assert_eq!(
+            serde_json::to_value(result).unwrap_or_else(|_| panic!("Pod list DTO must serialize")),
+            serde_json::json!({
+                "session_id": "kube-session-7",
+                "namespace": "workloads",
+                "resource_version": "opaque-rv",
+                "complete": false,
+                "items": [{
+                    "name": "web-0",
+                    "namespace": "workloads",
+                    "uid": "uid-web-0",
+                    "resource_version": "opaque-rv",
+                    "phase": "Running",
+                    "readiness": "not_ready"
+                }]
+            })
         );
     }
 }

@@ -9,6 +9,8 @@ import type { HelperCapability } from "./generated/HelperCapability";
 import type { HelperState } from "./generated/HelperState";
 import type { HelperStatusDto } from "./generated/HelperStatusDto";
 import type { KubernetesCredentialSummaryDto } from "./generated/KubernetesCredentialSummaryDto";
+import type { KubernetesPodListDto } from "./generated/KubernetesPodListDto";
+import type { KubernetesPodReadinessDto } from "./generated/KubernetesPodReadinessDto";
 import type { KubernetesSessionDto } from "./generated/KubernetesSessionDto";
 import type { KubernetesVersionDto } from "./generated/KubernetesVersionDto";
 import type { TalosCredentialSessionDto } from "./generated/TalosCredentialSessionDto";
@@ -30,6 +32,8 @@ const MAX_VERSION_FIELD_LENGTH = 64;
  * so no accepted response can exceed their sum.
  */
 const MAX_CREDENTIAL_LIST_LENGTH = 512;
+const MAX_POD_LIST_LENGTH = 10_000;
+const UTF8_ENCODER = new TextEncoder();
 const TALOS_PROBE_STATES: ReadonlySet<string> = new Set([
   "connecting",
   "healthy",
@@ -253,6 +257,53 @@ export function parseKubernetesVersionDto(value: unknown): KubernetesVersionDto 
   };
 }
 
+/** Validates a bounded, namespaced Pod projection returned by native IPC. */
+export function parseKubernetesPodListDto(value: unknown): KubernetesPodListDto {
+  if (
+    !isRecord(value) ||
+    !isKubernetesSessionId(value.session_id) ||
+    !isKubernetesNamespace(value.namespace) ||
+    !isBoundedUtf8String(value.resource_version, 128) ||
+    typeof value.complete !== "boolean" ||
+    !Array.isArray(value.items) ||
+    value.items.length > MAX_POD_LIST_LENGTH
+  ) {
+    throw new IpcContractError();
+  }
+  const namespace = value.namespace;
+
+  const items = value.items.map((item): KubernetesPodListDto["items"][number] => {
+    if (
+      !isRecord(item) ||
+      !isKubernetesPodName(item.name) ||
+      !isKubernetesNamespace(item.namespace) ||
+      item.namespace !== namespace ||
+      !isBoundedUtf8String(item.uid, 64) ||
+      !isBoundedUtf8String(item.resource_version, 128) ||
+      !isBoundedUtf8String(item.phase, 32) ||
+      !isKubernetesPodReadiness(item.readiness)
+    ) {
+      throw new IpcContractError();
+    }
+    return {
+      name: item.name,
+      namespace: item.namespace,
+      uid: item.uid,
+      resource_version: item.resource_version,
+      phase: item.phase,
+      readiness: item.readiness,
+    };
+  });
+
+  return {
+    session_id: value.session_id,
+    namespace: value.namespace,
+    resource_version: value.resource_version,
+    complete: value.complete,
+    items,
+  };
+}
+
 /** Validates safe metadata returned after importing a native Talos context. */
 export function parseTalosCredentialSessionDto(value: unknown): TalosCredentialSessionDto {
   if (
@@ -367,6 +418,40 @@ function isCredentialHandle(value: unknown): value is string {
 /** Narrows a value to a backend-issued Kubernetes session identifier. */
 function isKubernetesSessionId(value: unknown): value is string {
   return typeof value === "string" && /^kube-session-[0-9]+$/u.test(value);
+}
+
+function isBoundedUtf8String(value: unknown, maxBytes: number): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= maxBytes &&
+    UTF8_ENCODER.encode(value).byteLength <= maxBytes &&
+    !Array.from(value).some((character) => {
+      const codePoint = character.codePointAt(0);
+      return (
+        codePoint === undefined ||
+        codePoint <= 0x1f ||
+        (codePoint >= 0x7f && codePoint <= 0x9f) ||
+        (codePoint >= 0x202a && codePoint <= 0x202e) ||
+        (codePoint >= 0x2066 && codePoint <= 0x2069)
+      );
+    })
+  );
+}
+
+function isKubernetesNamespace(value: unknown): value is string {
+  return isBoundedUtf8String(value, 63) && /^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$/u.test(value);
+}
+
+function isKubernetesPodName(value: unknown): value is string {
+  return (
+    isBoundedUtf8String(value, 253) &&
+    value.split(".").every((part) => /^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$/u.test(part))
+  );
+}
+
+function isKubernetesPodReadiness(value: unknown): value is KubernetesPodReadinessDto {
+  return value === "ready" || value === "not_ready" || value === "unknown";
 }
 
 /** Narrows a value to one bounded, nonsecret Kubernetes version field. */
