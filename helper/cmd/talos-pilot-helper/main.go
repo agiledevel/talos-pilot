@@ -38,6 +38,16 @@ const (
 	reconnectAttemptDeadline = 15 * time.Second
 	// reconnectMaxJitter scales a backoff by at most ±20%.
 	reconnectMaxJitter = 0.2
+	// stallDetectionWindow is the silence after which one bounded liveness read
+	// runs on the subscription's node-pinned session. It is twice the attempt
+	// deadline, so the documented stale bound is 30 s + 15 s = 45 s and the
+	// documented terminal bound is about 92 s (decision 0013).
+	stallDetectionWindow = 30 * time.Second
+	// streamJoinWindow bounds waiting for a failed watch to stop before the
+	// stream emits the stale marker or starts another watch. A callback still
+	// blocked on an undrained output pipe after the bound cannot be followed
+	// by any further frame.
+	streamJoinWindow = 5 * time.Second
 )
 
 // reconnectBackoffs are the waits before the second and third reconnect
@@ -48,13 +58,25 @@ var reconnectBackoffs = [reconnectMaxAttempts - 1]time.Duration{
 	time.Second,
 }
 
-// reconnectPolicy is the injectable mid-stream reconnection policy of one
-// probe subscription. Tests inject tiny backoffs and identity jitter while
-// keeping the attempt accounting identical to production.
+// reconnectPolicy is the injectable mid-stream policy of one probe
+// subscription: the silence window and bounded liveness check of decision 0013
+// plus the reconnection backoffs, jitter, and deadlines of decision 0011. Tests
+// inject tiny backoffs, an injected clock, and identity jitter while keeping
+// the attempt accounting identical to production.
 type reconnectPolicy struct {
 	backoffs        [reconnectMaxAttempts - 1]time.Duration
 	jitter          func(time.Duration) time.Duration
 	attemptDeadline time.Duration
+	// stallWindow is the silence window after which one liveness check runs on
+	// the node-pinned session.
+	stallWindow time.Duration
+	// joinWindow bounds waiting for a failed watch to stop before the stream
+	// emits its next frame or starts another watch.
+	joinWindow time.Duration
+	// clock owns the subscription's window, join, and backoff waits.
+	// Deterministic tests inject a clock they advance explicitly; production
+	// uses realClock.
+	clock subscriptionClock
 }
 
 // defaultReconnectPolicy is the policy documented in docs/protocol/helper-v1.md.
@@ -63,8 +85,41 @@ func defaultReconnectPolicy() reconnectPolicy {
 		backoffs:        reconnectBackoffs,
 		jitter:          jitterDuration,
 		attemptDeadline: reconnectAttemptDeadline,
+		stallWindow:     stallDetectionWindow,
+		joinWindow:      streamJoinWindow,
+		clock:           realClock{},
 	}
 }
+
+// subscriptionClock abstracts the waits of one subscription so deterministic
+// tests can advance time explicitly instead of sleeping.
+type subscriptionClock interface {
+	NewTimer(time.Duration) subscriptionTimer
+}
+
+// subscriptionTimer is one wait that must be stopped when abandoned so no
+// timer outlives the subscription that created it.
+type subscriptionTimer interface {
+	C() <-chan time.Time
+	Stop()
+}
+
+// realClock is the production subscriptionClock.
+type realClock struct{}
+
+// NewTimer starts a real timer.
+func (realClock) NewTimer(after time.Duration) subscriptionTimer {
+	return realTimer{timer: time.NewTimer(after)}
+}
+
+type realTimer struct {
+	timer *time.Timer
+}
+
+func (timer realTimer) C() <-chan time.Time { return timer.timer.C }
+
+// Stop releases the timer whether or not it had fired.
+func (timer realTimer) Stop() { timer.timer.Stop() }
 
 // jitterDuration scales one backoff by a factor in [0.8, 1.2], which is the
 // documented maximum jitter of ±20%. The randomness quality is irrelevant: the
@@ -78,6 +133,9 @@ var buildIdentity = "development"
 
 type probeSession interface {
 	ReadVersion(context.Context) (string, error)
+	// CheckLiveness performs one bounded liveness read on the session's
+	// node-pinned connection (decision 0013).
+	CheckLiveness(context.Context) error
 	WatchMachineStatus(context.Context, func(talosprobe.Status) error) error
 	Close() error
 }
@@ -335,6 +393,7 @@ func runProbe(
 		requestID:  request.RequestId,
 		policy:     reconnect,
 		generation: 1,
+		activity:   make(chan struct{}, 1),
 	}
 	firstStatus := make(chan talosprobe.Status, 1)
 	allowStream := make(chan struct{})
@@ -419,6 +478,21 @@ type subscriptionStream struct {
 	sequence   uint64
 	staleSent  bool
 	attempts   int
+	// activity is signalled whenever a data frame is delivered, which resets
+	// the stall-detection window (decision 0013). It is buffered so the watch
+	// callback never blocks on it.
+	activity chan struct{}
+}
+
+// noteActivity records that a data frame is being delivered so the stall
+// detection measures silence from the last projection; an actively updating
+// stream is never probed. A full buffer coalesces the signal, which is enough
+// because the window restarts from the newest activity.
+func (stream *subscriptionStream) noteActivity() {
+	select {
+	case stream.activity <- struct{}{}:
+	default:
+	}
 }
 
 // sendEvent projects one MachineStatus update of the current generation.
@@ -427,6 +501,7 @@ func (stream *subscriptionStream) sendEvent(status talosprobe.Status) error {
 		return errors.New("Talos status sequence limit reached")
 	}
 	nextSequence := stream.sequence + 1
+	stream.noteActivity()
 	if err := stream.writer.send(&protocolv1.Envelope{
 		ProtocolMajor: protocolMajor,
 		Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_STATUS_EVENT,
@@ -450,6 +525,7 @@ func (stream *subscriptionStream) sendSnapshot(status talosprobe.Status, generat
 		return errors.New("Talos status sequence limit reached")
 	}
 	nextSequence := stream.sequence + 1
+	stream.noteActivity()
 	if err := stream.writer.send(&protocolv1.Envelope{
 		ProtocolMajor: protocolMajor,
 		Kind:          protocolv1.MessageKind_MESSAGE_KIND_TALOS_STATUS_EVENT,
@@ -499,14 +575,16 @@ func (stream *subscriptionStream) sendFailure(code string) error {
 
 // run streams the subscription's watch generations until the stream ends.
 //
-// The first generation's watch is already running when run is called. A
-// mid-stream failure marks the projection stale; a retryable failure then
-// re-establishes the node-pinned watch through the same session, at most
-// reconnectMaxAttempts times in total, waiting the bounded jittered backoff
-// before attempts two and three and bounding each attempt by the policy
-// deadline. A permission, TLS, or input failure never retries, and an
-// exhausted budget ends the subscription with a terminal unavailable outcome.
-// The old projection stays stale until a replacement snapshot arrives.
+// The first generation's watch is already running when run is called. Silence
+// beyond the policy's stall window triggers one bounded liveness check on the
+// node-pinned session; a failed check is an interruption exactly like a failed
+// watch (decision 0013). An interruption marks the projection stale; a
+// retryable failure then re-establishes the node-pinned watch through the same
+// session, at most reconnectMaxAttempts times in total, waiting the bounded
+// jittered backoff before attempts two and three and bounding each attempt by
+// the policy deadline. A permission, TLS, or input failure never retries, and
+// an exhausted budget ends the subscription with a terminal unavailable
+// outcome. The old projection stays stale until a replacement snapshot arrives.
 func (stream *subscriptionStream) run(
 	ctx context.Context,
 	session probeSession,
@@ -516,19 +594,51 @@ func (stream *subscriptionStream) run(
 	defer cancelWatch()
 	for {
 		var watchErr error
+		window := stream.policy.clock.NewTimer(stream.policy.stallWindow)
 		select {
 		case watchErr = <-done:
-		case <-ctx.Done():
-			cancelWatch()
-			select {
-			case err := <-done:
-				if err != nil && !errors.Is(err, context.Canceled) {
-					_ = stream.sendFailure(talosprobe.FailureCode(err))
-					return
-				}
-				_ = stream.sendEnd("cancelled")
-			case <-time.After(5 * time.Second):
+			window.Stop()
+		case <-stream.activity:
+			// A delivered projection proves liveness by itself; measure the
+			// next silence window from it.
+			window.Stop()
+			continue
+		case <-window.C():
+			checkErr := stream.check(ctx, session)
+			if ctx.Err() != nil {
+				// The parent cancelled while the check was in flight; the
+				// cancelled check has already returned.
+				stream.finishCancelled(done, cancelWatch)
+				return
 			}
+			if checkErr == nil {
+				// The node answered on the pinned connection, so the silence
+				// was legitimate and the projection stays current.
+				continue
+			}
+			// The node stopped responding. Stop the watch before the stale
+			// marker so no callback can emit a data frame after it. A real
+			// watch failure that crossed the check is the better diagnosis.
+			joinedErr, joined := stream.joinWatch(done, cancelWatch)
+			if !joined {
+				// The watch callback is still blocked on an undrained output
+				// pipe, so emitting a frame or starting another watch could
+				// corrupt the sequence. Mirror the cancellation join-timeout
+				// disposition and end without a terminal frame; the parent's
+				// own cancellation or exit bound handles a pipe it stopped
+				// draining.
+				return
+			}
+			watchErr = checkErr
+			if !errors.Is(joinedErr, context.Canceled) {
+				// The watch ended by itself or failed on its own while the
+				// check ran; that outcome takes precedence over the cancelled
+				// check and keeps the established dispositions.
+				watchErr = joinedErr
+			}
+		case <-ctx.Done():
+			window.Stop()
+			stream.finishCancelled(done, cancelWatch)
 			return
 		}
 		cancelWatch()
@@ -548,9 +658,9 @@ func (stream *subscriptionStream) run(
 			return
 		}
 
-		// A failed watch with the parent alive is either a mid-stream failure
-		// or a failed reconnect attempt. Either way the projection is stale
-		// until a valid replacement snapshot arrives.
+		// A failed watch or liveness check with the parent alive is either a
+		// mid-stream failure or a failed reconnect attempt. Either way the
+		// projection is stale until a valid replacement snapshot arrives.
 		if !stream.staleSent {
 			if err := stream.sendStale(); err != nil {
 				return
@@ -573,11 +683,14 @@ func (stream *subscriptionStream) run(
 		}
 		if stream.attempts > 0 {
 			delay := stream.policy.jitter(stream.policy.backoffs[stream.attempts-1])
+			backoff := stream.policy.clock.NewTimer(delay)
 			select {
 			case <-ctx.Done():
+				backoff.Stop()
 				_ = stream.sendEnd("cancelled")
 				return
-			case <-time.After(delay):
+			case <-backoff.C():
+				backoff.Stop()
 			}
 		}
 		stream.attempts++
@@ -585,6 +698,54 @@ func (stream *subscriptionStream) run(
 		// Reconnect through the official Talos client on the same node-pinned
 		// session, preserving node and credential identity (decision 0007).
 		done, cancelWatch = stream.attemptWatch(ctx, session, stream.generation+1)
+	}
+}
+
+// check performs one bounded liveness read on the subscription's node-pinned
+// session (decision 0013). It runs in the subscription's single loop, so at
+// most one check is ever in flight. The check context carries the policy's
+// attempt deadline, and cancelling the subscription cancels the call, which
+// then returns promptly. It returns nil when the node answered and the
+// classified failure otherwise.
+func (stream *subscriptionStream) check(ctx context.Context, session probeSession) error {
+	checkContext, cancelCheck := context.WithTimeout(ctx, stream.policy.attemptDeadline)
+	defer cancelCheck()
+
+	return session.CheckLiveness(checkContext)
+}
+
+// finishCancelled ends a stream whose parent was cancelled. It stops the
+// current watch inside the policy's join window and reports a real watch
+// failure that crossed the cancellation; otherwise it sends the clean terminal
+// frame, and only after the watch ended, so no callback can emit a frame after
+// it.
+func (stream *subscriptionStream) finishCancelled(done chan error, cancelWatch context.CancelFunc) {
+	err, joined := stream.joinWatch(done, cancelWatch)
+	if !joined {
+		return
+	}
+	if err != nil && !errors.Is(err, context.Canceled) {
+		_ = stream.sendFailure(talosprobe.FailureCode(err))
+		return
+	}
+	_ = stream.sendEnd("cancelled")
+}
+
+// joinWatch cancels the current watch and waits up to the policy's join window
+// for its goroutine to end. It reports the watch outcome and whether the watch
+// ended inside the bound. A timed-out join means the watch callback is still
+// blocked on an undrained output pipe, so the caller must not emit any further
+// frame or start another watch; the parent's own cancellation or exit bound
+// handles a pipe it stopped draining.
+func (stream *subscriptionStream) joinWatch(done chan error, cancelWatch context.CancelFunc) (error, bool) {
+	cancelWatch()
+	join := stream.policy.clock.NewTimer(stream.policy.joinWindow)
+	defer join.Stop()
+	select {
+	case err := <-done:
+		return err, true
+	case <-join.C():
+		return nil, false
 	}
 }
 

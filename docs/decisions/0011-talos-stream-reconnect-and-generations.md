@@ -62,7 +62,10 @@ The helper protocol's generation/sequence invariants are enforced in one place
 so a confused or malicious frame cannot present old data as current. A long
 freeze of the target machine is not detected as a failure (TCP keepalive
 defaults are far above the probe's bounds), so staleness follows observed
-failures, not silence; stall detection is out of scope for the v1 probe. The
+failures, not silence. This consequence is **superseded on 2026-10-12 by
+[0013](0013-talos-stream-stall-detection.md)**: packet F1a detects a stalled
+node within a bounded, documented window on the node-pinned session and then
+uses this decision's failure policy unchanged. The
 256-event cap now counts replacement snapshots, which slightly shortens the
 usable window after a reconnect; the cap is never raised to compensate.
 Milestone 2 subscriptions must reuse these generation semantics rather than
@@ -104,9 +107,23 @@ The owner decided on 2026-10-12:
 2. "Stall detection is out of scope for the v1 probe" no longer stands as a
    scope statement. Bounded stall detection is delivered by packet
    [F1a](../plans/foundation-completion-flash.md#f1a--detect-a-stalled-talos-stream),
-   whose own decision record fixes the mechanism and bounds and supersedes that
-   consequence. Until F1a is accepted, the behavior described above is the
-   implemented behavior.
+   whose decision record
+   ([0013](0013-talos-stream-stall-detection.md), 2026-10-12) fixes the
+   mechanism and bounds and supersedes that
+   consequence. Until F1a is accepted, the live behavior described above is
+   the recorded behavior. F1a's own mechanism is implemented in the helper as
+   of 2026-10-12 under [0013](0013-talos-stream-stall-detection.md), with
+   deterministic framed tests; its live stall and exhaustion row remains
+   unexecuted in the milestone ledger.
 
 The retry policy, the generation and sequence invariants, and the helper's
 ownership of reconnection are unchanged.
+
+**Correction, same day.** The reboot observation above was recorded without its
+cause. [0013](0013-talos-stream-stall-detection.md#the-official-client-already-retries-a-broken-watch)
+gives the probable one from the pinned sources: the official client retries a
+broken watch by itself for up to 15 minutes and reports an error only when the
+server rejects its bookmark, which a restarted node does. The suspended-worker
+observation is a different case, a connection that stays open and silent. With
+0013's check in place a reboot is no longer invisible to the helper, so the
+first bullet above describes this decision's policy as it stood before 0013.

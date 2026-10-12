@@ -1507,3 +1507,200 @@ The C0.1 and C3.3 rows that describe radio-group appearance controls and "narrow
 | ----------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | R3                | Low      | A probe yielding several events is active, `status()` returns before the probe ends, the probe then completes normally, and no two exchanges touch the pipe concurrently. | Deferred: no renderer path polls helper status; a child-owning task that schedules pipe access from a request queue is a larger change for a later milestone and must land before any feature polls status. |
 | R4 (verification) | Low      | `pnpm test:native` passes the storage and appearance flows with the async storage commands.                                                                               | Executed in later aggregate CI/native runs; see the 2026-10-11 review note above. The original packet's missing run remains historical. Refresh final-candidate evidence in F0.                             |
+
+## F1a packet evidence: bounded stall detection, steps 1–3 — 2026-10-12
+
+Packet / C checkpoint / FND IDs: F1a
+([plan](../plans/foundation-completion-flash.md#f1a--detect-a-stalled-talos-stream)),
+mapped to C4 and FND-004. **In progress: step 4, the live stall and exhaustion
+row, is unexecuted and runs in F3's fixture session.** This packet promotes no
+checkpoint; C4's live retry-exhaustion evidence stays recorded as absent.
+
+Base and final revision; working-tree changes: base `896e613` on
+`ft-foundation-completion`; the final revision is the commit carrying this
+entry, made after the handoff review recorded below. Files changed: the helper implementation, tests, and
+decision/protocol documents listed below; the Rust supervisor, TypeScript
+adapter, renderer, `proto/`, generated outputs, manifests, and CI are untouched.
+
+Trigger, observable behavior, invariants: a subscription whose pinned node
+stops responding without breaking the connection is no longer silently current.
+Silence is measured from the last delivered data frame; after the documented
+30-second window the helper performs one unary `Version` read on the
+node-pinned stream session, bounded by the existing 15-second attempt deadline.
+A passed check keeps the projection current; a failed check is an interruption:
+the helper stops the watch (bounded by a 5-second join window), emits the
+existing `TALOS_STREAM_STALE` marker, and spends the existing three-attempt
+budget (0.5 s/1 s jittered backoffs, 15-second attempts) to a replacement
+snapshot under the next generation or terminal `talos_unavailable`. Check
+permission/TLS failures are terminal and never retried. At most one check is in
+flight; cancellation ends a check promptly. No message kind, field, sequence
+rule, generation rule, or the 256-event cap changed, so no wire-contract change
+was needed.
+
+Files/contracts/ADRs changed:
+
+| File                                                                | Change                                                                                                                      |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| [0013](../decisions/0013-talos-stream-stall-detection.md) (new)     | Context, mechanism, path analysis, 30 s window derivation, alternatives, consequences, step-4 unverified list, verification |
+| [0011](../decisions/0011-talos-stream-reconnect-and-generations.md) | Stall-detection consequence marked superseded; amendment links 0013 and records that only step 4 is unexecuted              |
+| `helper/internal/talosprobe/client.go`                              | `Session.CheckLiveness`: one bounded unary `Version` read on the node-pinned stream connection                              |
+| `helper/cmd/talos-pilot-helper/main.go`                             | Policy gains `stallWindow`, `joinWindow`, injected clock; silence window with activity reset; bounded check; join bound     |
+| `helper/cmd/talos-pilot-helper/main_test.go`                        | Injected fake clock, scripted checks and per-status gates, and nine deterministic stall/join tests                          |
+| [helper-v1.md](../protocol/helper-v1.md)                            | Stall detection semantics, path, bounds, join-timeout disposition, bounds list                                              |
+| [application-ipc.md](../protocol/application-ipc.md)                | A stale marker no longer requires an observed connection failure; renderer contract unchanged                               |
+| [README.md](../../README.md)                                        | Current-stage paragraph: F1a implemented with deterministic tests, live row unexecuted                                      |
+
+Exact commands; host/toolchain/WebView; exit results:
+
+Host: openSUSE Tumbleweed 20261003, Linux 7.2.8-1-default x86_64. Toolchain:
+Go 1.27.2 provisioned from the module cache
+(`~/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.linux-amd64`), its zip hash
+`h1:N6Xv/1OLzI0jVVkUwkrxHRZc/GCTARUo6idcngKwlDE=` checked against
+`sum.golang.org` and `GOTOOLCHAIN=go1.27.2` selecting it from system Go 1.27.1.
+No host configuration changed. Node/pnpm, Rust, and protoc were not needed:
+no renderer, Rust, IPC/proto, or packaging boundary changed.
+
+| Command (from `helper/`)                                                                        | Result                                                                             |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `gofmt -l .`                                                                                    | Pass: no paths                                                                     |
+| `GOTOOLCHAIN=go1.27.2 go vet ./...`                                                             | Pass                                                                               |
+| `GOTOOLCHAIN=go1.27.2 go test -count=1 ./...`                                                   | Pass: all four packages                                                            |
+| `GOTOOLCHAIN=go1.27.2 go test -race -count=1 ./...`                                             | Pass                                                                               |
+| `GOTOOLCHAIN=go1.27.2 go test -count=1 ./...` (`-run TestStall`)                                | Pass, zero wall time; `-count=150` and `-race -count=25` stress runs also pass     |
+| `GOTOOLCHAIN=go1.27.2 go mod verify`                                                            | Pass: all modules verified                                                         |
+| `GOTOOLCHAIN=go1.27.2 go build ./...`                                                           | Pass                                                                               |
+| `govulncheck@v1.8.0 ./...` (same pin as `pnpm audit:go`, run directly with Go 1.27.2 on `PATH`) | Pass: no reachable vulnerabilities; one module-level finding not in the call graph |
+| `git diff --check`, `git diff --cached --check`                                                 | Pass                                                                               |
+| Markdown link and heading-anchor validation of every changed file                               | Pass                                                                               |
+
+Native vs mocked vs real-cluster evidence: deterministic in-process framed
+tests with scripted sessions and a fake clock only, plus the production Go
+build. No Tauri/native run, no installer, and no real cluster was used. The
+live `Version` call path, the frozen-node timing, and the fixture rows are step
+4 and are **unexecuted**.
+
+Fixture identity, versions, topology, allowlist, cleanup evidence: none. No
+fixture was provisioned, contacted, suspended, rebooted, or modified; no
+firewall, zone, interface, or route changed; no QEMU or `talosctl` command ran.
+The recorded fixture remediation is neither needed nor touched by steps 1–3.
+
+Passed / failed / unexecuted rows and practical limits:
+
+Passed: the Go gates above on the final tree, and the nine deterministic tests
+covering the acceptance list: failing checks reach stale and exhaustion
+(`talos_unavailable`); passing checks keep an idle stream current across
+several windows with serial, deadline-bounded checks; a cleared stall recovers
+under generation 2 with a continuous sequence; cancellation during a check ends
+promptly and cleanly; permission and TLS check failures are terminal with no
+retry; helper exit with a check in flight leaves no task, timer, or connection;
+the window triggers exactly at its bound and not one nanosecond earlier; an
+unjoined watch ends without a stale marker or a second watch.
+
+Failed: none on the final tree.
+
+**Unexecuted, with the practical limit:**
+
+- F1a step 4, the live stall and exhaustion row, plus decision 0013's step-4
+  rows below: no fixture was provisioned or contacted in this session.
+- Rust default/native-test, `contracts:check`, renderer, browser, native, and
+  packaging gates: no such boundary changed (the diff touches only Go helper
+  sources/tests and documentation), so none was run; that is not a pass.
+- `pnpm audit:go` itself: Node 26.11.1/pnpm 12.10.1 were not provisioned for an
+  unchanged frontend boundary; the same pinned `govulncheck@v1.8.0` was run
+  directly instead, which is the scan that command performs.
+- The 15-second check-deadline _firing_ on a real frozen node: the context
+  deadline is asserted for every check, and the timeout classification is
+  scripted, but the frozen-node timing is fixture-only (step 4).
+- macOS/Windows: no such host; none of the changed boundaries is native.
+
+### Step 4 (unverified assumptions from decision 0013)
+
+| Row                                                                             | Acceptance                                                                                                      | Prerequisites                                                                                 |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Frozen worker (`SIGSTOP`): the unary `Version` check hangs to its 15 s deadline | Stale marker within the documented 45 s of the last projection and terminal `TALOS_UNAVAILABLE` within ≈ 92 s   | Provisioned fixture session; the already-authorized SIGSTOP/SIGCONT; `ae67a9c`'s resume guard |
+| Idle healthy stream observed longer than the window                             | No stale marker, no error, sequence continuous                                                                  | Same fixture session, before any suspension                                                   |
+| Power-loss and partition                                                        | Same outcome as freeze                                                                                          | Fixture actions allowed by the manifest; not yet designed as a row                            |
+| Suspend released as soon as the stale marker is seen                            | Replacement snapshot, generation 2, continuous sequence; the first attempt is served inside its deadline        | Same fixture session; the resume guard                                                        |
+| Reboot, with the outage measured                                                | `TALOS_UNAVAILABLE` when the outage outlasts the stale bound plus the budget; recovery only when it was shorter | Same fixture session; replaces the F1 reboot row's either-outcome assertion                   |
+| The official client's watch retry, as read from the sources                     | A broken connection stays silent to the helper; a rebooted node rejects the earlier bookmark                    | Same fixture session; observed during the reboot row                                          |
+| Window threshold on a real node                                                 | The check's live timing at the boundary matches the documented window                                           | Same fixture session; deterministic boundary already proven                                   |
+
+The six earlier live rows must be re-run in that session because the harness
+changes; the reboot command form must be re-checked against the allowlist if it
+changes; and step 4 must also stop the live cases from blocking the test
+runtime, per the packet.
+
+### Separate final review findings and resolutions
+
+A separate review pass over the final diff (self-review plus an independent
+read-only review with the race suite re-run) found and resolved:
+
+1. **Major — a timed-out watch join on the new stall path could emit after a
+   still-writing callback or start a second watch.** Resolved: the join bound
+   is now the injectable `joinWindow` (5 s production, fake-clock driven in
+   tests); a timed-out join ends the stream without a stale marker, an attempt,
+   or a second watch; when the join succeeds, a real watch outcome takes
+   precedence over the cancelled check, so a terminal watch class is not
+   retried. New test: `TestStallCheckUnjoinedWatchEndsWithoutReconnecting`.
+2. **Minor — the documented 45 s bound ignored the watch stop.** Resolved:
+   decision 0013 and helper-v1.md now state 45 s plus at most the 5-second join
+   window, which elapses only when the parent has stopped draining the pipe,
+   and the unjoined disposition.
+3. **Minor — the check's 15-second bound and one-in-flight property were
+   implicitly tested.** Resolved: every scripted check asserts its context
+   deadline is positive and ≤ the attempt deadline (`requireBoundedCheck`), and
+   the passing-checks test asserts serial execution with an atomic counter.
+4. **Minor — the 0011 amendment still said the pre-F1a behavior was
+   implemented.** Resolved: the amendment now records that 0013's mechanism is
+   implemented and only the live row is unexecuted.
+5. Nits kept as-is with reasons: `noteActivity` is recorded before the frame
+   write, so an event that is still being delivered can reset the window at the
+   exact boundary (harmless, and the check is unaffected); the cancellation
+   test helper accepts the two terminal frames in either order (the production
+   order is unchanged from 0011 and covered by the deterministic assertions
+   elsewhere).
+
+### Handoff review and owner decision — 2026-10-12
+
+A second review of the staged handoff, before the commit, re-ran the Go gates
+on Go 1.27.2 (`gofmt -l .`, `go vet ./...`, `go build ./...`,
+`go test -count=1 ./...`, `go test -race -count=1 ./...`: all pass) and read
+the helper diff against the pinned client sources. It found:
+
+1. **`pnpm format:check` failed on this ledger entry's tables.** The handoff
+   ran link checks but not the format gate, which CI runs through `pnpm check`.
+   Fixed with `pnpm format`; the check now passes.
+2. **Decision 0013 had not accounted for the official client's own watch
+   retry.** The Talos client leaves the COSI adapter's retry on, so a broken
+   connection is silent to the helper for up to 15 minutes. 0013 now records
+   it, with the source locations, as the probable cause of F1 part 3's reboot
+   observation; the 0011 amendment carries the correction.
+3. **A node reboot now usually ends the subscription.** The check fails during
+   the outage and the three attempts are spent while the node is down, where
+   F1 part 3's reboot row recovered under generation 2. **The owner accepted
+   this on 2026-10-12**: an outage that outlasts the budget is terminal and
+   needs an explicit reconnect, and the retry policy stays unchanged. Not
+   chosen: holding the stream stale without spending attempts until a check
+   passes. Recorded in 0013 and both protocol documents.
+4. **The step 4 rows accepted outcomes too loosely.** The table above and the
+   plan's F1a step 4 now pin each one, and the F1 reboot row's either-outcome
+   assertion is to be replaced there. The harness is not changed here, because
+   no fixture exists to verify a change to a live row.
+5. **Failed checks draw on the per-subscription budget of three attempts**,
+   which 0011 never refills. Recorded in 0013 as a consequence for long-lived
+   subscriptions.
+
+Findings 2 and 3 are read from `pkg/machinery` v1.14.2 and
+`cosi-project/runtime` v1.16.3. They are not fixture observations and are
+listed as step 4 rows. `govulncheck`, `go mod verify`, and the Rust, contract,
+renderer, native, and live gates were not re-run in this review.
+
+### Next smallest packet and prerequisites
+
+**F3 — the bounded scoped Kubernetes list probe** ([plan](../plans/foundation-completion-flash.md#f3--deliver-the-bounded-scoped-kubernetes-list-probe)),
+whose first fixture session also executes F1a step 4. Prerequisites, unchanged
+from the closure entry: the fixture-scoped host remediation applied by the
+owner or a session permitted to apply it, a fresh host baseline before
+provisioning, and the owner's VPN-route decision for the `10.79.0.0/24`
+shadowing. Until the fixture rows run, F1a stays in progress and C4's live
+retry-exhaustion evidence stays recorded as absent.

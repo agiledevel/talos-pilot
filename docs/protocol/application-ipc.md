@@ -95,6 +95,15 @@ generation while the sequence stays continuous. A stale marker repeats the
 sequence and generation of the projection it invalidates and carries no data
 fields: the state module retains the displayed values and marks them stale, so
 old data stays visibly stale until a valid replacement snapshot arrives. A
+stale marker no longer requires an observed connection failure: when the
+selected node stops responding while the watch stays silent, the backend's
+bounded node-pinned liveness check marks the projection stale first and then
+spends the same reconnect budget ([helper protocol v1](helper-v1.md);
+[decision 0013](../decisions/0013-talos-stream-stall-detection.md)). The
+renderer contract is unchanged by that cause: the outcome is still a
+replacement snapshot or the same terminal error mapping. A node reboot that
+outlasts the reconnect budget is such a terminal outcome: the subscription is
+not resumed, and the user starts the probe again from the view. A
 failed or exhausted subscription ends with an application error state
 (`TALOS_UNAVAILABLE` for an exhausted reconnect budget, the classified code
 for a permission or TLS failure) that the view never presents as current.
