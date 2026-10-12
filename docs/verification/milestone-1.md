@@ -4,6 +4,21 @@ Date opened: 2026-10-08. Base revision: `2926f4c58312a415fb430eca2c014e500f436d6
 
 This is the active evidence record for [milestone 1](../plans/milestone-1-flash.md); the [foundation completion plan](../plans/foundation-completion-flash.md) defines its next execution packets. It distinguishes current checks from historical evidence in [initialization](initialization.md) and [automation](automation.md). A checkpoint remains open until its observable acceptance criteria and required evidence pass on the final changed revision.
 
+## Where evidence continues — 2026-10-12
+
+From 2026-10-12 the remaining foundation packets are worked through the
+[foundation finish series](../plans/foundation-finish/README.md), and their
+packet evidence is written in the
+[series ledger](../plans/foundation-finish/ledger.md), not appended here. This
+document keeps the checkpoint table below, which each session still updates
+with a link to its series entry, and all evidence recorded up to the F1a entry.
+
+The owner decided the same day that milestone 1 may stay open for the macOS and
+Windows rows without blocking further development: the owner has no such
+machine, so those rows are deferred, recorded as unexecuted, and revisited when
+the platforms are available. Hosted macOS and Windows runners remain hosted
+evidence only.
+
 ## Readiness recheck at `f0731cf` — 2026-10-11
 
 The owner requested verification of foundation completion and a next-phase FLASH
@@ -36,7 +51,7 @@ qualification.
 | C5 Kubernetes probe              | In progress (F2 client/credential-session boundary accepted; live list/watch and the version matrix with F3–F5) | On disposable Kubernetes 1.36, demonstrate scoped paginated Rust reads and watch/relist behavior with RBAC/TLS/scope faults and cleanup; run affected read/watch cases on 1.35 and 1.37.                                                                 |
 | C6 UI, workers, and CSP          | Pending                                                                                                         | Qualify system/light/dark and density behavior, accessible feasibility states, lazy offline editor workers, bounded terminal/chart wrappers and disposal, restrictive CSP, and packaged asset behavior.                                                  |
 | C7 advisories and inventory      | Complete on Linux (C8 scans open)                                                                               | Resolve or record applicability for each advisory without silent exclusions; generate/review dependency inventory and notices; preserve exact-revision security automation.                                                                              |
-| C8 package/platform runtime      | Pending                                                                                                         | Qualify clean install/launch/shutdown/uninstall and helper/vault/assets on Linux, macOS Intel/Apple Silicon, and Windows 11; inspect production exclusion and signing/integrity feasibility.                                                             |
+| C8 package/platform runtime      | Pending (macOS and Windows rows deferred by owner decision of 2026-10-12; Linux rows with the finish series)    | Qualify clean install/launch/shutdown/uninstall and helper/vault/assets on Linux, macOS Intel/Apple Silicon, and Windows 11; inspect production exclusion and signing/integrity feasibility.                                                             |
 | C9 budgets and review            | Pending                                                                                                         | Measure declared synthetic and native workloads on recorded hardware, derive and enforce budgets, complete acceptance matrix and separate final review, and hand off with all failed/unrun evidence visible.                                             |
 
 ## Repository review and next phase — 2026-10-11

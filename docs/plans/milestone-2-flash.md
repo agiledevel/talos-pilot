@@ -43,6 +43,16 @@ before acceptance. Feature implementation follows foundation acceptance.
 If the owner directs a changed sequence, record that decision and its
 consequences; keep unexecuted checks visible.
 
+**Owner decision, 2026-10-12.** The owner has no macOS or Windows machine and
+decided that milestone 1 may stay open for those platform rows without blocking
+further development. The entry gate above is therefore met when documents 01 to
+09 of the [foundation finish series](foundation-finish/README.md) are done on
+Linux, as its [ledger](foundation-finish/ledger.md) records. The deferred rows
+stay listed there as unexecuted and are revisited through
+[series document 10](foundation-finish/10-platform-revisit.md) when the
+platforms are available. Items 2 and 3 above apply to the Linux rows now and to
+the deferred rows then.
+
 ## 2. Scope and boundaries
 
 | Deliver in milestone 2               | Acceptance boundary                                                                                                                                                           |
@@ -586,9 +596,9 @@ changes; ownership and numeric limits; normal/invalid/denied/failure/cleanup tes
 commands, exit codes and actual hosts; mock versus native/live evidence; separate
 review findings; remaining tasks with acceptance criteria; next smallest packet.
 
-**Current next executable work:** foundation F1a, named in the
-[foundation ledger](../verification/milestone-1.md#f1-closure-and-f2-acceptance--owner-decisions-2026-10-12),
-followed by F3–F10. This milestone 2 plan remains prepared until that acceptance gate closes.
+**Current next executable work:** the
+[foundation finish series](foundation-finish/README.md); its
+[ledger](foundation-finish/ledger.md) names the next document. This milestone 2 plan remains prepared until that acceptance gate closes.
 
 After foundation acceptance, use:
 

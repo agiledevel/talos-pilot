@@ -1,6 +1,6 @@
 # Foundation completion: FLASH implementation plan
 
-Date: 2026-10-11. Revision: 3 (2026-10-12: F1 closed and F2 accepted by owner decision; packet F1a added. Revision 2 made the same-day review corrections to packet order, fixture authority, and starting bounds). Status: ready for incremental implementation; milestone 1 remains incomplete.
+Date: 2026-10-11. Revision: 4 (2026-10-12: the owner deferred the macOS and Windows rows without blocking further work, and the remaining packets are worked through the [foundation finish series](foundation-finish/README.md). Revision 3, the same day: F1 closed and F2 accepted by owner decision; packet F1a added. Revision 2 made the same-day review corrections to packet order, fixture authority, and starting bounds). Status: ready for incremental implementation; milestone 1 remains incomplete.
 
 Reviewed baseline: `main` at `11d4e192de0e3c7a36d68053572d66811142eb73`, with a clean working tree before this documentation change. This is the active execution plan for the remaining foundation work. The [original milestone plan](milestone-1-flash.md) supplies the full acceptance matrix; the [milestone ledger](../verification/milestone-1.md) remains the evidence authority. FLASH means small implementation packets for a fast implementing model, each with bounded context, observable acceptance criteria, checks, and a durable handoff.
 
@@ -13,6 +13,12 @@ The owner confirmed these choices on 2026-10-11:
 1. The next phase completes milestone 1; it does not start the connections/resource-browser milestone.
 2. Kubernetes 1.36 runs in an allowlisted disposable Talos fixture. Kubernetes-only disposable fixtures cover the affected 1.35 and 1.37 adapter scenarios. Those fixtures establish Kubernetes behavior only.
 3. Use the recommended qualification approach and available resources. Begin with the Linux development host and configured hosted CI, then clean Linux VMs and available target hardware/runners. Missing targets stay unexecuted; this instruction does not change the platform matrix.
+
+The owner added these on 2026-10-12:
+
+4. Milestone 1 may stay open without blocking further development. The owner has no macOS or Windows machine, so packets F9.2 and F9.3 and their share of F9.4 are deferred until those platforms are available. A deferred row is recorded as unexecuted, never as passed; hosted macOS 15 and Windows Server runners remain hosted evidence only. Milestone 2 feature work may start once the remaining packets are done on Linux.
+5. The remaining packets are executed through the [foundation finish series](foundation-finish/README.md): one document per packet, with a shared [ledger](foundation-finish/ledger.md) that every session updates. This plan stays the normative definition of each packet. Packet evidence for the series is written in that ledger; the [milestone ledger](../verification/milestone-1.md) keeps the checkpoint table and the earlier evidence.
+6. The fixture-scoped host firewall remediation may be applied in the session, the fixture may shadow the VPN route covering its network indefinitely, and pushing to `ft-foundation-completion` is permitted.
 
 The phase exposes read-only feasibility workflows. Cluster creation, resource mutation, configuration apply, upgrades, Helm, reset, recovery, and operation-history UX remain in their assigned milestones. Test-fixture setup may create synthetic resources only inside a verified disposable allowlist. No existing owner cluster is an implicit fixture.
 
@@ -109,7 +115,7 @@ Test at each bound and one beyond it. Retry clocks and transport faults should b
 
 ### F1a — Detect a stalled Talos stream
 
-**Maps to:** C4, FND-004, and the [0011 amendment](../decisions/0011-talos-stream-reconnect-and-generations.md#amendment--2026-10-12-live-evidence-and-owner-decision). **Prerequisite:** F1 closed. Steps 1–3 need no fixture and land before F3 starts. Step 4 needs the provisioned fixture and runs in the first fixture session afterwards, which is F3's.
+**Maps to:** C4, FND-004, and the [0011 amendment](../decisions/0011-talos-stream-reconnect-and-generations.md#amendment--2026-10-12-live-evidence-and-owner-decision). **Prerequisite:** F1 closed. Steps 1–3 need no fixture and land before F3 starts. Step 4 needs the provisioned fixture and runs in the first fixture session afterwards. The [finish series](foundation-finish/01-f1a-live-stall-rows.md) gives step 4 its own session, ahead of F3's.
 
 **Behavior:** a subscription whose pinned node stops responding without breaking the connection becomes stale within a bounded, documented window, then follows the existing reconnect budget to a replacement snapshot or terminal `talos_unavailable`. An idle stream on a healthy node stays current.
 
@@ -244,7 +250,7 @@ Take the installers from F9.0's artifacts, built with the existing release confi
 
 Document and verify helper signing/integrity feasibility, target-specific notices, package hashes, and preview signing state. Production publisher signing/notarization and signed updates remain release gates with owner-supplied material; do not invent credentials or claim ad-hoc signing authenticates a publisher. Repeat production exclusion on default production artifacts after the test-feature build; the two builds share the executable path.
 
-**Exit:** every required C8 row has actual clean-target evidence. If any row is unavailable or fails, C8 and milestone 1 remain incomplete, even when the other packets are implemented.
+**Exit:** every required C8 row has actual clean-target evidence. If any row is unavailable or fails, C8 and milestone 1 remain incomplete, even when the other packets are implemented. By owner decision 4 of 2026-10-12, the macOS and Windows rows are deferred and that incompleteness does not block milestone 2.
 
 ### F10 — Measure budgets and close the milestone
 
@@ -254,7 +260,7 @@ Deliver a reproducible performance harness and numeric budget check with real fa
 
 Derive thresholds from the measured baseline, document their rationale, and prove an intentional overrun fails. Profile sizes are verification workloads, not claimed supported hard limits. Review the full original milestone acceptance matrix and FND tasks; rerun applicable final-candidate gates, validate documentation/contracts, and perform the separate correctness/security/ownership/maintainability review.
 
-**Exit:** all required rows have current evidence, measured budgets are enforced, and the owner receives the milestone UX/tradeoff review. Update README to milestone 2 only after milestone 1 is accepted. Unavailable platform/version/worker evidence keeps the milestone open; a development preview can still be reported accurately.
+**Exit:** all required rows have current evidence, measured budgets are enforced, and the owner receives the milestone UX/tradeoff review. Update README to milestone 2 only after milestone 1 is accepted. Unavailable platform/version/worker evidence keeps the milestone open; a development preview can still be reported accurately. With the macOS and Windows rows deferred by the owner, F10 closes the foundation on Linux and leaves milestone 1 open for those rows only; see [series document 09](foundation-finish/09-f10-budgets-and-linux-close.md).
 
 ## 6. Gate selection and evidence format
 
