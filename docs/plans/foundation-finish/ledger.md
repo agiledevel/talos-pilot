@@ -17,18 +17,18 @@ A document is `done` only when every acceptance case in it has recorded evidence
 
 ## Status board
 
-| Document                                                                        | Packet           | Status      | Last commit | Updated    | Next action                                                                                                                                  |
-| ------------------------------------------------------------------------------- | ---------------- | ----------- | ----------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | not started | `b662b1a`   | 2026-10-12 | Start here. First read the hosted result for the latest commit (see the last entry). Steps 1–3 are committed; step 4 needs a fixture session |
-| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | not started | —           | 2026-10-12 | After 01                                                                                                                                     |
-| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started | —           | 2026-10-12 | After 02                                                                                                                                     |
-| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started | —           | 2026-10-12 | After 03                                                                                                                                     |
-| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                                                                        |
-| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started | —           | 2026-10-12 | After 05                                                                                                                                     |
-| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                                                                     |
-| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | —           | 2026-10-12 | After 07                                                                                                                                     |
-| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-12 | After 08                                                                                                                                     |
-| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                                                                       |
+| Document                                                                        | Packet           | Status      | Last commit | Updated    | Next action                                                                                             |
+| ------------------------------------------------------------------------------- | ---------------- | ----------- | ----------- | ---------- | ------------------------------------------------------------------------------------------------------- |
+| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | not started | `aaedf79`   | 2026-10-12 | Start here. Steps 1–3 are committed and green on hosted CI at `aaedf79`; step 4 needs a fixture session |
+| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | not started | —           | 2026-10-12 | After 01                                                                                                |
+| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started | —           | 2026-10-12 | After 02                                                                                                |
+| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started | —           | 2026-10-12 | After 03                                                                                                |
+| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                                   |
+| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started | —           | 2026-10-12 | After 05                                                                                                |
+| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                                |
+| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | —           | 2026-10-12 | After 07                                                                                                |
+| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-12 | After 08                                                                                                |
+| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                                  |
 
 ## Standing owner decisions
 
@@ -54,17 +54,18 @@ Add a row when the owner decides something new. Quote the owner's words or cite 
 
 ## Blockers
 
-| ID  | Opened     | Blocker                                                                                                                                                                                    | Affects                                          | Status                                                                                                     |
-| --- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| B1  | 2026-10-12 | `git push` failed with HTTP 403 for the stored account `TIT-IT`                                                                                                                            | Every hosted-CI row; F9.0 in document 08         | Resolved 2026-10-12: the owner switched the remote to SSH and `b662b1a` was pushed                         |
-| B2  | 2026-10-12 | `gh` is not installed, and no session has yet read a hosted CI result from this host                                                                                                       | Recording hosted-CI results; F9.0 in document 08 | Resolved 2026-10-12: the owner installed and configured `gh`; hosted runs were read the same day           |
-| B3  | 2026-10-12 | Hosted `desktop (windows-2022)` failed at `b662b1a` and `481421a` in `go test`: `TestProbeCancellationDuringBackoffEndsCleanly` raced its cancellation against the first reconnect attempt | Hosted evidence for every commit until fixed     | Fixed in the commit carrying the 2026-10-12 "hosted CI access" entry; hosted confirmation still to be read |
+| ID  | Opened     | Blocker                                                                                                                                                                                    | Affects                                          | Status                                                                                           |
+| --- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| B1  | 2026-10-12 | `git push` failed with HTTP 403 for the stored account `TIT-IT`                                                                                                                            | Every hosted-CI row; F9.0 in document 08         | Resolved 2026-10-12: the owner switched the remote to SSH and `b662b1a` was pushed               |
+| B2  | 2026-10-12 | `gh` is not installed, and no session has yet read a hosted CI result from this host                                                                                                       | Recording hosted-CI results; F9.0 in document 08 | Resolved 2026-10-12: the owner installed and configured `gh`; hosted runs were read the same day |
+| B3  | 2026-10-12 | Hosted `desktop (windows-2022)` failed at `b662b1a` and `481421a` in `go test`: `TestProbeCancellationDuringBackoffEndsCleanly` raced its cancellation against the first reconnect attempt | Hosted evidence for every commit until fixed     | Resolved 2026-10-12: fixed in `aaedf79`, whose hosted run 38301882786 passed all five jobs       |
 
 ## Questions for the owner
 
-| ID  | Asked      | Question                                                                                                                                                           | Needed by                              | Answer                                    |
-| --- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------- | ----------------------------------------- |
-| Q1  | 2026-10-12 | The fixture network `10.79.0.0/24` sits inside a VPN route on the host. The owner accepted shadowing it for the 2026-10-12 run only. Is that accepted from now on? | The first fixture session, document 01 | Answered 2026-10-12: allowed indefinitely |
+| ID  | Asked      | Question                                                                                                                                                                                                                                    | Needed by                              | Answer                                    |
+| --- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ----------------------------------------- |
+| Q1  | 2026-10-12 | The fixture network `10.79.0.0/24` sits inside a VPN route on the host. The owner accepted shadowing it for the 2026-10-12 run only. Is that accepted from now on?                                                                          | The first fixture session, document 01 | Answered 2026-10-12: allowed indefinitely |
+| Q2  | 2026-10-12 | The security workflow (CodeQL and Trivy) runs only for pushes and pull requests to `main`. Exact-commit scan results for this branch need a pull request to `main`. May a session open one, as a draft, when document 07 needs the results? | Document 07                            | Open                                      |
 
 ## Deferred and carried rows
 
@@ -137,6 +138,34 @@ Entries are appended below, oldest first.
 - **Assumptions confirmed or refuted:** none.
 - **Questions and blockers raised:** B3.
 - **Next:** read the hosted result for this entry's commit, all five jobs, and record it in the next entry. If the Windows job still fails, fix that before document 01.
+
+### 2026-10-12 — hosted results for `b662b1a`, `481421a`, and `aaedf79`
+
+- **Document:** none (series maintenance, before document 01).
+- **Session:** Claude Opus 5.5; base revision `aaedf79`; final revision: the commit carrying this entry.
+- **Status after this session:** no document status changed. Blocker B3 is resolved. No blocker is open.
+- **Acceptance cases:** none.
+- **What changed:** this ledger only.
+- **Commands and results:** `gh run view` on each run, read after it completed.
+
+  | Commit    | Run         | renderer | ubuntu-22.04 | windows-2022 | macos-15 | macos-15-intel | Run result |
+  | --------- | ----------- | -------- | ------------ | ------------ | -------- | -------------- | ---------- |
+  | `b662b1a` | 38299801331 | success  | success      | failure      | success  | success        | failure    |
+  | `481421a` | 38300140517 | success  | success      | failure      | success  | success        | failure    |
+  | `aaedf79` | 38301882786 | success  | success      | success      | success  | success        | success    |
+
+  Both Windows failures were in the step "Verify Go helper source and modules", in `TestProbeCancellationDuringBackoffEndsCleanly`, the test `aaedf79` corrects.
+
+- **Evidence class:** hosted CI. The desktop jobs include the native Tauri tests on each runner. No real cluster.
+- **Fixture:** none.
+- **Failed or unexecuted:**
+  - The hosted run for this entry's commit has not been read. It changes documentation only.
+  - No security workflow run exists for this branch. That workflow runs only for pushes and pull requests to `main` and on a weekly schedule, so the CodeQL and Trivy results for these commits are unexecuted. See question Q2.
+  - These are hosted macOS 15 and Windows Server 2022 runners. They are not macOS 13.3 or Windows 11 qualification, and no installer was built.
+- **Review findings:** the stall detection of `b662b1a` passed on every runner except for the unrelated flaky test, and passes on all five at `aaedf79`.
+- **Assumptions confirmed or refuted:** none; those need the live fixture.
+- **Questions and blockers raised:** Q2.
+- **Next:** document 01.
 
 ## Entry template
 

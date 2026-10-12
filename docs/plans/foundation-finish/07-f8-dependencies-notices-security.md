@@ -70,7 +70,7 @@ Each expires on 2026-11-30. An exception is renewed only by repeating its applic
 
    Then renew the expiry with the new evidence date, or remove the exception. Record which, and why, in the ledger and in the decision record.
 
-6. **Hosted scans.** Push and read the CodeQL and Trivy results for the exact commit. If they cannot be read, add a blocker to the ledger and record them as unexecuted.
+6. **Hosted scans.** Read the CodeQL and Trivy results for the exact commit. The security workflow runs only for pushes and pull requests to `main` and on a weekly schedule, so a push to this branch produces no scan. Check question Q2 in the ledger: open a pull request to `main` only if the owner has agreed there. Without that, record the exact-commit scans as unexecuted and say why.
 
 ## Acceptance cases
 
