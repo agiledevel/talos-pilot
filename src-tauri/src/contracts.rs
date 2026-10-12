@@ -161,12 +161,55 @@ pub struct CredentialStorageStatusDto {
 }
 
 /// Safe metadata returned after a kubeconfig import.
+///
+/// The handle is an opaque backend reference. It is not an authorization
+/// grant, and it never contains credential bytes, a file path, or the raw
+/// kubeconfig.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
 pub struct CredentialImportResultDto {
+    /// Opaque handle for the stored credential.
+    pub credential_handle: String,
     /// Bounded current-context label from the imported kubeconfig.
     pub context_name: String,
     /// Whether the imported value is persistent or session-only.
     pub storage_mode: CredentialStorageModeDto,
+}
+
+/// One bounded entry of the stored Kubernetes credential listing.
+///
+/// A listing is produced only for an explicit user action, never at startup.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+pub struct KubernetesCredentialSummaryDto {
+    /// Opaque handle for the stored credential.
+    pub credential_handle: String,
+    /// Bounded context label derived from the credential's encrypted material.
+    pub context_label: String,
+    /// Whether this entry is persistent or session-only.
+    pub storage_mode: CredentialStorageModeDto,
+}
+
+/// Safe metadata for one opened Kubernetes credential session.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+pub struct KubernetesSessionDto {
+    /// Process-local identifier for the backend-owned session.
+    pub session_id: String,
+    /// Bounded context label of the credential the session uses.
+    pub context_label: String,
+    /// Whether the session credential is persistent or session-only.
+    pub storage_mode: CredentialStorageModeDto,
+}
+
+/// Nonsensitive API server version read through an opened session.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+pub struct KubernetesVersionDto {
+    /// Session that performed the read.
+    pub session_id: String,
+    /// Reported `gitVersion`, for example `v1.36.5`.
+    pub version: String,
+    /// Reported major version.
+    pub major: String,
+    /// Reported minor version.
+    pub minor: String,
 }
 
 /// A stable, nonsensitive error returned over application IPC.

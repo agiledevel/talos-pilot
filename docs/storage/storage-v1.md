@@ -87,7 +87,51 @@ client certificate/key credentials. It rejects exec plugins, legacy
 auth-provider, external credential paths, malformed or duplicate-keyed YAML,
 unsupported tags, and insecure TLS settings before any SDK can process the
 input. The whole source file is encrypted as one value; IPC returns only the
-current-context label and active storage mode.
+opaque credential handle, the current-context label, and the active storage
+mode.
+
+## Credential handles, encrypted context labels, and resolution
+
+An import returns a `credential_handle`: `kubecred-` followed by the random
+reference identity of the imported record. The handle is not an authorization
+grant, and it is re-validated whenever it is used — its kind prefix and bounds,
+the storage that holds the reference, the reference's `value_kind`, and whether
+the current mode can open it.
+
+A persistent import writes three things in one transaction: the nonsensitive
+profile row (whose `display_name` stays generic), the encrypted kubeconfig under
+`value_kind` `kubeconfig`, and a small encrypted context label under the new
+`value_kind` `kubeconfig-context`. No schema version changed: the existing
+`credential_references(profile_id, value_kind)` uniqueness already allows one
+reference per kind, and the label is bound to its own profile, reference, and
+kind by the envelope's associated data. [Decision 0005](../decisions/0005-native-kubeconfig-import.md)
+is therefore preserved: the context label never exists as a plaintext database
+value. A row written before the label value existed derives its label by
+decrypting the credential and re-validating it, so every path uses only
+encrypted material.
+
+`list_kubeconfig_credentials` is the explicit user action that reports saved
+credentials. It is never called at startup. It reads at most 256 stored
+references (bounded in SQL) plus the session store's own 256-entry ceiling, and
+reports each entry's handle, bounded context label, and current mode, without
+touching the network. Persistent rows need the stored master key: when such rows
+exist and the key cannot be read, the listing fails as a whole rather than
+returning a partial projection, because a list that silently omitted the stored
+credentials would read as "nothing is saved", and it never asks the vault to
+create a key.
+
+An inline certificate authority is validated as bounded, non-empty base64 at
+import ([decision 0005](../decisions/0005-native-kubeconfig-import.md)) and must
+parse as a PEM certificate bundle before a client is built, so a certificate
+authority that is not a certificate produces `KUBERNETES_CREDENTIAL_INVALID` at
+the client boundary rather than being trusted.
+
+Resolution prefers a session-only entry in the current process and otherwise
+loads the stored record with the kind and profile recorded for it. The key comes
+from memory when persistent storage is already active, and otherwise from a
+read-only vault lookup that cannot create a key — so a locked or reset vault
+leaves existing ciphertext intact, and a session-only or vault-unavailable
+runtime refuses a stored reference instead of silently falling back.
 
 The SQLite file is `talos-pilot.sqlite3` under Tauri's platform application-data
 directory. Unix application-data directory permissions are set to `0700` and

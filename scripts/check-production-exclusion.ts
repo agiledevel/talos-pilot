@@ -17,6 +17,11 @@ const forbiddenMarkers = [
   "window.wdioTauri",
   "__wdio_mocks__",
   "native-test-unauthorized",
+  // Synthetic Kubernetes test support must never reach a production artifact.
+  "TALOS_PILOT_NATIVE_TEST_KUBERNETES_DIR",
+  "kubernetes-synthetic-apiserver",
+  "synthetic-native-test",
+  "talos-pilot synthetic test CA",
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -66,6 +71,10 @@ const PRODUCTION_PERMISSIONS = [
   "allow-retry-persistent-storage",
   "allow-import-kubeconfig",
   "allow-import-talosconfig",
+  "allow-list-kubernetes-credentials",
+  "allow-open-kubernetes-session",
+  "allow-close-kubernetes-session",
+  "allow-read-kubernetes-version",
   "allow-start-talos-probe",
   "allow-stop-talos-probe",
   "allow-close-talos-session",
@@ -96,6 +105,11 @@ function assertDefaultCargoGraph(): void {
   if (tree.includes("tauri-plugin-wdio")) {
     throw new Error("The default Cargo feature graph contains a WebDriver plugin.");
   }
+  if (tree.includes("rcgen")) {
+    throw new Error(
+      "The default Cargo feature graph contains the synthetic test certificate generator.",
+    );
+  }
   const testTree = execFileSync(
     "cargo",
     [
@@ -115,6 +129,11 @@ function assertDefaultCargoGraph(): void {
     !testTree.includes("tauri-plugin-wdio-webdriver")
   ) {
     throw new Error("The native-test feature does not include both WDIO plugins.");
+  }
+  if (!testTree.includes("rcgen") || !testTree.includes("tokio-rustls")) {
+    throw new Error(
+      "The native-test feature does not include the synthetic Kubernetes test support.",
+    );
   }
 }
 

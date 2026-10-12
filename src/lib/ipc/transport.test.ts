@@ -25,6 +25,7 @@ import {
   IpcApplicationError,
   IpcTransportError,
   IpcTransportUnavailableError,
+  closeKubernetesSession,
   closeTalosSession,
   createNativeIpcTransport,
   getAppearanceSettings,
@@ -32,6 +33,9 @@ import {
   getHelperStatus,
   importKubeconfig,
   importTalosconfig,
+  listKubernetesCredentials,
+  openKubernetesSession,
+  readKubernetesVersion,
   setAppearanceSettings,
   startTalosProbe,
   stopTalosProbe,
@@ -44,16 +48,24 @@ import {
   parseCredentialImportResultDto,
   parseCredentialStorageStatusDto,
   parseHelperStatusDto,
+  parseKubernetesCredentialList,
+  parseKubernetesSessionDto,
+  parseKubernetesVersionDto,
   parseTalosCredentialSessionDto,
   parseTalosProbeEventDto,
 } from "./validation";
+
+/** A well-formed opaque handle: `kubecred-` plus a 16-byte base64url reference. */
+const VALID_HANDLE = "kubecred-AAAAAAAAAAAAAAAAAAAAAA";
+/** A second well-formed handle, used where two entries must differ. */
+const OTHER_HANDLE = "kubecred-BBBBBBBBBBBBBBBBBBBBBB";
+const VALID_SESSION_ID = "kube-session-7";
 
 describe("runtime-validated IPC transport", () => {
   beforeEach(() => {
     tauriApi.invoke.mockReset();
     tauriApi.isTauri.mockReset();
   });
-
   it("accepts the named browser mock only when explicitly injected", async () => {
     const status = await getHelperStatus(createBrowserMockTransport());
     expect(status).toEqual({
@@ -96,14 +108,24 @@ describe("runtime-validated IPC transport", () => {
       mode: "persistent_with_session_only",
     });
     expect(
-      parseCredentialImportResultDto({ context_name: "synthetic", storage_mode: "session_only" }),
-    ).toEqual({ context_name: "synthetic", storage_mode: "session_only" });
+      parseCredentialImportResultDto({
+        credential_handle: VALID_HANDLE,
+        context_name: "synthetic",
+        storage_mode: "session_only",
+      }),
+    ).toEqual({
+      credential_handle: VALID_HANDLE,
+      context_name: "synthetic",
+      storage_mode: "session_only",
+    });
     expect(
       parseCredentialImportResultDto({
+        credential_handle: VALID_HANDLE,
         context_name: "synthetic",
         storage_mode: "persistent_with_session_only",
       }),
     ).toEqual({
+      credential_handle: VALID_HANDLE,
       context_name: "synthetic",
       storage_mode: "persistent_with_session_only",
     });
@@ -115,6 +137,7 @@ describe("runtime-validated IPC transport", () => {
     );
     expect(() =>
       parseCredentialImportResultDto({
+        credential_handle: VALID_HANDLE,
         context_name: "x".repeat(129),
         storage_mode: "persistent",
         secret: "must-not-be-returned",
@@ -122,14 +145,28 @@ describe("runtime-validated IPC transport", () => {
     ).toThrow(IpcContractError);
     expect(() =>
       parseCredentialImportResultDto({
+        credential_handle: VALID_HANDLE,
         context_name: "synthetic\nspoofed",
         storage_mode: "persistent",
       }),
     ).toThrow(IpcContractError);
     expect(() =>
       parseCredentialImportResultDto({
+        credential_handle: VALID_HANDLE,
         context_name: "synthetic",
         storage_mode: "vault_unavailable",
+      }),
+    ).toThrow(IpcContractError);
+    // A result without the opaque handle, or with a handle of the wrong shape,
+    // is a contract violation: the renderer must not invent one.
+    expect(() =>
+      parseCredentialImportResultDto({ context_name: "synthetic", storage_mode: "persistent" }),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseCredentialImportResultDto({
+        credential_handle: "synthetic-token",
+        context_name: "synthetic",
+        storage_mode: "persistent",
       }),
     ).toThrow(IpcContractError);
   });
@@ -237,7 +274,11 @@ describe("runtime-validated IPC transport", () => {
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ mode: "vault_unavailable" })
       .mockResolvedValueOnce({ mode: "session_only" })
-      .mockResolvedValueOnce({ context_name: "synthetic", storage_mode: "session_only" });
+      .mockResolvedValueOnce({
+        credential_handle: VALID_HANDLE,
+        context_name: "synthetic",
+        storage_mode: "session_only",
+      });
     const transport = createNativeIpcTransport();
 
     await expect(getAppearanceSettings(transport)).resolves.toEqual({
@@ -250,11 +291,165 @@ describe("runtime-validated IPC transport", () => {
     });
     await expect(useSessionOnlyStorage(transport)).resolves.toEqual({ mode: "session_only" });
     await expect(importKubeconfig(transport)).resolves.toEqual({
+      credential_handle: VALID_HANDLE,
       context_name: "synthetic",
       storage_mode: "session_only",
     });
     expect(tauriApi.invoke).toHaveBeenNthCalledWith(2, "set_appearance_settings", {
       settings: { theme: "dark", density: "comfortable" },
+    });
+  });
+
+  it("validates the Kubernetes credential listing, session, and version projections", () => {
+    expect(
+      parseKubernetesCredentialList([
+        {
+          credential_handle: VALID_HANDLE,
+          context_label: "synthetic",
+          storage_mode: "persistent",
+        },
+        {
+          credential_handle: OTHER_HANDLE,
+          context_label: "synthetic-session",
+          storage_mode: "session_only",
+        },
+      ]),
+    ).toEqual([
+      { credential_handle: VALID_HANDLE, context_label: "synthetic", storage_mode: "persistent" },
+      {
+        credential_handle: OTHER_HANDLE,
+        context_label: "synthetic-session",
+        storage_mode: "session_only",
+      },
+    ]);
+    expect(parseKubernetesCredentialList([])).toEqual([]);
+
+    expect(
+      parseKubernetesSessionDto({
+        session_id: VALID_SESSION_ID,
+        context_label: "synthetic",
+        storage_mode: "persistent",
+      }),
+    ).toEqual({
+      session_id: VALID_SESSION_ID,
+      context_label: "synthetic",
+      storage_mode: "persistent",
+    });
+    expect(
+      parseKubernetesVersionDto({
+        session_id: VALID_SESSION_ID,
+        version: "v1.36.5",
+        major: "1",
+        minor: "36",
+      }),
+    ).toEqual({
+      session_id: VALID_SESSION_ID,
+      version: "v1.36.5",
+      major: "1",
+      minor: "36",
+    });
+
+    // A duplicate handle, a runtime-wide mode on one credential, a raw handle
+    // that is not opaque, and a credential field smuggled into a version read
+    // are all contract violations.
+    expect(() =>
+      parseKubernetesCredentialList([
+        { credential_handle: VALID_HANDLE, context_label: "a", storage_mode: "persistent" },
+        { credential_handle: VALID_HANDLE, context_label: "b", storage_mode: "persistent" },
+      ]),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseKubernetesCredentialList([
+        {
+          credential_handle: VALID_HANDLE,
+          context_label: "a",
+          storage_mode: "persistent_with_session_only",
+        },
+      ]),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseKubernetesCredentialList([
+        { credential_handle: "synthetic-token", context_label: "a", storage_mode: "persistent" },
+      ]),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseKubernetesSessionDto({
+        session_id: "session-1",
+        context_label: "synthetic",
+        storage_mode: "persistent",
+      }),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseKubernetesVersionDto({
+        session_id: VALID_SESSION_ID,
+        version: "v1.36.5\nkubeconfig: synthetic",
+        major: "1",
+        minor: "36",
+      }),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseKubernetesVersionDto({
+        session_id: VALID_SESSION_ID,
+        version: "v1.36.5",
+        major: "1",
+        minor: "x".repeat(65),
+      }),
+    ).toThrow(IpcContractError);
+  });
+
+  it("invokes the Kubernetes session commands with validated responses", async () => {
+    tauriApi.isTauri.mockReturnValue(true);
+    tauriApi.invoke
+      .mockResolvedValueOnce([
+        {
+          credential_handle: VALID_HANDLE,
+          context_label: "synthetic",
+          storage_mode: "session_only",
+        },
+      ])
+      .mockResolvedValueOnce({
+        session_id: VALID_SESSION_ID,
+        context_label: "synthetic",
+        storage_mode: "session_only",
+      })
+      .mockResolvedValueOnce({
+        session_id: VALID_SESSION_ID,
+        version: "v1.36.5",
+        major: "1",
+        minor: "36",
+      })
+      .mockResolvedValueOnce(true);
+    const transport = createNativeIpcTransport();
+
+    await expect(listKubernetesCredentials(transport)).resolves.toEqual([
+      {
+        credential_handle: VALID_HANDLE,
+        context_label: "synthetic",
+        storage_mode: "session_only",
+      },
+    ]);
+    await expect(openKubernetesSession(transport, VALID_HANDLE)).resolves.toEqual({
+      session_id: VALID_SESSION_ID,
+      context_label: "synthetic",
+      storage_mode: "session_only",
+    });
+    await expect(readKubernetesVersion(transport, VALID_SESSION_ID)).resolves.toEqual({
+      session_id: VALID_SESSION_ID,
+      version: "v1.36.5",
+      major: "1",
+      minor: "36",
+    });
+    await expect(closeKubernetesSession(transport, VALID_SESSION_ID)).resolves.toBe(true);
+
+    expect(tauriApi.invoke).toHaveBeenNthCalledWith(1, "list_kubernetes_credentials");
+    expect(tauriApi.invoke).toHaveBeenNthCalledWith(2, "open_kubernetes_session", {
+      credentialHandle: VALID_HANDLE,
+    });
+    expect(tauriApi.invoke).toHaveBeenNthCalledWith(3, "read_kubernetes_version", {
+      sessionId: VALID_SESSION_ID,
+    });
+    expect(tauriApi.invoke).toHaveBeenNthCalledWith(4, "close_kubernetes_session", {
+      sessionId: VALID_SESSION_ID,
     });
   });
 

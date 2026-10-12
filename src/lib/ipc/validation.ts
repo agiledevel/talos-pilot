@@ -8,6 +8,9 @@ import type { CredentialStorageStatusDto } from "./generated/CredentialStorageSt
 import type { HelperCapability } from "./generated/HelperCapability";
 import type { HelperState } from "./generated/HelperState";
 import type { HelperStatusDto } from "./generated/HelperStatusDto";
+import type { KubernetesCredentialSummaryDto } from "./generated/KubernetesCredentialSummaryDto";
+import type { KubernetesSessionDto } from "./generated/KubernetesSessionDto";
+import type { KubernetesVersionDto } from "./generated/KubernetesVersionDto";
 import type { TalosCredentialSessionDto } from "./generated/TalosCredentialSessionDto";
 import type { TalosProbeEventDto } from "./generated/TalosProbeEventDto";
 import type { TalosProbeState } from "./generated/TalosProbeState";
@@ -19,6 +22,14 @@ const MAX_ERROR_FIELD_LENGTH = 256;
 const MAX_ERROR_MESSAGE_LENGTH = 1024;
 const MAX_CAPABILITY_COUNT = 8;
 const MAX_CONTEXT_NAME_LENGTH = 128;
+const MAX_VERSION_FIELD_LENGTH = 64;
+/**
+ * Upper bound on one credential listing projection.
+ *
+ * The backend caps stored credentials and session-only credentials at 256 each,
+ * so no accepted response can exceed their sum.
+ */
+const MAX_CREDENTIAL_LIST_LENGTH = 512;
 const TALOS_PROBE_STATES: ReadonlySet<string> = new Set([
   "connecting",
   "healthy",
@@ -156,6 +167,7 @@ export function parseCredentialStorageStatusDto(value: unknown): CredentialStora
 export function parseCredentialImportResultDto(value: unknown): CredentialImportResultDto {
   if (
     !isRecord(value) ||
+    !isCredentialHandle(value.credential_handle) ||
     !isSafeContextLabel(value.context_name) ||
     !isCredentialStorageMode(value.storage_mode) ||
     value.storage_mode === "vault_not_checked" ||
@@ -164,8 +176,80 @@ export function parseCredentialImportResultDto(value: unknown): CredentialImport
     throw new IpcContractError();
   }
   return {
+    credential_handle: value.credential_handle,
     context_name: value.context_name,
     storage_mode: value.storage_mode,
+  };
+}
+
+/**
+ * Validates the bounded credential listing returned for an explicit user action.
+ *
+ * The backend never produces this projection at startup, so an empty list means
+ * "nothing stored", not "not yet loaded". Each entry carries an opaque handle
+ * and the mode the entry currently lives in; a handle is not an authorization
+ * grant, and this validator does not treat it as one.
+ *
+ * @throws {@link IpcContractError} for an oversized list, duplicate handles, or an entry that is not a stored credential identity.
+ */
+export function parseKubernetesCredentialList(value: unknown): KubernetesCredentialSummaryDto[] {
+  if (!Array.isArray(value) || value.length > MAX_CREDENTIAL_LIST_LENGTH) {
+    throw new IpcContractError();
+  }
+  const summaries = value.map((entry) => {
+    if (
+      !isRecord(entry) ||
+      !isCredentialHandle(entry.credential_handle) ||
+      !isSafeContextLabel(entry.context_label) ||
+      !isStoredCredentialMode(entry.storage_mode)
+    ) {
+      throw new IpcContractError();
+    }
+    return {
+      credential_handle: entry.credential_handle,
+      context_label: entry.context_label,
+      storage_mode: entry.storage_mode,
+    };
+  });
+  if (new Set(summaries.map((entry) => entry.credential_handle)).size !== summaries.length) {
+    throw new IpcContractError();
+  }
+  return summaries;
+}
+
+/** Validates safe metadata for one opened Kubernetes credential session. */
+export function parseKubernetesSessionDto(value: unknown): KubernetesSessionDto {
+  if (
+    !isRecord(value) ||
+    !isKubernetesSessionId(value.session_id) ||
+    !isSafeContextLabel(value.context_label) ||
+    !isStoredCredentialMode(value.storage_mode)
+  ) {
+    throw new IpcContractError();
+  }
+  return {
+    session_id: value.session_id,
+    context_label: value.context_label,
+    storage_mode: value.storage_mode,
+  };
+}
+
+/** Validates the nonsensitive API server version read through one session. */
+export function parseKubernetesVersionDto(value: unknown): KubernetesVersionDto {
+  if (
+    !isRecord(value) ||
+    !isKubernetesSessionId(value.session_id) ||
+    !isVersionField(value.version) ||
+    !isVersionField(value.major) ||
+    !isVersionField(value.minor)
+  ) {
+    throw new IpcContractError();
+  }
+  return {
+    session_id: value.session_id,
+    version: value.version,
+    major: value.major,
+    minor: value.minor,
   };
 }
 
@@ -254,6 +338,44 @@ function isCredentialStorageMode(value: unknown): value is CredentialStorageMode
     value === "persistent_with_session_only" ||
     value === "vault_unavailable" ||
     value === "session_only"
+  );
+}
+
+/**
+ * Narrows a value to a mode a single stored credential can live in.
+ *
+ * A listing entry is either encrypted and persistent or held in process
+ * memory; the runtime-wide modes describe what a *new* import would do and
+ * must not be reported for one already-stored credential.
+ */
+function isStoredCredentialMode(value: unknown): value is CredentialStorageModeDto {
+  return value === "persistent" || value === "session_only";
+}
+
+/**
+ * Narrows a value to an opaque Kubernetes credential handle.
+ *
+ * The backend issues `kubecred-` plus a 16-byte URL-safe base64 reference, so
+ * the shape is checkable without interpreting the handle. Possessing a
+ * well-formed handle is not authorization: the backend re-validates its kind,
+ * profile, and storage mode before use.
+ */
+function isCredentialHandle(value: unknown): value is string {
+  return typeof value === "string" && /^kubecred-[A-Za-z0-9_-]{22}$/u.test(value);
+}
+
+/** Narrows a value to a backend-issued Kubernetes session identifier. */
+function isKubernetesSessionId(value: unknown): value is string {
+  return typeof value === "string" && /^kube-session-[0-9]+$/u.test(value);
+}
+
+/** Narrows a value to one bounded, nonsecret Kubernetes version field. */
+function isVersionField(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= MAX_VERSION_FIELD_LENGTH &&
+    /^[A-Za-z0-9._+-]+$/u.test(value)
   );
 }
 

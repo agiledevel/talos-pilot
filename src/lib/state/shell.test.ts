@@ -108,7 +108,11 @@ describe("importing a kubeconfig", () => {
   ] as const)("confirms a %s import and records its mode", async (mode, notice) => {
     const shell = await loadedShell((command, args) =>
       command === "import_kubeconfig"
-        ? { context_name: "demo", storage_mode: mode }
+        ? {
+            credential_handle: "kubecred-AAAAAAAAAAAAAAAAAAAAAA",
+            context_name: "demo",
+            storage_mode: mode,
+          }
         : LOADED(command, args),
     );
     await shell.importCredential();

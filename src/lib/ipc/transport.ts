@@ -5,6 +5,9 @@ import type { AppearanceSettingsDto } from "./generated/AppearanceSettingsDto";
 import type { CredentialImportResultDto } from "./generated/CredentialImportResultDto";
 import type { CredentialStorageStatusDto } from "./generated/CredentialStorageStatusDto";
 import type { HelperStatusDto } from "./generated/HelperStatusDto";
+import type { KubernetesCredentialSummaryDto } from "./generated/KubernetesCredentialSummaryDto";
+import type { KubernetesSessionDto } from "./generated/KubernetesSessionDto";
+import type { KubernetesVersionDto } from "./generated/KubernetesVersionDto";
 import type { TalosCredentialSessionDto } from "./generated/TalosCredentialSessionDto";
 import type { TalosProbeEventDto } from "./generated/TalosProbeEventDto";
 import {
@@ -14,6 +17,9 @@ import {
   parseAppearanceSettingsDto,
   parseCredentialImportResultDto,
   parseCredentialStorageStatusDto,
+  parseKubernetesCredentialList,
+  parseKubernetesSessionDto,
+  parseKubernetesVersionDto,
   parseTalosCredentialSessionDto,
   parseTalosProbeEventDto,
 } from "./validation";
@@ -174,6 +180,53 @@ export async function importTalosconfig(
 ): Promise<TalosCredentialSessionDto | null> {
   const response = await invokeValidated(transport, "import_talosconfig", (value) => value);
   return response === null ? null : parseTalosCredentialSessionDto(response);
+}
+
+/**
+ * Lists stored Kubernetes credentials for an explicit user action.
+ *
+ * The backend never lists credentials at startup, so this is called only from
+ * the flow that shows saved credentials. Each handle is opaque; possessing one
+ * is not authorization for any cluster operation.
+ */
+export function listKubernetesCredentials(
+  transport: IpcTransport,
+): Promise<KubernetesCredentialSummaryDto[]> {
+  return invokeValidated(transport, "list_kubernetes_credentials", parseKubernetesCredentialList);
+}
+
+/** Opens a Kubernetes credential session for one validated handle. */
+export function openKubernetesSession(
+  transport: IpcTransport,
+  credentialHandle: string,
+): Promise<KubernetesSessionDto> {
+  return invokeValidated(transport, "open_kubernetes_session", parseKubernetesSessionDto, {
+    credentialHandle,
+  });
+}
+
+/** Closes one Kubernetes session and confirms the backend released it. */
+export async function closeKubernetesSession(
+  transport: IpcTransport,
+  sessionId: string,
+): Promise<boolean> {
+  const result = await invokeValidated(transport, "close_kubernetes_session", (value) => value, {
+    sessionId,
+  });
+  if (typeof result !== "boolean") {
+    throw new IpcContractError();
+  }
+  return result;
+}
+
+/** Reads the API server version through one opened Kubernetes session. */
+export function readKubernetesVersion(
+  transport: IpcTransport,
+  sessionId: string,
+): Promise<KubernetesVersionDto> {
+  return invokeValidated(transport, "read_kubernetes_version", parseKubernetesVersionDto, {
+    sessionId,
+  });
 }
 
 /** Starts the bounded Talos read and validates every native channel event. */

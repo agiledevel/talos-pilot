@@ -2,6 +2,7 @@
 
 pub mod contracts;
 pub mod helper;
+pub mod kubernetes;
 mod secret;
 pub mod storage;
 pub mod talos;
@@ -21,9 +22,11 @@ use zeroize::Zeroizing;
 use contracts::{
     AppearanceDensity, AppearanceSettingsDto, AppearanceTheme, ApplicationErrorDto,
     CredentialImportResultDto, CredentialStorageModeDto, CredentialStorageStatusDto,
-    HelperStatusDto, TalosCredentialSessionDto, TalosProbeEventDto,
+    HelperStatusDto, KubernetesCredentialSummaryDto, KubernetesSessionDto, KubernetesVersionDto,
+    TalosCredentialSessionDto, TalosProbeEventDto,
 };
 use helper::service::HelperService;
+use kubernetes::{KubernetesError, KubernetesSessionStore};
 use storage::{
     CredentialStorageMode, EncryptionError, KubeconfigError, StorageError, StorageRuntime,
     validate_kubeconfig,
@@ -332,12 +335,13 @@ async fn import_kubeconfig(
         let metadata = validate_kubeconfig(source.expose_secret())
             .map_err(|error| kubeconfig_error("import_kubeconfig", error))?;
         let mut storage = lock_storage(&storage, "import_kubeconfig")?;
-        let mode = storage
+        let stored = storage
             .store_kubeconfig(&metadata, source)
             .map_err(|error| storage_error("import_kubeconfig", error))?;
         Ok(Some(CredentialImportResultDto {
-            context_name: metadata.context_name,
-            storage_mode: credential_mode_dto(mode),
+            credential_handle: stored.handle,
+            context_name: stored.context_label,
+            storage_mode: credential_mode_dto(stored.storage_mode),
         }))
     })
     .await
@@ -349,6 +353,99 @@ async fn import_kubeconfig(
             false,
         )
     })?
+}
+
+/// Lists stored Kubernetes credentials for an explicit user action.
+///
+/// The listing is never produced at startup: opening the shell must not read
+/// the credential vault or create a key. Each entry carries an opaque handle
+/// and a label derived from that credential's encrypted material.
+#[tauri::command]
+async fn list_kubernetes_credentials(
+    storage: State<'_, AppStorage>,
+) -> Result<Vec<KubernetesCredentialSummaryDto>, ApplicationErrorDto> {
+    run_storage(
+        Arc::clone(&storage.runtime),
+        "list_kubernetes_credentials",
+        |storage| {
+            let summaries = storage
+                .list_kubeconfig_credentials()
+                .map_err(|error| storage_error("list_kubernetes_credentials", error))?;
+            Ok(summaries
+                .into_iter()
+                .map(|summary| KubernetesCredentialSummaryDto {
+                    credential_handle: summary.handle,
+                    context_label: summary.context_label,
+                    storage_mode: credential_mode_dto(summary.storage_mode),
+                })
+                .collect())
+        },
+    )
+    .await
+}
+
+/// Opens a Kubernetes session for one credential handle.
+///
+/// The handle is resolved inside the storage lock, which is released before the
+/// client is constructed, so no database lock is ever held across network I/O.
+/// The session carries the client; only its bounded identity crosses IPC.
+#[tauri::command]
+async fn open_kubernetes_session(
+    storage: State<'_, AppStorage>,
+    sessions: State<'_, KubernetesSessionStore>,
+    credential_handle: String,
+) -> Result<KubernetesSessionDto, ApplicationErrorDto> {
+    let resolved = run_storage(
+        Arc::clone(&storage.runtime),
+        "open_kubernetes_session",
+        move |storage| {
+            storage
+                .resolve_kubeconfig_credential(&credential_handle)
+                .map_err(|error| storage_error("open_kubernetes_session", error))
+        },
+    )
+    .await?;
+    let session = sessions
+        .open(&resolved)
+        .map_err(|error| kubernetes_error("open_kubernetes_session", error))?;
+    Ok(KubernetesSessionDto {
+        session_id: session.session_id,
+        context_label: session.context_label,
+        storage_mode: credential_mode_dto(session.storage_mode),
+    })
+}
+
+/// Closes one Kubernetes session and releases its client.
+#[tauri::command]
+fn close_kubernetes_session(
+    sessions: State<'_, KubernetesSessionStore>,
+    session_id: String,
+) -> Result<bool, ApplicationErrorDto> {
+    sessions
+        .close(&session_id)
+        .map_err(|error| kubernetes_error("close_kubernetes_session", error))
+}
+
+/// Reads the API server version through an opened session.
+///
+/// This is a nonsensitive discovery read. It is bounded by the adapter's
+/// admission capacity and per-attempt deadline, and it returns only the
+/// reported version fields.
+#[tauri::command]
+async fn read_kubernetes_version(
+    sessions: State<'_, KubernetesSessionStore>,
+    session_id: String,
+) -> Result<KubernetesVersionDto, ApplicationErrorDto> {
+    let version = sessions
+        .apiserver_version(&session_id)
+        .await
+        .map_err(|error| kubernetes_error("read_kubernetes_version", error))?;
+    Ok(KubernetesVersionDto {
+        session_id,
+        version: version.version,
+        major: version.major,
+        minor: version.minor,
+    })
 }
 
 async fn pick_kubeconfig_file(
@@ -457,7 +554,78 @@ fn storage_error(action: &str, error: StorageError) -> ApplicationErrorDto {
             "The storage request could not be completed.",
             false,
         ),
+        StorageError::UnknownCredential => application_error(
+            "KUBERNETES_CREDENTIAL_UNKNOWN",
+            action,
+            "The selected Kubernetes credential is no longer available. Import it again.",
+            false,
+        ),
     }
+}
+
+/// Maps one Kubernetes adapter failure onto a stable application error.
+///
+/// The adapter's categories are already redacted: no SDK message, credential,
+/// or cluster response reaches this function, and none is forwarded.
+fn kubernetes_error(action: &str, error: KubernetesError) -> ApplicationErrorDto {
+    let (code, message, retryable) = match error {
+        KubernetesError::CredentialInvalid => (
+            "KUBERNETES_CREDENTIAL_INVALID",
+            "The stored credential is not a supported kubeconfig.",
+            false,
+        ),
+        KubernetesError::SessionLimit => (
+            "KUBERNETES_SESSION_LIMIT",
+            "Close a Kubernetes session before opening another.",
+            false,
+        ),
+        KubernetesError::SessionUnknown => (
+            "KUBERNETES_SESSION_UNKNOWN",
+            "The Kubernetes session is no longer open.",
+            false,
+        ),
+        KubernetesError::CapacityExceeded => (
+            "KUBERNETES_CAPACITY_EXCEEDED",
+            "The application is already running its maximum number of Kubernetes requests.",
+            true,
+        ),
+        KubernetesError::Unauthorized => (
+            "KUBERNETES_UNAUTHORIZED",
+            "The Kubernetes API server rejected the credential.",
+            false,
+        ),
+        KubernetesError::Forbidden => (
+            "KUBERNETES_FORBIDDEN",
+            "The Kubernetes API server denied the request for this credential.",
+            false,
+        ),
+        KubernetesError::CertificateInvalid => (
+            "KUBERNETES_CERTIFICATE_INVALID",
+            "Kubernetes TLS validation failed for the configured cluster certificate authority.",
+            false,
+        ),
+        KubernetesError::Unavailable => (
+            "KUBERNETES_UNAVAILABLE",
+            "The Kubernetes API server is unavailable.",
+            true,
+        ),
+        KubernetesError::UnsupportedResponse => (
+            "KUBERNETES_RESPONSE_INVALID",
+            "The Kubernetes API server returned an unsupported response.",
+            false,
+        ),
+        KubernetesError::ClientUnavailable => (
+            "KUBERNETES_CLIENT_UNAVAILABLE",
+            "The Kubernetes client could not be created for the selected credential.",
+            false,
+        ),
+        KubernetesError::RegistryUnavailable => (
+            "KUBERNETES_SESSION_UNAVAILABLE",
+            "Kubernetes session state is unavailable. Restart the application and try again.",
+            false,
+        ),
+    };
+    application_error(code, action, message, retryable)
 }
 
 fn kubeconfig_error(action: &str, error: KubeconfigError) -> ApplicationErrorDto {
@@ -582,6 +750,7 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .manage(HelperService::default())
         .manage(TalosSessionStore::default())
+        .manage(KubernetesSessionStore::default())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let storage = open_storage_runtime(app.handle())?;
@@ -617,6 +786,10 @@ pub fn run() {
             retry_persistent_storage,
             import_kubeconfig,
             import_talosconfig,
+            list_kubernetes_credentials,
+            open_kubernetes_session,
+            close_kubernetes_session,
+            read_kubernetes_version,
             start_talos_probe,
             stop_talos_probe,
             close_talos_session
@@ -638,7 +811,52 @@ pub fn run() {
 
 #[cfg(feature = "native-test")]
 fn open_storage_runtime(_app: &tauri::AppHandle) -> Result<StorageRuntime, StorageError> {
-    StorageRuntime::open_native_test()
+    let mut runtime = StorageRuntime::open_native_test()?;
+    seed_native_test_kubernetes_credential(&mut runtime)?;
+    Ok(runtime)
+}
+
+/// Imports the synthetic Kubernetes credential a native-test run injects.
+///
+/// The native suite needs one imported credential to exercise the credential
+/// and session boundary without a picker or a cluster. When
+/// `TALOS_PILOT_NATIVE_TEST_KUBERNETES_DIR` names a directory holding a
+/// `kubeconfig.yaml`, that file is read through the same bounded bytes, the
+/// same validation, and the same store path a user import uses; nothing about
+/// it is special except that the harness supplied the file.
+///
+/// Only the `native-test` feature compiles this function, so a production
+/// artifact cannot read the variable, and the native-test runtime stores the
+/// credential in its isolated session-only memory rather than in any database.
+///
+/// # Errors
+///
+/// Returns a safe storage error when an injected file is unreadable or does not
+/// validate as a supported kubeconfig.
+#[cfg(feature = "native-test")]
+fn seed_native_test_kubernetes_credential(
+    runtime: &mut StorageRuntime,
+) -> Result<(), StorageError> {
+    let Ok(directory) = std::env::var("TALOS_PILOT_NATIVE_TEST_KUBERNETES_DIR") else {
+        return Ok(());
+    };
+    if directory.is_empty() {
+        return Ok(());
+    }
+    let path = std::path::PathBuf::from(directory).join("kubeconfig.yaml");
+    if !path.is_file() {
+        return Ok(());
+    }
+
+    let bytes = std::fs::read(&path)?;
+    if bytes.len() as u64 > MAX_IMPORT_FILE_BYTES {
+        return Err(StorageError::InvalidMetadata);
+    }
+    let source = SecretBox::new(bytes.into_boxed_slice());
+    let metadata =
+        validate_kubeconfig(source.expose_secret()).map_err(|_| StorageError::InvalidMetadata)?;
+    drop(runtime.store_kubeconfig(&metadata, source)?);
+    Ok(())
 }
 
 #[cfg(not(feature = "native-test"))]

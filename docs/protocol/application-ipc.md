@@ -24,17 +24,54 @@ generated ACL rather than by a renderer check.
 | `retry_persistent_storage`      | none                           | `CredentialStorageStatusDto`                          |
 | `import_kubeconfig`             | none (native file picker)      | `CredentialImportResultDto` or `null` when cancelled  |
 | `import_talosconfig`            | none (native file picker)      | `TalosCredentialSessionDto` or `null` when cancelled  |
+| `list_kubernetes_credentials`   | none                           | `KubernetesCredentialSummaryDto[]`                    |
+| `open_kubernetes_session`       | `credentialHandle`             | `KubernetesSessionDto`                                |
+| `close_kubernetes_session`      | `sessionId`                    | `true` when that session was open                     |
+| `read_kubernetes_version`       | `sessionId`                    | `KubernetesVersionDto`                                |
 | `start_talos_probe`             | `sessionId`, `node`, `channel` | `null` on completion; events arrive on the channel    |
 | `stop_talos_probe`              | `sessionId`                    | `true` when that session owns the active subscription |
 | `close_talos_session`           | `sessionId`                    | `true` when an in-memory session was removed          |
 
 Rust parameters are declared in `snake_case` and Tauri exposes them to the
-renderer as `camelCase`, so `sessionId` binds to `session_id`. No command
-accepts a path, a credential, a process argument, or a raw selector: selected
-files stay in Rust, Talos credentials stay in the backend session store, and
-`stop_talos_probe` and `close_talos_session` act only on the session they name.
-Unknown, already-closed, or non-owning session identifiers release no helper
-work and return `false`.
+renderer as `camelCase`, so `sessionId` binds to `session_id` and
+`credentialHandle` to `credential_handle`. No command accepts a path, a
+credential, a process argument, or a raw selector: selected files stay in Rust,
+Talos credentials stay in the backend session store, Kubernetes credentials
+stay behind an opaque handle, and `stop_talos_probe`, `close_talos_session`, and
+`close_kubernetes_session` act only on the session they name. Unknown,
+already-closed, or non-owning session identifiers release no helper work and
+return `false`.
+
+## Kubernetes credential handles and sessions
+
+Importing a kubeconfig returns a `credential_handle`: an opaque
+`kubecred-`-prefixed reference to the stored credential. A handle is **not** an
+authorization grant. `open_kubernetes_session` validates its kind prefix and
+length, re-checks which storage holds that reference and that the reference is
+a `kubeconfig` record of a known profile, and refuses a stored reference while
+the runtime cannot open it, before any decryption. Unknown, malformed, or
+foreign-kind handles fail as `KUBERNETES_CREDENTIAL_UNKNOWN`.
+
+`list_kubernetes_credentials` reports at most 512 entries and is called only
+from an explicit user action: the backend never lists credentials at startup, so
+opening the shell does not read the vault or create a key. Each entry carries a
+handle, a bounded context label derived from that credential's encrypted
+material, and the mode the entry currently lives in (`persistent` or
+`session_only`, never a runtime-wide mode). A persistent reference survives a
+restart; a session-only handle does not.
+
+A session is process-local and returns only its identifier, bounded context
+label, and credential mode. `read_kubernetes_version` performs one
+non-sensitive API server read through that session's client: it is admitted
+against a 32-request capacity that rejects excess work instead of queueing it,
+bounded by a fifteen-second attempt deadline, and returns only the reported
+version fields. The adapter holds at most four sessions.
+
+No credential bytes, kubeconfig content, file path, token, or SDK object is
+included in any of these results. The adapter never reads ambient configuration
+(`$KUBECONFIG`, `~/.kube/config`, or the in-cluster environment), never applies
+a proxy, and never disables TLS validation; see
+[decision 0012](../decisions/0012-kubernetes-client-session-boundary.md).
 
 ## Streaming results
 

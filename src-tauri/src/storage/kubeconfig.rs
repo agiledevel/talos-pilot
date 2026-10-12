@@ -1,8 +1,10 @@
 //! Bounded validation of imported Kubernetes kubeconfig documents.
 
+use base64::{Engine, engine::general_purpose::STANDARD};
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 use serde_saphyr::{from_slice_with_options, options};
+use zeroize::Zeroizing;
 
 use crate::secret::{SensitiveString, decodes_to_nonempty_base64};
 
@@ -57,6 +59,148 @@ pub struct KubeconfigMetadata {
 /// external path, endpoint, or context validation failures. Parser details and
 /// source snippets are never included in the error value.
 pub fn validate_kubeconfig(bytes: &[u8]) -> Result<KubeconfigMetadata, KubeconfigError> {
+    let selected = select_kubeconfig(bytes)?;
+    Ok(KubeconfigMetadata {
+        context_name: selected.context_name,
+    })
+}
+
+/// Selects the supported credential fields a Kubernetes client may use.
+///
+/// This runs exactly the validation [`validate_kubeconfig`] runs, then copies
+/// only the endpoint, the inline certificate authority, and one inline
+/// authentication form into [`SelectedKubeconfig`]. A Kubernetes client is
+/// therefore built from a supported-field selection rather than from the raw
+/// document, so executable authentication, `auth-provider` blocks, external
+/// file paths, proxy settings, and insecure TLS flags can never be interpreted
+/// by the SDK. Proxy settings are never returned, so an imported kubeconfig
+/// cannot redirect traffic through a proxy the user did not approve here.
+///
+/// # Errors
+///
+/// Returns the same static categories as [`validate_kubeconfig`].
+pub(crate) fn select_kubeconfig(bytes: &[u8]) -> Result<SelectedKubeconfig, KubeconfigError> {
+    let config = parse_document(bytes)?;
+    let (context_name, cluster_name, user_name) = select_names(&config)?;
+    let cluster = config
+        .clusters
+        .iter()
+        .find(|entry| entry.name == cluster_name)
+        .ok_or(KubeconfigError::InvalidDocument)?;
+    let user = config
+        .users
+        .iter()
+        .find(|entry| entry.name == user_name)
+        .ok_or(KubeconfigError::InvalidDocument)?;
+    let certificate_authority_pem = match &cluster.cluster.certificate_authority_data {
+        Some(value) => Some(Zeroizing::new(
+            STANDARD
+                .decode(value.expose())
+                .map_err(|_| KubeconfigError::InvalidDocument)?,
+        )),
+        None => None,
+    };
+
+    Ok(SelectedKubeconfig {
+        context_name,
+        server: Zeroizing::new(cluster.cluster.server.expose().to_owned()),
+        certificate_authority_pem,
+        identity: select_identity(&user.user)?,
+    })
+}
+
+/// A supported-field selection from one validated kubeconfig context.
+///
+/// The structure deliberately implements neither `Debug` nor `Clone` and is
+/// never serializable, so selected credential material cannot reach logs,
+/// snapshots, or IPC payloads by accident. Every field is zeroized on drop.
+pub(crate) struct SelectedKubeconfig {
+    /// Bounded `current-context` name of the selection.
+    pub(crate) context_name: String,
+    /// Cluster server URL, already validated as HTTPS with no userinfo.
+    pub(crate) server: Zeroizing<String>,
+    /// Decoded inline certificate authority data, in PEM form when present.
+    pub(crate) certificate_authority_pem: Option<Zeroizing<Vec<u8>>>,
+    /// Exactly one supported inline authentication form.
+    pub(crate) identity: KubeconfigIdentity,
+}
+
+/// One supported inline authentication form of the selected user.
+pub(crate) enum KubeconfigIdentity {
+    /// Bearer token authentication.
+    Token(Zeroizing<String>),
+    /// HTTP basic authentication.
+    Basic {
+        /// Basic-auth user name.
+        username: Zeroizing<String>,
+        /// Basic-auth password.
+        password: Zeroizing<String>,
+    },
+    /// Mutual TLS with inline base64-encoded certificate and key data.
+    ClientCertificate {
+        /// Base64-encoded client certificate data, as stored in the kubeconfig.
+        certificate_data: Zeroizing<String>,
+        /// Base64-encoded client key data, as stored in the kubeconfig.
+        key_data: Zeroizing<String>,
+    },
+}
+
+/// Resolves the selected context, its cluster, and its user name.
+fn select_names(config: &Kubeconfig) -> Result<(String, String, String), KubeconfigError> {
+    let selected_context = config
+        .contexts
+        .iter()
+        .find(|context| context.name == config.current_context)
+        .ok_or(KubeconfigError::InvalidDocument)?;
+    let user_name = selected_context
+        .context
+        .user
+        .clone()
+        .ok_or(KubeconfigError::MissingCredentials)?;
+    Ok((
+        config.current_context.clone(),
+        selected_context.context.cluster.clone(),
+        user_name,
+    ))
+}
+
+/// Picks the first supported inline authentication form of the selected user.
+fn select_identity(user: &User) -> Result<KubeconfigIdentity, KubeconfigError> {
+    fn nonempty(value: &Option<SensitiveString>) -> Option<&SensitiveString> {
+        value.as_ref().filter(|value| !value.is_empty())
+    }
+
+    if let Some(token) = nonempty(&user.token) {
+        return Ok(KubeconfigIdentity::Token(Zeroizing::new(
+            token.expose().to_owned(),
+        )));
+    }
+    if let (Some(username), Some(password)) = (nonempty(&user.username), nonempty(&user.password)) {
+        return Ok(KubeconfigIdentity::Basic {
+            username: Zeroizing::new(username.expose().to_owned()),
+            password: Zeroizing::new(password.expose().to_owned()),
+        });
+    }
+    if let (Some(certificate), Some(key)) = (
+        nonempty(&user.client_certificate_data),
+        nonempty(&user.client_key_data),
+    ) {
+        return Ok(KubeconfigIdentity::ClientCertificate {
+            certificate_data: Zeroizing::new(certificate.expose().to_owned()),
+            key_data: Zeroizing::new(key.expose().to_owned()),
+        });
+    }
+
+    Err(KubeconfigError::MissingCredentials)
+}
+
+/// Parses and structurally validates one bounded kubeconfig document.
+///
+/// # Errors
+///
+/// Returns a static category; parser details and source snippets are never
+/// included in the error value.
+fn parse_document(bytes: &[u8]) -> Result<Kubeconfig, KubeconfigError> {
     if bytes.is_empty() || bytes.len() > MAX_DOCUMENT_BYTES {
         return Err(KubeconfigError::TooLarge);
     }
@@ -175,28 +319,7 @@ pub fn validate_kubeconfig(bytes: &[u8]) -> Result<KubeconfigMetadata, Kubeconfi
         }
     }
 
-    let selected_context = config
-        .contexts
-        .iter()
-        .find(|context| context.name == config.current_context)
-        .ok_or(KubeconfigError::InvalidDocument)?;
-    let selected_user_name = selected_context
-        .context
-        .user
-        .as_deref()
-        .ok_or(KubeconfigError::MissingCredentials)?;
-    let selected_user = config
-        .users
-        .iter()
-        .find(|user| user.name == selected_user_name)
-        .ok_or(KubeconfigError::InvalidDocument)?;
-    if !selected_user.user.has_supported_credentials() {
-        return Err(KubeconfigError::MissingCredentials);
-    }
-
-    Ok(KubeconfigMetadata {
-        context_name: config.current_context,
-    })
+    Ok(config)
 }
 
 fn bounded_name(name: &str) -> bool {
@@ -309,28 +432,6 @@ struct User {
     #[serde(rename = "auth-provider")]
     auth_provider: Option<IgnoredAny>,
     exec: Option<IgnoredAny>,
-}
-
-impl User {
-    fn has_supported_credentials(&self) -> bool {
-        self.token.as_ref().is_some_and(|value| !value.is_empty())
-            || (self
-                .username
-                .as_ref()
-                .is_some_and(|value| !value.is_empty())
-                && self
-                    .password
-                    .as_ref()
-                    .is_some_and(|value| !value.is_empty()))
-            || (self
-                .client_certificate_data
-                .as_ref()
-                .is_some_and(|value| !value.is_empty())
-                && self
-                    .client_key_data
-                    .as_ref()
-                    .is_some_and(|value| !value.is_empty()))
-    }
 }
 
 #[cfg(test)]

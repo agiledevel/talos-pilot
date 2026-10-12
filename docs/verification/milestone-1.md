@@ -25,19 +25,19 @@ qualification.
 
 ## Checkpoint status and acceptance criteria
 
-| Checkpoint                       | Status                                                     | Acceptance criteria                                                                                                                                                                                                                                      |
-| -------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| C0.1 baseline and ledger         | Complete                                                   | Reproduce frozen install, renderer, coverage, browser, icon, Rust, advisory, workflow, and native release-build checks; record actual command results, host/tool versions, failures, and next actions.                                                   |
-| C0.2 dependency/harness research | Complete                                                   | Pin compatible Go/Talos, Rust-to-TypeScript and Protobuf generation/runtime tools, and Tauri native harness packages from primary sources; run minimal compatibility probes and record limits.                                                           |
-| C1 helper and contracts          | In progress (C8 runtime)                                   | Deterministically generate documented Rust/Go/TypeScript protocol and DTO outputs; reject malformed, oversized, unknown, and incompatible frames; exercise actual packaged Rust↔Go handshake, bounded supervision, failure cleanup, and safe status IPC. |
-| C2 native IPC harness            | In progress (final target refresh)                         | Runtime-validate renderer DTOs; use an explicit browser mock; run Tauri/WebdriverIO allowed and denied IPC flows; demonstrate cleanup and prove production excludes mock/driver/test commands.                                                           |
-| C3 encrypted storage             | Complete on Linux (C8 OS matrix open)                      | Verify schema/migration atomicity, AEAD integrity and redaction, actual OS-vault success/failure, encrypted restart, explicit session-only behavior, and native credential import with exec-auth rejection.                                              |
-| C4 Talos probe                   | In progress (live read/stream and restricted roles proven) | On an allowlisted disposable Talos 1.14 fixture, demonstrate authenticated nonsensitive read and bounded COSI stream, TLS/authorization failures, cancellation/reconnect, and native shutdown cleanup.                                                   |
-| C5 Kubernetes probe              | Pending                                                    | On disposable Kubernetes 1.36, demonstrate scoped paginated Rust reads and watch/relist behavior with RBAC/TLS/scope faults and cleanup; run affected read/watch cases on 1.35 and 1.37.                                                                 |
-| C6 UI, workers, and CSP          | Pending                                                    | Qualify system/light/dark and density behavior, accessible feasibility states, lazy offline editor workers, bounded terminal/chart wrappers and disposal, restrictive CSP, and packaged asset behavior.                                                  |
-| C7 advisories and inventory      | Complete on Linux (C8 scans open)                          | Resolve or record applicability for each advisory without silent exclusions; generate/review dependency inventory and notices; preserve exact-revision security automation.                                                                              |
-| C8 package/platform runtime      | Pending                                                    | Qualify clean install/launch/shutdown/uninstall and helper/vault/assets on Linux, macOS Intel/Apple Silicon, and Windows 11; inspect production exclusion and signing/integrity feasibility.                                                             |
-| C9 budgets and review            | Pending                                                    | Measure declared synthetic and native workloads on recorded hardware, derive and enforce budgets, complete acceptance matrix and separate final review, and hand off with all failed/unrun evidence visible.                                             |
+| Checkpoint                       | Status                                                                                               | Acceptance criteria                                                                                                                                                                                                                                      |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C0.1 baseline and ledger         | Complete                                                                                             | Reproduce frozen install, renderer, coverage, browser, icon, Rust, advisory, workflow, and native release-build checks; record actual command results, host/tool versions, failures, and next actions.                                                   |
+| C0.2 dependency/harness research | Complete                                                                                             | Pin compatible Go/Talos, Rust-to-TypeScript and Protobuf generation/runtime tools, and Tauri native harness packages from primary sources; run minimal compatibility probes and record limits.                                                           |
+| C1 helper and contracts          | In progress (C8 runtime)                                                                             | Deterministically generate documented Rust/Go/TypeScript protocol and DTO outputs; reject malformed, oversized, unknown, and incompatible frames; exercise actual packaged Rust↔Go handshake, bounded supervision, failure cleanup, and safe status IPC. |
+| C2 native IPC harness            | In progress (final target refresh)                                                                   | Runtime-validate renderer DTOs; use an explicit browser mock; run Tauri/WebdriverIO allowed and denied IPC flows; demonstrate cleanup and prove production excludes mock/driver/test commands.                                                           |
+| C3 encrypted storage             | Complete on Linux (C8 OS matrix open)                                                                | Verify schema/migration atomicity, AEAD integrity and redaction, actual OS-vault success/failure, encrypted restart, explicit session-only behavior, and native credential import with exec-auth rejection.                                              |
+| C4 Talos probe                   | In progress (live read/stream and restricted roles proven)                                           | On an allowlisted disposable Talos 1.14 fixture, demonstrate authenticated nonsensitive read and bounded COSI stream, TLS/authorization failures, cancellation/reconnect, and native shutdown cleanup.                                                   |
+| C5 Kubernetes probe              | In progress (client/credential-session boundary implemented; acceptance blocked on F1 live evidence) | On disposable Kubernetes 1.36, demonstrate scoped paginated Rust reads and watch/relist behavior with RBAC/TLS/scope faults and cleanup; run affected read/watch cases on 1.35 and 1.37.                                                                 |
+| C6 UI, workers, and CSP          | Pending                                                                                              | Qualify system/light/dark and density behavior, accessible feasibility states, lazy offline editor workers, bounded terminal/chart wrappers and disposal, restrictive CSP, and packaged asset behavior.                                                  |
+| C7 advisories and inventory      | Complete on Linux (C8 scans open)                                                                    | Resolve or record applicability for each advisory without silent exclusions; generate/review dependency inventory and notices; preserve exact-revision security automation.                                                                              |
+| C8 package/platform runtime      | Pending                                                                                              | Qualify clean install/launch/shutdown/uninstall and helper/vault/assets on Linux, macOS Intel/Apple Silicon, and Windows 11; inspect production exclusion and signing/integrity feasibility.                                                             |
+| C9 budgets and review            | Pending                                                                                              | Measure declared synthetic and native workloads on recorded hardware, derive and enforce budgets, complete acceptance matrix and separate final review, and hand off with all failed/unrun evidence visible.                                             |
 
 ## Repository review and next phase — 2026-10-11
 
@@ -451,6 +451,259 @@ then gains its live-evidence rows and C4's remaining open rows can close.
 next packet; its pin/API research may start now, but F2 acceptance must not be
 claimed before F1's live evidence exists. Packaged startup stays with F9; R3
 stays deferred.
+
+## F2 packet evidence — the Kubernetes client and credential-session boundary
+
+Packet F2 of the [foundation completion plan](../plans/foundation-completion-flash.md#f2--establish-the-kubernetes-client-and-credential-session-boundary),
+mapped to C5 step 1, the C3 contract extension, and FND-003/004. Base revision
+`f9d56a8` (clean tree); the final revision is the commit carrying this entry —
+the packet is handed off as one working-tree change set. **F2 is implemented and
+green, but not accepted**: its own live-cluster read is deliberately out of
+scope (F3 owns it), and F1's live fixture rows are still unexecuted on a host
+without root or KVM, so C5 keeps its acceptance open.
+
+### Trigger, observable behavior, invariants
+
+F1 part 2 left the Kubernetes boundary entirely unimplemented: C3.3's import
+returned only a context label and a storage mode, nothing identified a stored
+credential after the import finished, and no Rust client, session, or adapter
+existed. F2 implements the boundary the plan specifies:
+
+1. Importing a supported kubeconfig yields an opaque, kind-prefixed handle
+   (`kubecred-` plus a 16-byte random reference). A handle is not an
+   authorization grant: resolution re-validates the handle's prefix and bounds,
+   which storage holds the reference, that the reference's `value_kind` is
+   `kubeconfig`, and that the current mode can open it, before anything is
+   decrypted.
+2. The client is built from an explicitly selected, validated in-memory
+   kubeconfig and never from ambient configuration. There is no `Config::infer`,
+   `Kubeconfig::read`, in-cluster path, or proxy anywhere in the adapter; exec,
+   auth-provider, and external-file credentials and insecure TLS are rejected
+   during selection, before any SDK action.
+3. Every context label comes from encrypted material. An import writes a small
+   encrypted label under the new `value_kind` `kubeconfig-context` in the same
+   transaction as the profile and credential; a row written before that label
+   derives it by decrypting and re-validating the credential. Decision 0005
+   stands: no plaintext label row exists, and `profiles.display_name` stays
+   generic.
+4. A read never creates a vault key. The vault trait gained a read-only
+   `load_key`, so a missing or replaced key leaves existing ciphertext intact
+   and fails resolution instead of silently re-keying records.
+5. Section 4's session and admission limits are enforced before client
+   construction: at most four sessions, at most 32 admitted requests with
+   immediate rejection rather than queueing, and a fifteen-second attempt
+   deadline. The storage lock is released before any network I/O.
+6. Errors are stable redacted categories: no SDK message, URL, token, or
+   kubeconfig content reaches a DTO, a log, or the renderer.
+
+### Files, contracts, and ADRs changed
+
+| File                                                                                                                                                                                               | Change                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src-tauri/Cargo.toml`, `Cargo.lock`                                                                                                                                                               | Pins `kube` 4.2.0 (client/config/rustls-tls/ring), `k8s-openapi` 0.28.0 with the single `v1_36` schema feature, `http` 1.5.0, `pem` 3.0.6; adds optional `rcgen` 0.14.10 and `tokio-rustls` 0.26.6 (ring only) under `native-test` plus the example target |
+| `src-tauri/src/kubernetes/`                                                                                                                                                                        | New module: `client.rs` (supported-field `Config` construction), `session.rs` (session store, admission, version read), `error.rs` (redacted categories), `synthetic.rs` (feature-gated synthetic TLS apiserver)                                           |
+| `src-tauri/src/storage/runtime.rs`, `database.rs`, `session.rs`, `vault.rs`, `kubeconfig.rs`, `mod.rs`                                                                                             | Handles, `list_kubeconfig_credentials`, `resolve_kubeconfig_credential`, the encrypted `kubeconfig-context` label, the read-only vault read, `select_kubeconfig`, and single-transaction multi-value writes                                                |
+| `src-tauri/src/contracts.rs`, `src/bin/export_ipc_types.rs`, `src/lib/ipc/generated/`                                                                                                              | `credential_handle` on the import result; new `KubernetesCredentialSummaryDto`, `KubernetesSessionDto`, `KubernetesVersionDto`; regenerated TypeScript                                                                                                     |
+| `src-tauri/src/lib.rs`, `capabilities/main.json`, `build.rs`                                                                                                                                       | Four commands with redacted error mapping, registered and granted only to the main window                                                                                                                                                                  |
+| `src/lib/ipc/validation.ts`, `transport.ts`, tests                                                                                                                                                 | Handle/version/session runtime validation, bounded-listing validation, typed transport, and their renderer tests                                                                                                                                           |
+| `src-tauri/examples/kubernetes-synthetic-apiserver.rs`, `src-tauri/tests/kubernetes_session.rs`, `tests/native/kubernetes-session.spec.ts`, `scripts/test-native.ts`                               | Synthetic endpoint, integration tests, native specs, and the harness lifecycle with endpoint cleanup                                                                                                                                                       |
+| `scripts/check-production-exclusion.ts`                                                                                                                                                            | New capability names, synthetic-server markers, and graph assertions (`rcgen` absent by default, present with the Kubernetes test support under `native-test`)                                                                                             |
+| [ADR 0012](../decisions/0012-kubernetes-client-session-boundary.md), [application IPC](../protocol/application-ipc.md), [storage v1](../storage/storage-v1.md), [dependencies](../dependencies.md) | The boundary decision, the four commands and handle/session semantics, the handle/label/listing/resolution contract, and the new pins                                                                                                                      |
+
+### Exact commands; host/toolchain/WebView; exit results
+
+Host: sandboxed Linux x86_64 session over the openSUSE Tumbleweed development
+host (WebKitGTK 605.1.15, GTK 3.24.52). The pinned tools were again **not**
+installed where the task expected (`HOME` is read-only here), so they were
+provisioned into `/tmp/tp` with verified digests: Node 26.11.1 (nodejs.org
+`SHASUMS256.txt`), pnpm 12.10.1, Go 1.27.2 (go.dev release index), Rust 1.99.0
+with rustfmt 1.10.0 and clippy 0.1.99 (rustup into `/tmp/tp/cargo`), and protoc
+36.2 (the CI pin and SHA-256 from `.github/actions/install-protoc/action.yml`).
+Because this sandbox has no GTK/WebKit `-devel` package, a scratchpad
+pkg-config/link shim (`/tmp/tp/pkgconfig` with `-L/tmp/tp/libshim -l<name>`
+symlinks to the installed runtime libraries) resolves the Tauri link set;
+`XDG_DATA_HOME`/`XDG_CONFIG_HOME`/`XDG_CACHE_HOME` point into the scratchpad,
+and the host Go module cache is reused read-only. Environment bootstrap only:
+no product code or check was weakened for it. All commands ran on the final
+tree:
+
+| Command                                                                                                                        | Result                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `cargo build --locked --lib` (default features)                                                                                | Pass: the pinned Kubernetes client graph builds locked                                             |
+| `cargo fmt --all -- --check`                                                                                                   | Pass                                                                                               |
+| `cargo clippy --locked --all-targets -- -D warnings` (default and `native-test`)                                               | Pass                                                                                               |
+| `cargo test --locked --all-targets`                                                                                            | 95 passed, 0 failed, 1 ignored (vault test)                                                        |
+| `cargo test --locked --all-targets --features native-test`                                                                     | 95 lib tests + 5 integration tests passed, 7 live Talos rows ignored                               |
+| `cargo test --locked --doc`, `RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps`, `cargo build --locked`                 | Pass                                                                                               |
+| Go gates in `helper/`: `gofmt -l .`, `go vet ./...`, `go test ./...`, `go test -race ./...`, `go mod verify`, `go build ./...` | Pass (helper and shared protocol unchanged by this packet)                                         |
+| `pnpm check`                                                                                                                   | Pass: Oxfmt, type-aware Oxlint, `svelte-check`, 115 renderer tests, production Vite build          |
+| `pnpm contracts:check`                                                                                                         | Pass: Rust/Go/TypeScript regeneration is byte-stable                                               |
+| `pnpm test:e2e`                                                                                                                | Pass: 7 Playwright flows on Chromium headless shell 156.0.8078.4                                   |
+| `pnpm test:native`                                                                                                             | Pass: 12 shell/helper specs + 4 Kubernetes specs; no helper process or synthetic endpoint remained |
+| `pnpm desktop:build`, `pnpm production:check`                                                                                  | Pass: production artifact excludes WebDriver and exposes no driver listener                        |
+| `pnpm advisories:check`                                                                                                        | Pass: the two recorded advisories match the report, path, and linked production executable         |
+| `pnpm audit:go`, `pnpm inventory:generate`, `pnpm inventory:check`                                                             | Pass: no linked vulnerabilities; inventory current at 529 npm / 601 cargo / 143 Go entries         |
+| `git diff --check`                                                                                                             | Pass                                                                                               |
+
+Two first-attempt failures were environmental and are not product results. The
+first `pnpm test:e2e` run failed all seven flows with "Executable doesn't exist"
+because the scratchpad Playwright cache had no headless shell; after
+`pnpm exec playwright install chromium`, all seven passed. One Go gate run used
+`GOFLAGS=-mod=mod`, which rewrote `helper/go.sum`; that edit was reverted and
+the gates were rerun in the default readonly module mode, leaving `go.sum`
+byte-identical.
+
+### Native vs mocked vs real-cluster evidence
+
+- **Synthetic endpoint (real client, real TLS):** `src-tauri/tests/kubernetes_session.rs`
+  imports a synthetic kubeconfig, resolves its handle, opens a session, and
+  performs a real TLS `GET /version` against the endpoint from
+  `kubernetes::synthetic`, which records exactly one request carrying the
+  imported bearer token. A mismatched certificate authority classifies as
+  `KUBERNETES_CERTIFICATE_INVALID`; 401 and 403 classify as
+  `KUBERNETES_UNAUTHORIZED` and `KUBERNETES_FORBIDDEN`; no error or listing
+  rendering contains the sentinel token; an empty store resolves nothing and
+  refuses every malformed or foreign handle.
+- **Native:** `pnpm test:native` drives the four commands through real Tauri IPC
+  against the harness-started synthetic endpoint, including the four-session
+  ceiling, unknown handle/session handling, and ACL denial from the
+  unauthorized window.
+- **Mocked/browser:** `pnpm test:e2e` remains mock-transport evidence for the
+  shell only; it establishes nothing about the Kubernetes commands.
+- **Real cluster:** **none.** The first live cluster read belongs to F3.
+
+### Fixture identity, versions, topology, allowlist, cleanup evidence
+
+No cluster or Talos fixture was involved, so no allowlist change was needed.
+The synthetic endpoint is generated per run: a fresh certificate authority,
+server certificate, and bearer token, written into a temporary directory that
+the harness removes afterwards, and it is started and stopped by
+`scripts/test-native.ts`, which asserts the process exited and prints "No helper
+process or synthetic endpoint remained after the native suite." The Talos
+fixture and its allowlist were not touched.
+
+### Passed, failed, and unexecuted rows and practical limits
+
+Passed: the whole credential handle/list/resolve contract across persistent,
+session-only, and mixed modes (including restart resolution with an existing
+key, ciphertext preserved with a missing key, wrong-kind and unknown handles,
+and the encrypted-only label); the client-construction restrictions; the
+session/admission limits; the real-TLS version read through the production path
+with no ambient fallback; TLS/401/403 classification; redaction; every static,
+type, doc, contract, browser, native, production-exclusion, advisory, inventory
+and diff gate for the changed boundaries.
+
+**Unexecuted, with the practical limit:**
+
+- **F2 acceptance** cannot be claimed while F1's live evidence is missing: this
+  host cannot run `sudo -n` and has no `/dev/kvm`, so the recorded
+  `pnpm talos:fixture` provisioning still cannot run here.
+- **Live cluster reads** (list/watch, RBAC and namespace scoping, pagination,
+  discovery against 1.35–1.37) belong to F3–F5. This packet's endpoint is
+  synthetic and cannot qualify cluster behaviour.
+- **Client construction with a mutual-TLS or basic-auth identity** is covered by
+  the selection and rejection tests but not by a live handshake; the synthetic
+  endpoint authenticates with a token.
+- **A real OS-vault restart of a Kubernetes credential** is covered only with
+  injected keys in unit tests; the Linux Secret Service path remains C3/C8
+  evidence, and macOS/Windows vault and platform rows are still open.
+- Windows and macOS native runs of the new specs are unexecuted here; the
+  example and harness are cross-platform by construction, but that is not
+  evidence.
+
+### Separate final review findings and resolutions
+
+1. **Client construction needs an async runtime context.** `KubernetesSessionStore::open`
+   builds a client whose transport spawns a worker; calling it from a blocking
+   thread would panic. Both callers are async commands and the tests are
+   `#[tokio::test]`, and the requirement is now documented on `open`.
+2. **The first native specs failed inside the webview** because they referenced
+   module-level helpers from `browser.tauri.execute` callbacks, which are
+   serialized to the page. The helpers were inlined and the specs re-run green.
+3. **The production-exclusion graph assertion was wrong.** The first version
+   asserted the string `kubernetes` appears in the native-test dependency tree,
+   which it cannot. It now asserts the two feature-gated test dependencies
+   (`rcgen`, `tokio-rustls`) instead.
+4. **An accidental `helper/go.sum` rewrite** from one Go gate run was reverted
+   and the gates rerun in readonly mode; the file is byte-identical to its
+   committed content.
+5. **Formatting and lint drift** in the new Rust and TypeScript files was fixed
+   with the pinned tools (`cargo fmt`, `oxfmt`) and re-checked with the gates.
+6. **The first `pnpm test:e2e` run** failed only because the scratchpad browser
+   cache was empty; recorded as an environment fact, not a product change.
+
+An independent review pass with the repository's review tool then read the
+staged diff (generated DTOs and the dependency inventory excluded) and returned
+a `warn` verdict with no blocking issue, plus three should-fix items and four
+nits. Its conclusions and their resolutions:
+
+7. **The TLS classifier's type-name branch could not fire.** `type_name_of_val`
+   on a `&dyn Error` yields the trait-object name, so the branch the comment
+   described as matching Rustls types by dynamic type name was dead and the
+   tested behaviour came only from the message markers. The branch was deleted,
+   the comment now states the real mechanism and why the concrete Rustls type is
+   not nameable here, and two unit tests now pin the classifier over a synthetic
+   error chain (a certificate text inside and outside an `io::Error` wrapper,
+   and a non-certificate transport failure).
+8. **The pre-label fallback had no test** although ADR 0012 and storage v1 rely
+   on it. A test-only database helper now removes the label reference, and a new
+   runtime test proves both the listing and resolution still derive the label
+   from the decrypted credential.
+9. **`KubernetesError::Unavailable` had no test** (no timeout or refused
+   connection case). A new integration test imports a credential for the
+   synthetic endpoint, stops that endpoint so its listener is released, and then
+   asserts `KUBERNETES_UNAVAILABLE` on the read, bounded in time so a refused
+   connection is distinguishable from an attempt that reached the deadline.
+10. **Nits resolved:** the two never-constructed error variants were removed as
+    dead code; `SyntheticApiserver::stop` now awaits the accept loop instead of
+    sleeping; the all-or-nothing listing behaviour, its 256-reference bound, and
+    the deferred non-PEM certificate-authority rejection are now stated in the
+    storage document, ADR 0012, and the rustdoc (all three were deliberate, and
+    the last preserves decision 0005's base64-only import rule and its
+    checked-in fixture).
+
+A second review pass read the corrections and raised two more items, both fixed:
+
+11. **API statuses were collapsed into one category.** Every non-401/403 status
+    became retryable `Unavailable`, which contradicted the rustdoc: a 404 from a
+    live server is not an unreachable server. Statuses are now mapped by class —
+    401 `Unauthorized`, 403 `Forbidden`, 429 and 5xx `Unavailable` (the only
+    retryable class), anything else `UnsupportedResponse` — and the unit test
+    covers each class.
+12. **The classifier test did not require the chain walk.** The wrapped case
+    still named the certificate text in `Display`, so a single-level check would
+    have passed. The test now uses a wrapper whose `Display` is marker-free and
+    whose `source()` carries the cause, plus a second level, so classification
+    has to descend.
+
+A third pass raised one remaining item, fixed here:
+
+13. **A decode failure was reported as an unavailable server.** `SerdeError` is
+    now `UnsupportedResponse`, so a malformed payload never invites a retry; the
+    fallback for every other non-API, non-certificate failure is documented on
+    `from_kube` as the unavailable-and-retryable class. The remaining nits from
+    that pass — the stale `# Errors` list on `apiserver_version`, the wording of
+    the redaction note, and the timing check in the refused-connection test —
+    were corrected as well, and the one residual limit is recorded: a synthetic
+    server started concurrently could in principle rebind the port this test
+    released, which would surface as a certificate failure or a deadline stall
+    rather than a refusal, and the elapsed-time assertion reports that as a
+    stall.
+
+After those corrections the affected gates were rerun on the final tree:
+`cargo fmt --check`, Clippy with `-D warnings` and tests in both feature sets
+(95 tests in the default feature set, 95 library plus 5 integration tests with
+`native-test`),
+rustdoc, and `pnpm test:native` (2 spec files, 16 specs, no leftover process or
+endpoint) all pass.
+
+### Next smallest packet and prerequisites
+
+**F3 — deliver the bounded scoped Kubernetes list probe.** Its prerequisites are
+this packet's client/session boundary and the reprovisioned, amended Talos
+fixture harness that F1 still owes; F2 acceptance stays blocked until F1's live
+rows run on a host with root and KVM. Packaged-installer startup remains F9, and
+R3 stays deferred.
 
 ## C0.1 baseline evidence
 
