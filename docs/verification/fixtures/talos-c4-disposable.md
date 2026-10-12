@@ -342,6 +342,38 @@ observed the namespace in `Terminating`; a bounded 15-second verification was
 added, and the subsequent run passed. The fixture was destroyed immediately
 afterward and the namespace was verified gone before destroy.
 
+### F3 restricted-reader setup and read (2026-10-13, second cycle)
+
+The second provisioning cycle again reported endpoint
+`https://10.79.0.1:6443`, Kubernetes `v1.36.5`, and context
+`admin@talos-pilot-c4-20261009`. Its inline CA fingerprint was
+`f33619f91a6e1d2e4705576f500b7d798b2598ae465ba2d4c10406cbf3b45526`; this was
+written to the checked manifest before the first Kubernetes API request. The
+admin kubeconfig again used inline client certificate/key authentication, and
+the `/version` preflight succeeded before fixture setup.
+
+The live harness used that admin session to create the namespace, the
+`list-reader` ServiceAccount, a same-namespace Role limited to `get` and `list`
+on core Pods, and its RoleBinding. It created exactly the 201 names
+`list-probe-000` through `list-probe-200`, with image pulls disabled, then
+requested a 600-second ServiceAccount token. The token was kept in zeroizing
+memory and a private temporary kubeconfig outside the repository. That file
+contains only the fixture endpoint, CA, namespace, reader context, and token;
+it contains no admin certificate or key and was deleted when the harness
+finished. The normal Rust credential validation/import/session path opened
+that reader identity and successfully read `list-probe-000` from the named
+namespace.
+
+Cleanup deleted those exact Pod names, the named RoleBinding, Role, and
+ServiceAccount, then deleted the namespace with the UID from creation as a
+server-side precondition and verified it was gone. Two earlier runs failed at
+reader-kubeconfig validation after setup. The first used the admin context name
+where the fixture cluster name was required; the second omitted `apiVersion: v1`
+and `kind: Config`. After each failure, the temporary partial resources were
+removed by exact-name cleanup and UID-preconditioned namespace deletion, and
+namespace absence was verified before retrying. The corrected run passed. The
+fixture was then destroyed and host restoration completed per step 7.
+
 ## Host-issued identities (2026-10-09 run)
 
 - QEMU bridge: `talosb8c871e1` on `10.79.0.1/24`, four guests

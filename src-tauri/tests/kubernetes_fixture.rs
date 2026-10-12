@@ -10,18 +10,22 @@
 
 use std::{
     fs,
-    io::Read,
+    io::{Read, Write},
     path::{Path, PathBuf},
     time::Duration,
 };
 
 use base64::{Engine, engine::general_purpose::STANDARD};
-use k8s_openapi::api::core::v1::Namespace;
+use k8s_openapi::api::{
+    authentication::v1::{TokenRequest, TokenRequestSpec},
+    core::v1::{Container, Namespace, Pod, PodSpec, ServiceAccount},
+    rbac::v1::{PolicyRule, Role, RoleBinding, RoleRef, Subject},
+};
 use kube::{
     Api,
-    api::{DeleteParams, PostParams},
+    api::{DeleteParams, PostParams, Preconditions},
 };
-use secrecy::{ExposeSecret, SecretBox};
+use secrecy::{ExposeSecret, SecretBox, SecretString};
 use sha2::{Digest, Sha256};
 use talos_pilot::{
     kubernetes::KubernetesSessionStore,
@@ -31,13 +35,20 @@ use zeroize::Zeroizing;
 
 const EXPECTED_ENDPOINT: &str = "https://10.79.0.1:6443";
 const EXPECTED_VERSION: &str = "v1.36.5";
+const EXPECTED_CLUSTER_NAME: &str = "talos-pilot-c4-20261009";
 const EXPECTED_CONTEXT: &str = "admin@talos-pilot-c4-20261009";
+const EXPECTED_READER_CONTEXT: &str = "reader@talos-pilot-c4-20261009";
 const EXPECTED_NAMESPACE: &str = "talos-pilot-list-probe";
+const EXPECTED_SERVICE_ACCOUNT: &str = "list-reader";
+const EXPECTED_ROLE: &str = "list-reader";
+const EXPECTED_ROLE_BINDING: &str = "list-reader";
+const EXPECTED_POD_PREFIX: &str = "list-probe-";
+const EXPECTED_POD_COUNT: usize = 201;
 const MAX_CREDENTIAL_BYTES: u64 = 4 * 1024 * 1024;
 
 #[tokio::test]
 #[ignore = "requires the allowlisted Talos/Kubernetes fixture"]
-async fn live_fixture_preflight_checks_identity_and_server_version() {
+async fn live_fixture_sets_up_restricted_reader_and_cleans_up_by_uid() {
     assert!(
         std::env::var_os("KUBECONFIG").is_none(),
         "the live harness must not inherit ambient kube configuration"
@@ -78,6 +89,27 @@ async fn live_fixture_preflight_checks_identity_and_server_version() {
     assert_eq!(
         manifest["kubernetes"]["contextName"].as_str(),
         Some(EXPECTED_CONTEXT)
+    );
+    assert_eq!(
+        manifest["kubernetes"]["namespace"].as_str(),
+        Some(EXPECTED_NAMESPACE)
+    );
+    assert_eq!(
+        manifest["kubernetes"]["serviceAccount"].as_str(),
+        Some(EXPECTED_SERVICE_ACCOUNT)
+    );
+    assert_eq!(manifest["kubernetes"]["role"].as_str(), Some(EXPECTED_ROLE));
+    assert_eq!(
+        manifest["kubernetes"]["roleBinding"].as_str(),
+        Some(EXPECTED_ROLE_BINDING)
+    );
+    assert_eq!(
+        manifest["kubernetes"]["podNamePrefix"].as_str(),
+        Some(EXPECTED_POD_PREFIX)
+    );
+    assert_eq!(
+        manifest["kubernetes"]["podCount"].as_u64(),
+        Some(EXPECTED_POD_COUNT as u64)
     );
     let ca = cluster
         .certificate_authority_data
@@ -130,16 +162,63 @@ async fn live_fixture_preflight_checks_identity_and_server_version() {
     let admin_client = sessions
         .client_for_fixture_harness(&session.session_id)
         .unwrap_or_else(|_| panic!("the fixture admin session must remain available"));
-    let namespace_uid = create_fixture_namespace(&admin_client).await;
+    let (namespace_uid, reader_token) = create_fixture_namespace(&admin_client).await;
+    let reader_kubeconfig = write_reader_kubeconfig(EXPECTED_ENDPOINT, ca, &reader_token);
+    drop(reader_token);
+    let mut reader_bytes = read_credential(reader_kubeconfig.path());
+    let reader_metadata = validate_kubeconfig(&reader_bytes).unwrap_or_else(|_| {
+        panic!("the restricted fixture kubeconfig must pass import validation")
+    });
+    assert_eq!(reader_metadata.context_name, EXPECTED_READER_CONTEXT);
+    let reader_yaml = std::str::from_utf8(&reader_bytes)
+        .unwrap_or_else(|_| panic!("the restricted fixture kubeconfig must be UTF-8"));
+    let reader_config = kube::config::Kubeconfig::from_yaml(reader_yaml)
+        .unwrap_or_else(|_| panic!("the restricted fixture kubeconfig must parse"));
+    let reader_user = reader_config
+        .auth_infos
+        .iter()
+        .find(|user| user.name == EXPECTED_SERVICE_ACCOUNT)
+        .and_then(|user| user.auth_info.as_ref())
+        .unwrap_or_else(|| panic!("the restricted kubeconfig must select its ServiceAccount"));
+    assert!(reader_user.token.is_some());
+    assert!(reader_user.client_certificate.is_none());
+    assert!(reader_user.client_certificate_data.is_none());
+    assert!(reader_user.client_key.is_none());
+    assert!(reader_user.client_key_data.is_none());
+    let reader_source = SecretBox::new(std::mem::take(&mut *reader_bytes).into_boxed_slice());
+    let reader_handle = runtime
+        .store_kubeconfig(&reader_metadata, reader_source)
+        .unwrap_or_else(|_| panic!("the restricted credential must store in isolated memory"))
+        .handle;
+    let reader_credential = runtime
+        .resolve_kubeconfig_credential(&reader_handle)
+        .unwrap_or_else(|_| panic!("the restricted fixture credential must resolve"));
+    let reader_session = sessions
+        .open(&reader_credential)
+        .unwrap_or_else(|_| panic!("the restricted fixture session must open"));
+    let reader_client = sessions
+        .client_for_fixture_harness(&reader_session.session_id)
+        .unwrap_or_else(|_| panic!("the restricted fixture session must remain available"));
+    let pods: Api<Pod> = Api::namespaced(reader_client, EXPECTED_NAMESPACE);
+    let named_pod = pods
+        .get_opt("list-probe-000")
+        .await
+        .unwrap_or_else(|_| panic!("the restricted identity must read an allowlisted Pod"));
+    assert_eq!(
+        named_pod.and_then(|pod| pod.metadata.name),
+        Some("list-probe-000".to_owned())
+    );
+    assert_eq!(sessions.close(&reader_session.session_id), Ok(true));
     cleanup_fixture_namespace(&admin_client, &namespace_uid).await;
+    drop(reader_kubeconfig);
     assert_eq!(sessions.close(&session.session_id), Ok(true));
     println!(
-        "fixture preflight and UID-anchored namespace lifecycle passed: Kubernetes {} at the allowlisted endpoint",
+        "fixture admin setup, restricted Pod read, and UID-anchored cleanup passed: Kubernetes {} at the allowlisted endpoint",
         version.version
     );
 }
 
-async fn create_fixture_namespace(client: &kube::Client) -> String {
+async fn create_fixture_namespace(client: &kube::Client) -> (String, Zeroizing<String>) {
     let namespaces: Api<Namespace> = Api::all(client.clone());
     let existing = namespaces
         .get_opt(EXPECTED_NAMESPACE)
@@ -162,14 +241,230 @@ async fn create_fixture_namespace(client: &kube::Client) -> String {
         )
         .await
         .unwrap_or_else(|_| panic!("the allowlisted namespace must be created"));
-    created
+    let namespace_uid = created
         .metadata
         .uid
         .filter(|uid| !uid.is_empty() && uid.len() <= 64)
-        .unwrap_or_else(|| panic!("the created namespace must have a bounded UID"))
+        .unwrap_or_else(|| panic!("the created namespace must have a bounded UID"));
+
+    create_fixture_reader(client).await;
+    create_fixture_pods(client).await;
+    let reader_token = issue_reader_token(client).await;
+    (namespace_uid, reader_token)
+}
+
+async fn create_fixture_reader(client: &kube::Client) {
+    let accounts: Api<ServiceAccount> = Api::namespaced(client.clone(), EXPECTED_NAMESPACE);
+    accounts
+        .create(
+            &PostParams::default(),
+            &ServiceAccount {
+                automount_service_account_token: Some(false),
+                metadata: kube::core::ObjectMeta {
+                    name: Some(EXPECTED_SERVICE_ACCOUNT.to_owned()),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap_or_else(|_| panic!("the allowlisted ServiceAccount must be created"));
+
+    let roles: Api<Role> = Api::namespaced(client.clone(), EXPECTED_NAMESPACE);
+    roles
+        .create(
+            &PostParams::default(),
+            &Role {
+                metadata: kube::core::ObjectMeta {
+                    name: Some(EXPECTED_ROLE.to_owned()),
+                    ..Default::default()
+                },
+                rules: Some(vec![PolicyRule {
+                    api_groups: Some(vec![String::new()]),
+                    resources: Some(vec!["pods".to_owned()]),
+                    verbs: vec!["get".to_owned(), "list".to_owned()],
+                    ..Default::default()
+                }]),
+            },
+        )
+        .await
+        .unwrap_or_else(|_| panic!("the Pod-only namespace Role must be created"));
+
+    let bindings: Api<RoleBinding> = Api::namespaced(client.clone(), EXPECTED_NAMESPACE);
+    bindings
+        .create(
+            &PostParams::default(),
+            &RoleBinding {
+                metadata: kube::core::ObjectMeta {
+                    name: Some(EXPECTED_ROLE_BINDING.to_owned()),
+                    ..Default::default()
+                },
+                role_ref: RoleRef {
+                    api_group: Some("rbac.authorization.k8s.io".to_owned()),
+                    kind: "Role".to_owned(),
+                    name: EXPECTED_ROLE.to_owned(),
+                },
+                subjects: Some(vec![Subject {
+                    kind: "ServiceAccount".to_owned(),
+                    name: EXPECTED_SERVICE_ACCOUNT.to_owned(),
+                    namespace: Some(EXPECTED_NAMESPACE.to_owned()),
+                    ..Default::default()
+                }]),
+            },
+        )
+        .await
+        .unwrap_or_else(|_| panic!("the allowlisted RoleBinding must be created"));
+}
+
+async fn create_fixture_pods(client: &kube::Client) {
+    let pods: Api<Pod> = Api::namespaced(client.clone(), EXPECTED_NAMESPACE);
+    for index in 0..EXPECTED_POD_COUNT {
+        let name = format!("{EXPECTED_POD_PREFIX}{index:03}");
+        pods.create(
+            &PostParams::default(),
+            &Pod {
+                metadata: kube::core::ObjectMeta {
+                    name: Some(name),
+                    labels: Some(std::collections::BTreeMap::from([(
+                        "app".to_owned(),
+                        "list-probe".to_owned(),
+                    )])),
+                    ..Default::default()
+                },
+                spec: Some(PodSpec {
+                    automount_service_account_token: Some(false),
+                    containers: vec![Container {
+                        name: "pause".to_owned(),
+                        image: Some("fixture.invalid/talos-pilot-list-probe:never".to_owned()),
+                        image_pull_policy: Some("Never".to_owned()),
+                        ..Default::default()
+                    }],
+                    restart_policy: Some("Never".to_owned()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap_or_else(|_| panic!("the allowlisted synthetic Pod must be created"));
+    }
+}
+
+async fn issue_reader_token(client: &kube::Client) -> Zeroizing<String> {
+    let accounts: Api<ServiceAccount> = Api::namespaced(client.clone(), EXPECTED_NAMESPACE);
+    let token_request = TokenRequest {
+        spec: Some(TokenRequestSpec {
+            expiration_seconds: Some(600),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let response: TokenRequest = accounts
+        .create_subresource(
+            "token",
+            EXPECTED_SERVICE_ACCOUNT,
+            &PostParams::default(),
+            &token_request,
+        )
+        .await
+        .unwrap_or_else(|_| panic!("the allowlisted short-lived token request must succeed"));
+    let token = response
+        .status
+        .and_then(|status| status.token)
+        .filter(|token| !token.is_empty() && token.len() <= 16 * 1024)
+        .unwrap_or_else(|| panic!("the short-lived reader token must be bounded"));
+    Zeroizing::new(token)
+}
+
+fn write_reader_kubeconfig(
+    endpoint: &str,
+    certificate_authority_data: &str,
+    token: &str,
+) -> tempfile::NamedTempFile {
+    let config = kube::config::Kubeconfig {
+        clusters: vec![kube::config::NamedCluster {
+            name: EXPECTED_CLUSTER_NAME.to_owned(),
+            cluster: Some(kube::config::Cluster {
+                server: Some(endpoint.to_owned()),
+                certificate_authority_data: Some(certificate_authority_data.to_owned()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }],
+        contexts: vec![kube::config::NamedContext {
+            name: EXPECTED_READER_CONTEXT.to_owned(),
+            context: Some(kube::config::Context {
+                cluster: EXPECTED_CLUSTER_NAME.to_owned(),
+                user: Some(EXPECTED_SERVICE_ACCOUNT.to_owned()),
+                namespace: Some(EXPECTED_NAMESPACE.to_owned()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }],
+        current_context: Some(EXPECTED_READER_CONTEXT.to_owned()),
+        kind: Some("Config".to_owned()),
+        api_version: Some("v1".to_owned()),
+        auth_infos: vec![kube::config::NamedAuthInfo {
+            name: EXPECTED_SERVICE_ACCOUNT.to_owned(),
+            auth_info: Some(kube::config::AuthInfo {
+                token: Some(SecretString::from(token)),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let serialized = Zeroizing::new(
+        serde_json::to_vec(&config)
+            .unwrap_or_else(|_| panic!("the restricted kubeconfig must serialize")),
+    );
+    let mut file = tempfile::NamedTempFile::new()
+        .unwrap_or_else(|_| panic!("a private temporary restricted kubeconfig must be created"));
+    file.write_all(serialized.as_slice())
+        .unwrap_or_else(|_| panic!("the restricted kubeconfig must be written"));
+    file.as_file()
+        .sync_all()
+        .unwrap_or_else(|_| panic!("the restricted kubeconfig must be flushed"));
+    let repository_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap_or_else(|| panic!("the repository root must exist"));
+    assert!(
+        !file.path().starts_with(repository_root),
+        "the restricted kubeconfig must stay outside the repository"
+    );
+    file
 }
 
 async fn cleanup_fixture_namespace(client: &kube::Client, expected_uid: &str) {
+    let pods: Api<Pod> = Api::namespaced(client.clone(), EXPECTED_NAMESPACE);
+    for index in 0..EXPECTED_POD_COUNT {
+        let name = format!("{EXPECTED_POD_PREFIX}{index:03}");
+        pods.delete(
+            &name,
+            &DeleteParams {
+                grace_period_seconds: Some(0),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap_or_else(|_| panic!("only the exact allowlisted Pod may be deleted"));
+    }
+    let bindings: Api<RoleBinding> = Api::namespaced(client.clone(), EXPECTED_NAMESPACE);
+    bindings
+        .delete(EXPECTED_ROLE_BINDING, &DeleteParams::default())
+        .await
+        .unwrap_or_else(|_| panic!("the allowlisted RoleBinding must be deleted"));
+    let roles: Api<Role> = Api::namespaced(client.clone(), EXPECTED_NAMESPACE);
+    roles
+        .delete(EXPECTED_ROLE, &DeleteParams::default())
+        .await
+        .unwrap_or_else(|_| panic!("the allowlisted Role must be deleted"));
+    let accounts: Api<ServiceAccount> = Api::namespaced(client.clone(), EXPECTED_NAMESPACE);
+    accounts
+        .delete(EXPECTED_SERVICE_ACCOUNT, &DeleteParams::default())
+        .await
+        .unwrap_or_else(|_| panic!("the allowlisted ServiceAccount must be deleted"));
+
     let namespaces: Api<Namespace> = Api::all(client.clone());
     let current = namespaces
         .get_opt(EXPECTED_NAMESPACE)
@@ -187,7 +482,7 @@ async fn cleanup_fixture_namespace(client: &kube::Client, expected_uid: &str) {
         .delete(
             EXPECTED_NAMESPACE,
             &DeleteParams {
-                preconditions: Some(kube::api::Preconditions {
+                preconditions: Some(Preconditions {
                     uid: Some(expected_uid.to_owned()),
                     ..Default::default()
                 }),
