@@ -1,7 +1,9 @@
 # C4 disposable Talos fixture allowlist
 
 Status: **provisioned, exercised, and destroyed on 2026-10-09 and again on
-2026-10-12; no fixture exists now.** The 2026-10-12 run executed the full
+2026-10-12; an additional F1a preflight provisioned and destroyed the fixture
+on 2026-10-12 without running the harness; no fixture exists now.** The
+2026-10-12 run executed the full
 harness command with all four file references: six of the seven live rows
 passed and the live retry-exhaustion row stayed open, recorded in the
 [milestone ledger](../milestone-1.md#f1-packet-evidence-part-3-live-fixture-rows-on-the-unsandboxed-host--2026-10-12).
