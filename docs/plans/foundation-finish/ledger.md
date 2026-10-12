@@ -17,18 +17,18 @@ A document is `done` only when every acceptance case in it has recorded evidence
 
 ## Status board
 
-| Document                                                                        | Packet           | Status      | Last commit | Updated    | Next action                                                                                             |
-| ------------------------------------------------------------------------------- | ---------------- | ----------- | ----------- | ---------- | ------------------------------------------------------------------------------------------------------- |
-| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | not started | `aaedf79`   | 2026-10-12 | Start here. Steps 1–3 are committed and green on hosted CI at `aaedf79`; step 4 needs a fixture session |
-| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | not started | —           | 2026-10-12 | After 01                                                                                                |
-| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started | —           | 2026-10-12 | After 02                                                                                                |
-| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started | —           | 2026-10-12 | After 03                                                                                                |
-| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                                   |
-| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started | —           | 2026-10-12 | After 05                                                                                                |
-| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                                |
-| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | —           | 2026-10-12 | After 07                                                                                                |
-| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-12 | After 08                                                                                                |
-| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                                  |
+| Document                                                                        | Packet           | Status      | Last commit | Updated    | Next action                                                                                                                                          |
+| ------------------------------------------------------------------------------- | ---------------- | ----------- | ----------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | not started | `f2c09b6`   | 2026-10-12 | Start here. First record the hosted results for the latest commit, including the security scans (see the last entry). Step 4 needs a fixture session |
+| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | not started | —           | 2026-10-12 | After 01                                                                                                                                             |
+| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started | —           | 2026-10-12 | After 02                                                                                                                                             |
+| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started | —           | 2026-10-12 | After 03                                                                                                                                             |
+| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                                                                                |
+| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started | —           | 2026-10-12 | After 05                                                                                                                                             |
+| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                                                                             |
+| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | —           | 2026-10-12 | After 07                                                                                                                                             |
+| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-12 | After 08                                                                                                                                             |
+| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                                                                               |
 
 ## Standing owner decisions
 
@@ -41,6 +41,7 @@ Recorded on 2026-10-12. Their full wording is in the series [README](README.md#w
 | 2026-10-12 | The fixture-scoped host firewall remediation may be applied in the session, exactly as the allowlist records it             |
 | 2026-10-12 | Pushing to `ft-foundation-completion` is permitted; no force-push, tags, releases, or push to `main`                        |
 | 2026-10-12 | The fixture may shadow the VPN route covering `10.79.0.0/24` indefinitely (answers Q1)                                      |
+| 2026-10-12 | The owner opened pull request 2 from this branch to `main` (answers Q2). Sessions never merge, close, retarget, or edit it  |
 | 2026-10-12 | A node reboot that outlasts the reconnect budget ends the Talos subscription; the retry policy is unchanged (decision 0013) |
 | 2026-10-12 | F1 is closed with its live retry-exhaustion row re-scoped to F1a; F2 is accepted                                            |
 
@@ -62,10 +63,10 @@ Add a row when the owner decides something new. Quote the owner's words or cite 
 
 ## Questions for the owner
 
-| ID  | Asked      | Question                                                                                                                                                                                                                                    | Needed by                              | Answer                                    |
-| --- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ----------------------------------------- |
-| Q1  | 2026-10-12 | The fixture network `10.79.0.0/24` sits inside a VPN route on the host. The owner accepted shadowing it for the 2026-10-12 run only. Is that accepted from now on?                                                                          | The first fixture session, document 01 | Answered 2026-10-12: allowed indefinitely |
-| Q2  | 2026-10-12 | The security workflow (CodeQL and Trivy) runs only for pushes and pull requests to `main`. Exact-commit scan results for this branch need a pull request to `main`. May a session open one, as a draft, when document 07 needs the results? | Document 07                            | Open                                      |
+| ID  | Asked      | Question                                                                                                                                                                                                                                    | Needed by                              | Answer                                                                                                   |
+| --- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Q1  | 2026-10-12 | The fixture network `10.79.0.0/24` sits inside a VPN route on the host. The owner accepted shadowing it for the 2026-10-12 run only. Is that accepted from now on?                                                                          | The first fixture session, document 01 | Answered 2026-10-12: allowed indefinitely                                                                |
+| Q2  | 2026-10-12 | The security workflow (CodeQL and Trivy) runs only for pushes and pull requests to `main`. Exact-commit scan results for this branch need a pull request to `main`. May a session open one, as a draft, when document 07 needs the results? | Document 07                            | Answered 2026-10-12: the owner opened pull request 2 to `main`; the security scans now run for each push |
 
 ## Deferred and carried rows
 
@@ -166,6 +167,22 @@ Entries are appended below, oldest first.
 - **Assumptions confirmed or refuted:** none; those need the live fixture.
 - **Questions and blockers raised:** Q2.
 - **Next:** document 01.
+
+### 2026-10-12 — pull request 2 opened by the owner
+
+- **Document:** none (series maintenance, before document 01).
+- **Session:** Claude Opus 5.5; base revision `f2c09b6`; final revision: the commit carrying this entry.
+- **Status after this session:** no document status changed. Question Q2 is answered.
+- **Acceptance cases:** none.
+- **What changed:** this ledger, the series README, and document 07, to reflect the pull request and how to read its checks.
+- **Commands and results:** `gh pr list --head ft-foundation-completion`: pull request 2, "Foundation Next", base `main`, not a draft, head `f2c09b6`. `gh run list`: for `f2c09b6`, foundation checks 38308644370 (push) and 38309157781 (pull request) and security scans 38309157790 (pull request), all in progress when read.
+- **Evidence class:** none; no result was read to completion.
+- **Fixture:** none.
+- **Failed or unexecuted:** the three runs for `f2c09b6` and the runs for this entry's commit are in progress or not started. None is a pass yet.
+- **Review findings:** neither workflow sets a concurrency group, so a later push does not cancel an earlier run. Results for an older commit stay readable.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** none.
+- **Next:** document 01. Its session first reads and records the results of the runs named above, including the first CodeQL and Trivy results for this branch. A failing scan is a finding for document 07; record it and carry on with document 01 unless it shows a defect in code that document 01 touches.
 
 ## Entry template
 
