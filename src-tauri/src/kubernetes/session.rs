@@ -197,6 +197,32 @@ impl KubernetesSessionStore {
         Ok(sessions.remove(session_id).is_some())
     }
 
+    /// Clones a session client for the ignored disposable-fixture harness.
+    ///
+    /// This escape hatch exists only in `native-test` builds so fixture setup
+    /// can use an explicitly validated admin credential without exposing a
+    /// generic client or mutation API in production builds.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`KubernetesError::SessionUnknown`] for an unknown session or
+    /// [`KubernetesError::RegistryUnavailable`] when the registry lock cannot
+    /// be acquired.
+    #[cfg(feature = "native-test")]
+    pub fn client_for_fixture_harness(
+        &self,
+        session_id: &str,
+    ) -> Result<kube::Client, KubernetesError> {
+        let sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| KubernetesError::RegistryUnavailable)?;
+        sessions
+            .get(session_id)
+            .map(|session| session.client.clone())
+            .ok_or(KubernetesError::SessionUnknown)
+    }
+
     /// Reports the number of owned sessions.
     #[cfg(test)]
     pub(super) fn session_count(&self) -> Result<usize, KubernetesError> {

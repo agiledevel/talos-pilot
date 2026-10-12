@@ -323,6 +323,25 @@ namespace it did not create, one whose UID changed, or an object outside these
 exact names. The runbook's fixture destroy-and-restore procedure remains
 mandatory whether setup, a list read, or cleanup succeeds or fails.
 
+### F3 preflight and namespace lifecycle (2026-10-13)
+
+The reprovisioned fixture reported Kubernetes `v1.36.5` at
+`https://10.79.0.1:6443`, with context `admin@talos-pilot-c4-20261009`. Before
+the first Kubernetes request, the inline CA fingerprint was refreshed in the
+checked manifest to
+`773779b50ec04f259cd88339b0dcffd52b312aa316dbee33d8371abc02c1d076`. The
+selected kubeconfig user contains inline client-certificate and client-key
+data, with no token or basic-auth fields. The successful admin `/version`
+request is the first recorded real mutual-TLS handshake against the Kubernetes
+API.
+
+The live native-test harness then created only the named namespace with the
+admin session, captured its server-issued UID, and deleted it with that UID as a
+Kubernetes delete precondition. The first run's immediate absence assertion
+observed the namespace in `Terminating`; a bounded 15-second verification was
+added, and the subsequent run passed. The fixture was destroyed immediately
+afterward and the namespace was verified gone before destroy.
+
 ## Host-issued identities (2026-10-09 run)
 
 - QEMU bridge: `talosb8c871e1` on `10.79.0.1/24`, four guests

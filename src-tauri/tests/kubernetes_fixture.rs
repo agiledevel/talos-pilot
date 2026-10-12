@@ -12,9 +12,15 @@ use std::{
     fs,
     io::Read,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use base64::{Engine, engine::general_purpose::STANDARD};
+use k8s_openapi::api::core::v1::Namespace;
+use kube::{
+    Api,
+    api::{DeleteParams, PostParams},
+};
 use secrecy::{ExposeSecret, SecretBox};
 use sha2::{Digest, Sha256};
 use talos_pilot::{
@@ -26,6 +32,7 @@ use zeroize::Zeroizing;
 const EXPECTED_ENDPOINT: &str = "https://10.79.0.1:6443";
 const EXPECTED_VERSION: &str = "v1.36.5";
 const EXPECTED_CONTEXT: &str = "admin@talos-pilot-c4-20261009";
+const EXPECTED_NAMESPACE: &str = "talos-pilot-list-probe";
 const MAX_CREDENTIAL_BYTES: u64 = 4 * 1024 * 1024;
 
 #[tokio::test]
@@ -117,11 +124,93 @@ async fn live_fixture_preflight_checks_identity_and_server_version() {
     );
     assert_eq!(version.major, "1");
     assert_eq!(version.minor, "36");
+    // Fixture mutations use the validated admin session only. The namespace
+    // UID returned by create is the cleanup anchor; a pre-existing namespace
+    // or a replacement with another UID is never deleted.
+    let admin_client = sessions
+        .client_for_fixture_harness(&session.session_id)
+        .unwrap_or_else(|_| panic!("the fixture admin session must remain available"));
+    let namespace_uid = create_fixture_namespace(&admin_client).await;
+    cleanup_fixture_namespace(&admin_client, &namespace_uid).await;
     assert_eq!(sessions.close(&session.session_id), Ok(true));
     println!(
-        "fixture preflight passed: Kubernetes {} at the allowlisted endpoint",
+        "fixture preflight and UID-anchored namespace lifecycle passed: Kubernetes {} at the allowlisted endpoint",
         version.version
     );
+}
+
+async fn create_fixture_namespace(client: &kube::Client) -> String {
+    let namespaces: Api<Namespace> = Api::all(client.clone());
+    let existing = namespaces
+        .get_opt(EXPECTED_NAMESPACE)
+        .await
+        .unwrap_or_else(|_| panic!("the allowlisted namespace existence check must succeed"));
+    assert!(
+        existing.is_none(),
+        "the harness must not adopt an existing namespace"
+    );
+    let created = namespaces
+        .create(
+            &PostParams::default(),
+            &Namespace {
+                metadata: kube::core::ObjectMeta {
+                    name: Some(EXPECTED_NAMESPACE.to_owned()),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap_or_else(|_| panic!("the allowlisted namespace must be created"));
+    created
+        .metadata
+        .uid
+        .filter(|uid| !uid.is_empty() && uid.len() <= 64)
+        .unwrap_or_else(|| panic!("the created namespace must have a bounded UID"))
+}
+
+async fn cleanup_fixture_namespace(client: &kube::Client, expected_uid: &str) {
+    let namespaces: Api<Namespace> = Api::all(client.clone());
+    let current = namespaces
+        .get_opt(EXPECTED_NAMESPACE)
+        .await
+        .unwrap_or_else(|_| panic!("the namespace UID check must succeed"));
+    let Some(current) = current else {
+        panic!("the harness-created namespace must still exist before cleanup");
+    };
+    assert_eq!(
+        current.metadata.uid.as_deref(),
+        Some(expected_uid),
+        "namespace cleanup must be anchored to the UID returned at creation"
+    );
+    namespaces
+        .delete(
+            EXPECTED_NAMESPACE,
+            &DeleteParams {
+                preconditions: Some(kube::api::Preconditions {
+                    uid: Some(expected_uid.to_owned()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap_or_else(|_| panic!("the UID-matched namespace must be deleted"));
+    let gone = tokio::time::timeout(Duration::from_secs(15), async {
+        loop {
+            let current = namespaces
+                .get_opt(EXPECTED_NAMESPACE)
+                .await
+                .unwrap_or_else(|_| panic!("namespace deletion must be verifiable"));
+            if current.is_none() {
+                break true;
+            }
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+    })
+    .await
+    .unwrap_or(false);
+    assert!(gone, "the fixture namespace must be absent after cleanup");
 }
 
 fn external_input(name: &str) -> PathBuf {

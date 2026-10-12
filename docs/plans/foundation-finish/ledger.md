@@ -17,18 +17,18 @@ A document is `done` only when every acceptance case in it has recorded evidence
 
 ## Status board
 
-| Document                                                                        | Packet           | Status      | Last commit | Updated    | Next action                                                                              |
-| ------------------------------------------------------------------------------- | ---------------- | ----------- | ----------- | ---------- | ---------------------------------------------------------------------------------------- |
-| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | in progress | this commit | 2026-10-13 | Resume its remaining live cases after the owner-directed document 02 session completes   |
-| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | in progress | this commit | 2026-10-13 | Read hosted checks for the latest branch head to completion; then continue Part A step 3 |
-| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started | —           | 2026-10-12 | After 02                                                                                 |
-| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started | —           | 2026-10-12 | After 03                                                                                 |
-| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                    |
-| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started | —           | 2026-10-12 | After 05                                                                                 |
-| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                 |
-| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | —           | 2026-10-12 | After 07                                                                                 |
-| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-12 | After 08                                                                                 |
-| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                   |
+| Document                                                                        | Packet           | Status      | Last commit | Updated    | Next action                                                                                                       |
+| ------------------------------------------------------------------------------- | ---------------- | ----------- | ----------- | ---------- | ----------------------------------------------------------------------------------------------------------------- |
+| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | in progress | this commit | 2026-10-13 | Resume its remaining live cases after the owner-directed document 02 session completes                            |
+| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | in progress | this commit | 2026-10-13 | Read hosted checks for this commit; then finish Part A step 3 by creating the restricted reader and exercising it |
+| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started | —           | 2026-10-12 | After 02                                                                                                          |
+| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started | —           | 2026-10-12 | After 03                                                                                                          |
+| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                                             |
+| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started | —           | 2026-10-12 | After 05                                                                                                          |
+| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                                          |
+| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | —           | 2026-10-12 | After 07                                                                                                          |
+| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-12 | After 08                                                                                                          |
+| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                                            |
 
 ## Standing owner decisions
 
@@ -75,17 +75,17 @@ Add a row when the owner decides something new. Quote the owner's words or cite 
 
 Rows that no current document closes, or that a named document must pick up. A row leaves this table only by being executed, with a link to the entry that did it.
 
-| Row                                                                                   | Owner                         | Why it is open                                                                                |
-| ------------------------------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------- |
-| macOS 13.3 and current, Apple Silicon and Intel: clean install, Keychain, helper, CSP | Document 10                   | Deferred by the owner; no macOS machine                                                       |
-| Windows 11: NSIS and WebView2 install, Credential Manager, helper lifecycle           | Document 10                   | Deferred by the owner; no Windows machine                                                     |
-| Mutual-TLS client handshake against a real API server                                 | Document 02                   | The Talos fixture's kubeconfig is expected to use a client certificate; confirm and record    |
-| Basic-auth client handshake                                                           | Unassigned                    | Selection and rejection tests only; no live endpoint is planned                               |
-| Live cancellation during an in-flight reconnect attempt or backoff                    | Unassigned                    | Deterministic evidence only; the 2026-10-12 live cancellation landed on an established stream |
-| Real OS-vault restart of a Kubernetes credential on Linux                             | Document 08                   | Unit tests use injected keys; the packaged run can exercise the Secret Service                |
-| Packaged-installer helper startup                                                     | Document 08, then document 10 | Belongs to F9                                                                                 |
-| R3: helper status and probe serialization                                             | Deferred                      | No feature polls helper status during a probe; deliver its contract first if one does         |
-| Legacy Kubernetes 1.33 and 1.34 browsing and migration                                | Later milestone               | Outside milestone 1                                                                           |
+| Row                                                                                   | Owner                         | Why it is open                                                                                                                                         |
+| ------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| macOS 13.3 and current, Apple Silicon and Intel: clean install, Keychain, helper, CSP | Document 10                   | Deferred by the owner; no macOS machine                                                                                                                |
+| Windows 11: NSIS and WebView2 install, Credential Manager, helper lifecycle           | Document 10                   | Deferred by the owner; no Windows machine                                                                                                              |
+| Mutual-TLS client handshake against a real API server                                 | Document 02                   | Resolved 2026-10-13: the allowlisted fixture kubeconfig uses inline client certificate/key and its admin `/version` read succeeded; this session entry |
+| Basic-auth client handshake                                                           | Unassigned                    | Selection and rejection tests only; no live endpoint is planned                                                                                        |
+| Live cancellation during an in-flight reconnect attempt or backoff                    | Unassigned                    | Deterministic evidence only; the 2026-10-12 live cancellation landed on an established stream                                                          |
+| Real OS-vault restart of a Kubernetes credential on Linux                             | Document 08                   | Unit tests use injected keys; the packaged run can exercise the Secret Service                                                                         |
+| Packaged-installer helper startup                                                     | Document 08, then document 10 | Belongs to F9                                                                                                                                          |
+| R3: helper status and probe serialization                                             | Deferred                      | No feature polls helper status during a probe; deliver its contract first if one does                                                                  |
+| Legacy Kubernetes 1.33 and 1.34 browsing and migration                                | Later milestone               | Outside milestone 1                                                                                                                                    |
 
 ## Unverified assumptions
 
@@ -322,6 +322,33 @@ Entries are appended below, oldest first.
 - **Assumptions confirmed or refuted:** none.
 - **Questions and blockers raised:** none.
 - **Next:** first inspect hosted checks for the latest `ft-foundation-completion` head with `gh pr checks 2`, `gh run list`, and `gh run view`; read every run to completion. Then continue document 02 Part A step 3: implement admin setup, the namespace-scoped restricted reader, and UID-anchored cleanup. Re-provision only through the runbook, refresh the CA fingerprint before Kubernetes requests, and inspect the kubeconfig authentication type before teardown.
+
+### 2026-10-13 — document 02, admin namespace setup and UID cleanup
+
+- **Document:** 02, F3 Part A steps 3–4 (admin-only namespace setup and UID-anchored cleanup; restricted reader setup remains unfinished).
+- **Session:** GPT-6; base revision `45c8a57`; final revision: the commit carrying this entry.
+- **Status after this session:** in progress; the live admin preflight and namespace create/delete passed, but ServiceAccount, Role, RoleBinding, Pod, token, and restricted-reader setup is still ahead.
+- **Acceptance cases:** (1)–(9) unexecuted; (10) manifest rejection unit coverage remains from the previous entry, while the live version gate passed; (11)–(12) unexecuted; (13) no real Pod list yet.
+- **What changed:**
+  - `src-tauri/src/kubernetes/session.rs`: expose a client clone only under `native-test` for the ignored disposable-fixture harness; production builds retain no generic client accessor.
+  - `src-tauri/tests/kubernetes_fixture.rs`: use the validated admin session to reject an existing namespace, create the allowlisted namespace, capture its UID, and delete with the UID as a server-side precondition; verify disappearance within a bounded 15 seconds.
+  - `tests/fixtures/talos-c4.json`: refresh the fixture CA fingerprint after reprovisioning and before the first Kubernetes API request.
+  - `docs/verification/fixtures/talos-c4-disposable.md`: record this run's endpoint, version, CA, client-certificate authentication, successful mTLS preflight, and namespace lifecycle result.
+- **Commands and results** (openSUSE Tumbleweed x86_64; Node 26.11.1, pnpm 12.10.1, Rust/Cargo 1.99.0, Go 1.27.2, protoc 36.2, talosctl v1.14.2):
+  - Verified Node, protoc, and talosctl SHA-256 against `/tmp/talos-f1a-tools/SHASUMS256.txt`, `.github/actions/install-protoc/action.yml`, and the downloaded Talos v1.14.2 `sha256sum.txt`; all matched. The unqualified system defaults were Node 24.21.0, Go 1.27.1, and no `protoc`; fixture commands used the pinned scratch paths.
+  - Captured the pre-provision host state in `/tmp/talos-f1a-tools/f3-session-2026-10-13-baseline.txt`. Applied only the allowlisted firewalld zone/interface and five iptables rules.
+  - `pnpm format:rust:check`, native-test `cargo clippy --all-targets -- -D warnings`, native-test `cargo test --all-targets`, and `cargo test --test kubernetes_fixture --no-run`: pass. Native-test suite: 95 passed, 1 ignored in the library; 5 Kubernetes session integration tests passed; fixture tests remained ignored in the all-targets run.
+  - `pnpm kubernetes:fixture -- --manifest tests/fixtures/talos-c4.json --admin-kubeconfig /tmp/tpc4/kubeconfig`: first attempt failed because Kubernetes kept the newly deleted namespace in `Terminating` after the API accepted deletion. Added a 15-second bounded disappearance check; the second live run passed and verified the namespace absent.
+  - `kubectl --kubeconfig /tmp/tpc4/kubeconfig version --output=json`: server `v1.36.5`, endpoint `https://10.79.0.1:6443`; selected context `admin@talos-pilot-c4-20261009`. The selected kubeconfig contains inline client certificate and key, with no token/basic credentials. The successful version call and harness `/version` read are real mTLS reads.
+  - All four Talos nodes reported v1.14.2 and members `10.79.0.2`–`10.79.0.5` were running. No bootstrap fallback was needed.
+  - Hosted runs targeting `45c8a57`: `gh pr checks 2` showed both renderer checks and CodeQL actions/JavaScript plus Trivy passed; CodeQL Rust was in progress and all desktop jobs were pending. Push Foundation run `38316124723` and PR Foundation run `38316129911` were queued; security run `38316129913` was in progress. None was read to completion.
+- **Evidence class:** Rust deterministic tests/build checks passed; a real Kubernetes `/version` read and namespace create/delete passed through the production Rust session client. No actual Tauri window/capability run and no Pod list.
+- **Fixture:** `talos-pilot-c4-20261009`, Talos v1.14.2 / Kubernetes v1.36.5, 3 control planes + 1 worker. Baseline is `/tmp/talos-f1a-tools/f3-session-2026-10-13-baseline.txt`. Runbook step 7 destroyed the fixture, removed the exact five iptables rules (both `10.79.0` counts were 0), deleted the temporary zone, removed `/tmp/tpc4` and state, and restored the default/active zones, zone list, links/addresses, and route (`10.79.0.2` again through `tun0`). No QEMU process or fixture interface/address remained.
+- **Failed or unexecuted:** the first namespace absence check failed due to asynchronous deletion; the bounded verification fixed it and the second live run passed. Restricted ServiceAccount/Role/RoleBinding, 201 Pods, token request, restricted identity read, all list behavior, native Tauri, browser E2E, and remaining F3 gates are unexecuted because the implementation is unfinished. Hosted checks for `45c8a57` are incomplete, not passes.
+- **Review findings:** the first live run exposed an immediate-read-after-delete race. Cleanup now supplies the namespace UID as a Kubernetes delete precondition, then polls only the named namespace under a 15-second deadline before claiming removal.
+- **Assumptions confirmed or refuted:** resolved the carried “Mutual-TLS client handshake against a real API server” row: client certificate/key authentication was present and the admin version request succeeded. Endpoint and version matched the manifest; refreshed the observed CA fingerprint before the request.
+- **Questions and blockers raised:** none.
+- **Next:** first read hosted runs for the latest branch head to completion with `gh pr checks 2`, `gh run list`, and `gh run view`. Then continue document 02 Part A step 3 by creating the restricted ServiceAccount, namespace-only Pod Role/RoleBinding, synthetic Pods, and short-lived ServiceAccount token under admin authority; ensure the restricted identity is used for probe reads. Re-provision only through the runbook and complete teardown/restoration.
 
 ## Entry template
 
