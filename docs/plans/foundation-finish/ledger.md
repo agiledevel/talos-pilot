@@ -17,18 +17,18 @@ A document is `done` only when every acceptance case in it has recorded evidence
 
 ## Status board
 
-| Document                                                                        | Packet           | Status       | Last commit | Updated    | Next action                                                                                                 |
-| ------------------------------------------------------------------------------- | ---------------- | ------------ | ----------- | ---------- | ----------------------------------------------------------------------------------------------------------- |
-| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | blocked (Q3) | this commit | 2026-10-12 | Resolve Q3 on the Kubernetes version preflight; then finish runbook step 5 and the F1a live harness session |
-| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | not started  | —           | 2026-10-12 | After 01                                                                                                    |
-| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started  | —           | 2026-10-12 | After 02                                                                                                    |
-| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started  | —           | 2026-10-12 | After 03                                                                                                    |
-| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started  | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                                       |
-| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started  | —           | 2026-10-12 | After 05                                                                                                    |
-| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started  | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                                    |
-| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started  | —           | 2026-10-12 | After 07                                                                                                    |
-| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started  | —           | 2026-10-12 | After 08                                                                                                    |
-| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred     | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                                      |
+| Document                                                                        | Packet           | Status       | Last commit | Updated    | Next action                                                                                                                    |
+| ------------------------------------------------------------------------------- | ---------------- | ------------ | ----------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | blocked (Q3) | this commit | 2026-10-12 | First read hosted runs 38311908416, 38311912771, and 38311912809 to completion; resolve Q3 before the F1a live harness session |
+| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | not started  | —           | 2026-10-12 | After 01                                                                                                                       |
+| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started  | —           | 2026-10-12 | After 02                                                                                                                       |
+| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started  | —           | 2026-10-12 | After 03                                                                                                                       |
+| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started  | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                                                          |
+| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started  | —           | 2026-10-12 | After 05                                                                                                                       |
+| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started  | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                                                       |
+| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started  | —           | 2026-10-12 | After 07                                                                                                                       |
+| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started  | —           | 2026-10-12 | After 08                                                                                                                       |
+| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred     | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                                                         |
 
 ## Standing owner decisions
 
@@ -213,6 +213,24 @@ Entries are appended below, oldest first.
 - **Assumptions confirmed or refuted:** none. The live assumptions in decision 0013 remain unverified because the harness did not run.
 - **Questions and blockers raised:** Q3.
 - **Next:** first read the hosted runs for this commit to completion, including `gh pr checks 2`, both foundation runs, and security scans. Then resolve Q3 before any Kubernetes API request; if the allowlist is not amended for the version preflight, do not run the document 01 fixture tests.
+
+### 2026-10-12 — document 01, hosted run handoff
+
+- **Document:** 01, F1a step 4; hosted run recording only.
+- **Session:** GPT-6; base revision `b49ca11`; final revision: this commit.
+- **Status after this session:** blocked by Q3; no fixture behavior changed and live acceptance evidence remains unexecuted.
+- **Acceptance cases:** (1)–(7) unexecuted, blocked by Q3 as recorded above; (8) passed in the prior entry.
+- **What changed:** Updated the status board's first action and recorded the newly started hosted runs for `b49ca11`.
+- **Commands and results** (openSUSE Tumbleweed x86_64):
+  - `gh pr checks 2`: PR foundation run 38311908416 has renderer and all four desktop jobs pending.
+  - `gh run list --branch ft-foundation-completion --limit 8 --json databaseId,headSha,name,status,conclusion,createdAt`: push foundation run 38311912771 queued; security scan 38311912809 in progress. Both target `b49ca11e74afda6f13db6d5da361427191080d65`.
+- **Evidence class:** hosted run states only; no completed result is claimed for this commit.
+- **Fixture:** none touched in this recording-only session; fixture `talos-pilot-c4-20261009` was destroyed and the host restored in the preceding entry.
+- **Failed or unexecuted:** all three runs for `b49ca11` are queued or in progress. Their results must be read to completion in the next session.
+- **Review findings:** none; the entry records statuses returned by the GitHub CLI.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** Q3 remains open.
+- **Next:** first run `gh pr checks 2` and inspect runs 38311908416, 38311912771, and 38311912809 to completion. Then resolve Q3 before any Kubernetes API request; if the allowlist is not amended for the version preflight, do not run the document 01 fixture tests.
 
 ## Entry template
 
