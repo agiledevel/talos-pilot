@@ -80,17 +80,19 @@ Add a row when the owner decides something new. Quote the owner's words or cite 
 
 Rows that no current document closes, or that a named document must pick up. A row leaves this table only by being executed, with a link to the entry that did it.
 
-| Row                                                                                   | Owner                         | Why it is open                                                                                                                                         |
-| ------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| macOS 13.3 and current, Apple Silicon and Intel: clean install, Keychain, helper, CSP | Document 10                   | Deferred by the owner; no macOS machine                                                                                                                |
-| Windows 11: NSIS and WebView2 install, Credential Manager, helper lifecycle           | Document 10                   | Deferred by the owner; no Windows machine                                                                                                              |
-| Mutual-TLS client handshake against a real API server                                 | Document 02                   | Resolved 2026-10-13: the allowlisted fixture kubeconfig uses inline client certificate/key and its admin `/version` read succeeded; this session entry |
-| Basic-auth client handshake                                                           | Unassigned                    | Selection and rejection tests only; no live endpoint is planned                                                                                        |
-| Live cancellation during an in-flight reconnect attempt or backoff                    | Unassigned                    | Deterministic evidence only; the 2026-10-12 live cancellation landed on an established stream                                                          |
-| Real OS-vault restart of a Kubernetes credential on Linux                             | Document 08                   | Unit tests use injected keys; the packaged run can exercise the Secret Service                                                                         |
-| Packaged-installer helper startup                                                     | Document 08, then document 10 | Belongs to F9                                                                                                                                          |
-| R3: helper status and probe serialization                                             | Deferred                      | No feature polls helper status during a probe; deliver its contract first if one does                                                                  |
-| Legacy Kubernetes 1.33 and 1.34 browsing and migration                                | Later milestone               | Outside milestone 1                                                                                                                                    |
+| Row                                                                                                | Owner                         | Why it is open                                                                                                                                         |
+| -------------------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| macOS 13.3 and current, Apple Silicon and Intel: clean install, Keychain, helper, CSP              | Document 10                   | Deferred by the owner; no macOS machine                                                                                                                |
+| Windows 11: NSIS and WebView2 install, Credential Manager, helper lifecycle                        | Document 10                   | Deferred by the owner; no Windows machine                                                                                                              |
+| Mutual-TLS client handshake against a real API server                                              | Document 02                   | Resolved 2026-10-13: the allowlisted fixture kubeconfig uses inline client certificate/key and its admin `/version` read succeeded; this session entry |
+| Basic-auth client handshake                                                                        | Unassigned                    | Selection and rejection tests only; no live endpoint is planned                                                                                        |
+| Live cancellation during an in-flight reconnect attempt or backoff                                 | Unassigned                    | Deterministic evidence only; the 2026-10-12 live cancellation landed on an established stream                                                          |
+| Real OS-vault restart of a Kubernetes credential on Linux                                          | Document 08                   | Unit tests use injected keys; the packaged run can exercise the Secret Service                                                                         |
+| Packaged-installer helper startup                                                                  | Document 08, then document 10 | Belongs to F9                                                                                                                                          |
+| R3: helper status and probe serialization                                                          | Deferred                      | No feature polls helper status during a probe; deliver its contract first if one does                                                                  |
+| Legacy Kubernetes 1.33 and 1.34 browsing and migration                                             | Later milestone               | Outside milestone 1                                                                                                                                    |
+| Remove the unused synthetic server and its request-count assertions from the fixture identity test | Document 03                   | The assertions cannot fail; found by the 2026-10-13 verification entry                                                                                 |
+| Deterministic test that the Kubernetes harness stops when the server reports an unexpected version | Document 04                   | Only the manifest's expected version is tested; found by the 2026-10-13 verification entry                                                             |
 
 ## Unverified assumptions
 
@@ -671,28 +673,6 @@ Entries are appended below, oldest first.
 - **Questions and blockers raised:** none. B6 resolved; Q4 answered.
 - **Next:** document 02. First close acceptance cases 8 and 9 with deterministic tests and extend `src-tauri/tests/kubernetes_fixture.rs` so the restricted reader runs the paginated list (201 Pods, two pages). Then run one fixture session under the amended runbook for cases 1, 10, and 13, and complete destroy-and-restore. Refresh the current stage in the repository README in the same session.
 
-## Entry template
-
-Copy this block, fill every field, and append it to the session log. Write `none` where a field does not apply; do not delete fields.
-
-```markdown
-### YYYY-MM-DD — document NN, short title
-
-- **Document:** NN, and the packet or step worked on.
-- **Session:** the model that did the work; base revision; final revision (the commit carrying this entry).
-- **Status after this session:** not started / in progress / blocked / done, and why.
-- **Acceptance cases:** each case from the document, marked passed, failed, or unexecuted.
-- **What changed:** files, contracts, and decision records, one line each.
-- **Commands and results:** each command as run, with its result. Name the host and the toolchain versions.
-- **Evidence class:** which results are deterministic tests, which are native Tauri runs, and which are real-cluster runs.
-- **Fixture:** identity, versions, and topology if one was used; the baseline taken before provisioning; the restoration evidence afterwards. Write `none` if no fixture was touched.
-- **Failed or unexecuted:** each check that failed or did not run, with the reason and what it limits.
-- **Review findings:** what the separate review pass found and how each finding was resolved.
-- **Assumptions confirmed or refuted:** rows of the unverified-assumptions table this session settled.
-- **Questions and blockers raised:** IDs added to the tables above.
-- **Next:** the first thing the next session should do.
-```
-
 ### 2026-10-13 — document 02, F3 Kubernetes list probe complete
 
 - **Document:** 02, F3 Parts B and D completion; deterministic list lifecycle, fixture rejection checks, restricted paginated read, and runbook restoration.
@@ -741,3 +721,56 @@ Copy this block, fill every field, and append it to the session log. Write `none
 - **Assumptions confirmed or refuted:** confirmed the allowlisted endpoint/context, Kubernetes v1.36.5, mTLS admin preflight, Talos v1.14.2 on all nodes, restricted Pod-only reader access to its namespace, list pagination/resource version, and namespace cleanup. The document-02 aggregate cap has deterministic evidence only; no live-cap assumption is claimed.
 - **Questions and blockers raised:** none. B6 remains resolved by the series-maintenance entry; no new question is needed because the rejected scratch manifests and no-request constraint have deterministic coverage.
 - **Next:** document 03, F4 Kubernetes watch. Do not repeat document 02 or its 201-Pod fixture run.
+
+### 2026-10-13 — document 02, independent verification
+
+- **Document:** 02, verification of the session entry "document 02, F3 Kubernetes list probe complete" at the owner's request. No acceptance case was re-run against a cluster.
+- **Session:** Claude Opus 5.5; base revision `2c31524`; final revision: the commit carrying this entry.
+- **Status after this session:** document 02 stays `done`. The live list, the gates, and the host restoration are confirmed from evidence that the verified session did not write. Four corrections and gaps are recorded below; none changes the status.
+- **Acceptance cases:** 1 to 9 and 11 to 13 confirmed as recorded. Case 10 is confirmed as passed on deterministic evidence only; see the first review finding.
+- **What changed:** this ledger only. The verified entry had been appended after the "Entry template" section; it is moved into the session log with its wording unchanged. Two rows are added to "Deferred and carried rows".
+- **Commands and results** (openSUSE Tumbleweed x86_64; Node 26.11.1, pnpm 12.10.1, Rust/Cargo 1.99.0, protoc 36.2, reusing the verified session's digest-checked tools in `/tmp/tp-f3-finish/tools`):
+  - `journalctl --since '2026-10-13 12:50' --until '13:05'`, user-visible `sudo` records: the fixture zone was created at 12:56:47, `cluster create` started at 12:56:54, the bridge `talosb8c871e1` and four guest interfaces were bound at 12:57:02 with the five recorded `iptables` rules, the two role configurations were issued through `10.79.0.2` at 12:58:48, `/tmp/tpc4/kubeconfig` changed owner at 12:59:08, `cluster destroy` ran at 12:59:38, and the five rules, the zone, and `/tmp/tpc4` were removed by 12:59:47. This matches the entry step for step. No `talosctl` command in that window lacks an explicit fixture `--talosconfig`, apart from `cluster create` and `cluster destroy`.
+  - `/tmp/tp-f3-finish/live-list.log`: holds the five result lines the entry quotes, including `restricted list: items=201, unique=201, complete=true, resource_version_present=true`.
+  - `/tmp/tp-f3-finish/reject-*.log`: all three runs stopped with `--manifest must reference a checked file inside this repository`.
+  - `/tmp/tp-f3-finish/baseline.txt` against `restoration.txt`: zones, default zone, active zones, links, addresses, and route are equal.
+  - Host state read again in this session: no `qemu-system` process, no `talos*` link, no `10.79.0.x` address, both `10.79.0` rule counts `0`, no `talos-pilot-c4` zone, no `/tmp/tpc4` or `/tmp/talos-pilot-c4-20261009`, and `10.79.0.2` routes through `tun0`. The only configuration file left in the scratch directory is the empty guard.
+  - `cargo test --locked --all-targets --features native-test` and the same without the feature, on `2c31524`: pass, 111 passed and 1 ignored in the library suite each time; the nine Talos fixture tests and the live Kubernetes test stay ignored.
+  - The three new session tests (`list_rejects_excess_admission_without_a_request`, `failed_list_releases_admission_and_retained_projection`, `dropping_in_flight_list_releases_admission_and_retained_projection`) repeated 30 times: 0 failures.
+  - `cargo clippy --locked --all-targets -- -D warnings` and the same with `--features native-test`: pass. `pnpm format:rust:check`: pass. `pnpm format:check`: pass, 158 files. `pnpm vitest run scripts/lib/kubernetes-fixture.test.ts`: 12 passed. `git diff --check fa274f8..2c31524`: pass.
+  - Hosted, code commit `24104a8`: Foundation `38386815775` and Security `38386815568` were **cancelled** when `2c31524` was pushed. Renderer, the scope decision, CodeQL Actions and JavaScript/TypeScript, and Trivy had passed; the three desktop jobs and CodeQL Rust were cancelled. That commit has no completed hosted desktop result.
+  - Hosted, head `2c31524`, which contains the same code: Foundation `38387404499` succeeded, with renderer, `desktop (ubuntu-22.04)`, `desktop (windows-2022)`, and `desktop (macos-15)`. The Ubuntu job's steps include both Clippy runs, both test runs, `pnpm desktop:build`, `pnpm production:check`, and "Run actual Tauri IPC tests". Security `38387404645` succeeded: CodeQL Actions, JavaScript/TypeScript, and Rust, and the Trivy filesystem scan. macOS Intel is outside the pull-request matrix and did not run.
+- **Evidence class:** host journal and retained logs for the real-cluster run; deterministic Rust and TypeScript tests re-run locally; hosted CI, including a hosted native Tauri run on Ubuntu 22.04. No new real-cluster run and no local native Tauri run in this session.
+- **Fixture:** none provisioned. Nothing on the host was changed.
+- **Failed or unexecuted:** not re-run locally: `pnpm check`, `pnpm test:e2e`, `pnpm test:native`, `pnpm desktop:build`, `pnpm production:check`, rustdoc, and the Go gates; the hosted run for `2c31524` covers them. The system journal's kernel messages are not readable by this user, so bridge creation is confirmed from the `sudo` records only. The hosted runs for the commit carrying this entry are unread.
+- **Review findings:**
+  1. **Case 10 is deterministic evidence only.** The verified entry labels it "deterministic and real-cluster preflight". The three scratch manifests were refused by the path rule before the script read them, so those runs exercised neither the fixture nor the wrong values. The instruction to use scratch copies came from the session prompt, which had not accounted for that rule. The value-level evidence is the manifest validator tests in `scripts/lib/kubernetes-fixture.test.ts` and the pure identity check in `src-tauri/tests/kubernetes_fixture.rs`.
+  2. **The request-count assertions in `wrong_fixture_id_version_ca_and_context_are_rejected_before_requests` cannot fail.** The test starts a synthetic server and never passes it to the function under test, which is pure. The `is_err` assertions are real; the "zero synthetic-server requests" evidence is true by construction and proves nothing. Carried to document 03.
+  3. **A server that reports an unexpected version has no test.** The live test asserts the reported version after the `/version` read, and the deterministic tests cover only the manifest's expected version. Carried to document 04, which makes the expected version a parameter.
+  4. **The Talos node versions rest on the entry alone.** No output of the step 5 version command or of provisioning was kept in the scratch directory. The Kubernetes version is confirmed by the retained harness output; the Talos one is not independently confirmed.
+  5. Confirmed by reading the diff: the three session tests are inside the test module, `list.rs` spawns no task, cleanup runs before the list assertions, and the live test prints counts only. No production code changed in `24104a8`.
+- **Assumptions confirmed or refuted:** none from the table. Confirmed: `cluster destroy` works with the `TALOSCONFIG` guard set, which the series-maintenance entry had left untested.
+- **Questions and blockers raised:** none.
+- **Next:** document 03, F4 Kubernetes watch. Keep the provisioning output and the step 5 version output in the scratch directory, and quote the node version lines in the entry.
+
+## Entry template
+
+Copy this block, fill every field, and append it to the session log. Write `none` where a field does not apply; do not delete fields.
+
+```markdown
+### YYYY-MM-DD — document NN, short title
+
+- **Document:** NN, and the packet or step worked on.
+- **Session:** the model that did the work; base revision; final revision (the commit carrying this entry).
+- **Status after this session:** not started / in progress / blocked / done, and why.
+- **Acceptance cases:** each case from the document, marked passed, failed, or unexecuted.
+- **What changed:** files, contracts, and decision records, one line each.
+- **Commands and results:** each command as run, with its result. Name the host and the toolchain versions.
+- **Evidence class:** which results are deterministic tests, which are native Tauri runs, and which are real-cluster runs.
+- **Fixture:** identity, versions, and topology if one was used; the baseline taken before provisioning; the restoration evidence afterwards. Write `none` if no fixture was touched.
+- **Failed or unexecuted:** each check that failed or did not run, with the reason and what it limits.
+- **Review findings:** what the separate review pass found and how each finding was resolved.
+- **Assumptions confirmed or refuted:** rows of the unverified-assumptions table this session settled.
+- **Questions and blockers raised:** IDs added to the tables above.
+- **Next:** the first thing the next session should do.
+```
