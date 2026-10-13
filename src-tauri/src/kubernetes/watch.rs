@@ -541,7 +541,7 @@ async fn emit(
         return Err(());
     };
     let size = change_size(&change);
-    let mut observed = queued_bytes.load(Ordering::Acquire);
+    let mut observed = queued_bytes.load(std::sync::atomic::Ordering::Acquire);
     loop {
         let Some(next) = observed.checked_add(size) else {
             return Err(());
@@ -634,7 +634,7 @@ impl ProjectionLease {
     }
 
     fn reserve(&mut self, bytes: usize) -> bool {
-        let mut observed = self.used.load(Ordering::Acquire);
+        let mut observed = self.used.load(std::sync::atomic::Ordering::Acquire);
         loop {
             let Some(next) = observed.checked_add(bytes) else {
                 return false;
@@ -692,13 +692,24 @@ mod tests {
     use tokio::{sync::mpsc, time::timeout};
 
     use super::{
-        MAX_WATCH_EVENT_BYTES, PodWatchChange, PodWatchEnd, WATCH_QUEUE_MESSAGES, WatchRun,
-        run_pod_watch, within_decoded_event_limit,
+        MAX_WATCH_EVENT_BYTES, PodWatchChange, PodWatchEnd, WATCH_QUEUE_BYTES,
+        WATCH_QUEUE_MESSAGES, WatchRun, emit, run_pod_watch, within_decoded_event_limit,
     };
     use crate::kubernetes::synthetic::{
         SyntheticApiserver, SyntheticResponse, build_test_watch_client,
         build_test_watch_client_with_deadline,
     };
+
+    async fn wait_for_synthetic_connections_to_close(server: &SyntheticApiserver) {
+        timeout(Duration::from_secs(2), async {
+            while server.active_connections() > 0 {
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("synthetic API connections should return to baseline"));
+        assert_eq!(server.active_connections(), 0);
+    }
 
     #[test]
     fn rejects_a_decoded_pod_event_over_two_mibibytes_without_building_a_second_large_buffer() {
@@ -777,6 +788,90 @@ mod tests {
         );
         assert_eq!(retained_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
         assert_eq!(queued_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn list_watch_handoff_delivers_an_event_created_after_the_snapshot() {
+        let server = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic API server should start"));
+        server.set_response(SyntheticResponse::HandoffWatchEvent);
+        let client = build_test_watch_client(&server.kubeconfig("watch-context", "watch-cluster"))
+            .unwrap_or_else(|_| panic!("synthetic client should build"));
+        let retained_bytes = Arc::new(AtomicUsize::new(0));
+        let queued_bytes = Arc::new(AtomicUsize::new(0));
+        let (sender, mut receiver) = mpsc::channel(WATCH_QUEUE_MESSAGES);
+        let (cancel_sender, cancellation) = tokio::sync::watch::channel(false);
+        let task = tokio::spawn(run_pod_watch(WatchRun {
+            client,
+            namespace: "workloads".to_owned(),
+            label_selector: None,
+            field_selector: None,
+            projection_bytes: Arc::clone(&retained_bytes),
+            cancellation,
+            messages: sender,
+            queue_bytes: Arc::clone(&queued_bytes),
+        }));
+
+        let mut generation = BTreeMap::new();
+        timeout(Duration::from_secs(5), async {
+            let mut complete = false;
+            while !complete {
+                let Some(message) = receiver.recv().await else {
+                    panic!("the initial list must complete before the watch event")
+                };
+                match message.change {
+                    PodWatchChange::SnapshotBatch(items) => {
+                        for item in items {
+                            generation.insert(item.uid.clone(), item);
+                        }
+                    }
+                    PodWatchChange::SnapshotComplete => complete = true,
+                    _ => {}
+                }
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("the initial list should complete"));
+        assert_eq!(generation.len(), 2);
+        assert!(generation.contains_key("uid-first"));
+        assert!(generation.contains_key("uid-second"));
+
+        timeout(Duration::from_secs(3), async {
+            while let Some(message) = receiver.recv().await {
+                if let PodWatchChange::Upsert(pod) = message.change {
+                    generation.insert(pod.uid.clone(), pod);
+                    break;
+                }
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("the list-to-watch boundary event should arrive"));
+        assert!(generation.contains_key("uid-handoff"));
+        assert_eq!(
+            generation.len(),
+            3,
+            "the handoff must not duplicate list items"
+        );
+        assert!(server.requests().iter().any(|request| {
+            request.path.contains("watch=true") && request.path.contains("resourceVersion=42")
+        }));
+
+        cancel_sender.send_replace(true);
+        assert_eq!(
+            timeout(Duration::from_secs(2), task)
+                .await
+                .unwrap_or_else(|_| panic!("watch cancellation should join promptly"))
+                .unwrap_or_else(|_| panic!("watch task should not panic")),
+            PodWatchEnd::Stopped
+        );
+        while let Some(message) = receiver.recv().await {
+            drop(message);
+        }
+        assert_eq!(retained_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        assert_eq!(queued_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        wait_for_synthetic_connections_to_close(&server).await;
         server.stop().await;
     }
 
@@ -1115,7 +1210,75 @@ mod tests {
         );
         assert_eq!(queued_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
         assert_eq!(retained_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        wait_for_synthetic_connections_to_close(&server).await;
         server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn full_watch_message_queue_terminates_and_releases_queued_bytes() {
+        let server = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic API server should start"));
+        let client = build_test_watch_client(&server.kubeconfig("watch-context", "watch-cluster"))
+            .unwrap_or_else(|_| panic!("synthetic client should build"));
+        let retained_bytes = Arc::new(AtomicUsize::new(0));
+        let queued_bytes = Arc::new(AtomicUsize::new(0));
+        let (sender, mut receiver) = mpsc::channel(1);
+        let (_cancel_sender, cancellation) = tokio::sync::watch::channel(false);
+        let task = tokio::spawn(run_pod_watch(WatchRun {
+            client,
+            namespace: "workloads".to_owned(),
+            label_selector: None,
+            field_selector: None,
+            projection_bytes: Arc::clone(&retained_bytes),
+            cancellation,
+            messages: sender,
+            queue_bytes: Arc::clone(&queued_bytes),
+        }));
+
+        assert_eq!(
+            timeout(Duration::from_secs(2), task)
+                .await
+                .unwrap_or_else(|_| panic!("a full watch queue should terminate promptly"))
+                .unwrap_or_else(|_| panic!("watch task should not panic")),
+            PodWatchEnd::QueueOverflow
+        );
+        assert!(queued_bytes.load(std::sync::atomic::Ordering::Acquire) > 0);
+        while let Some(message) = receiver.recv().await {
+            drop(message);
+        }
+        assert_eq!(queued_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        assert_eq!(retained_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        wait_for_synthetic_connections_to_close(&server).await;
+        server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn watch_queue_byte_budget_rejects_an_event_without_growing() {
+        let queued_bytes = Arc::new(AtomicUsize::new(WATCH_QUEUE_BYTES - 16));
+        let (sender, mut receiver) = mpsc::channel(WATCH_QUEUE_MESSAGES);
+        let mut sequence = 0_u64;
+
+        assert!(
+            emit(
+                &sender,
+                &queued_bytes,
+                &mut sequence,
+                1,
+                PodWatchChange::SnapshotBegin,
+            )
+            .await
+            .is_err()
+        );
+        assert_eq!(sequence, 0);
+        assert_eq!(
+            queued_bytes.load(std::sync::atomic::Ordering::Acquire),
+            WATCH_QUEUE_BYTES - 16
+        );
+        assert!(receiver.try_recv().is_err());
+
+        queued_bytes.store(0, std::sync::atomic::Ordering::Release);
+        assert_eq!(queued_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
     }
 
     #[tokio::test]
@@ -1265,6 +1428,126 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cancellation_during_initial_list_joins_and_releases_watch_state() {
+        let server = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic API server should start"));
+        server.set_response(SyntheticResponse::StallContinuation);
+        let client = build_test_watch_client(&server.kubeconfig("watch-context", "watch-cluster"))
+            .unwrap_or_else(|_| panic!("synthetic client should build"));
+        let retained_bytes = Arc::new(AtomicUsize::new(0));
+        let queued_bytes = Arc::new(AtomicUsize::new(0));
+        let (sender, mut receiver) = mpsc::channel(WATCH_QUEUE_MESSAGES);
+        let (cancel_sender, cancellation) = tokio::sync::watch::channel(false);
+        let task = tokio::spawn(run_pod_watch(WatchRun {
+            client,
+            namespace: "workloads".to_owned(),
+            label_selector: None,
+            field_selector: None,
+            projection_bytes: Arc::clone(&retained_bytes),
+            cancellation,
+            messages: sender,
+            queue_bytes: Arc::clone(&queued_bytes),
+        }));
+
+        timeout(Duration::from_secs(2), async {
+            while !server
+                .requests()
+                .iter()
+                .any(|request| request.path.contains("continue="))
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("the initial list should reach its stalled continuation"));
+        cancel_sender.send_replace(true);
+        assert_eq!(
+            timeout(Duration::from_millis(250), task)
+                .await
+                .unwrap_or_else(|_| panic!("initial-list cancellation should join promptly"))
+                .unwrap_or_else(|_| panic!("watch task should not panic")),
+            PodWatchEnd::Stopped
+        );
+        while let Some(message) = receiver.recv().await {
+            drop(message);
+        }
+        assert_eq!(retained_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        assert_eq!(queued_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        let requests_at_cancel = server.requests().len();
+        wait_for_synthetic_connections_to_close(&server).await;
+        tokio::time::sleep(Duration::from_millis(25)).await;
+        assert_eq!(server.requests().len(), requests_at_cancel);
+        server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn cancellation_during_relist_joins_and_releases_watch_state() {
+        let server = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic API server should start"));
+        server.set_response(SyntheticResponse::ExpiredWatch);
+        let client = build_test_watch_client(&server.kubeconfig("watch-context", "watch-cluster"))
+            .unwrap_or_else(|_| panic!("synthetic client should build"));
+        let retained_bytes = Arc::new(AtomicUsize::new(0));
+        let queued_bytes = Arc::new(AtomicUsize::new(0));
+        let (sender, mut receiver) = mpsc::channel(WATCH_QUEUE_MESSAGES);
+        let (cancel_sender, cancellation) = tokio::sync::watch::channel(false);
+        let task = tokio::spawn(run_pod_watch(WatchRun {
+            client,
+            namespace: "workloads".to_owned(),
+            label_selector: None,
+            field_selector: None,
+            projection_bytes: Arc::clone(&retained_bytes),
+            cancellation,
+            messages: sender,
+            queue_bytes: Arc::clone(&queued_bytes),
+        }));
+
+        timeout(Duration::from_secs(2), async {
+            while !server
+                .requests()
+                .iter()
+                .any(|request| request.path.contains("watch=true"))
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("the initial watch request should arrive"));
+        server.set_response(SyntheticResponse::StallContinuation);
+        timeout(Duration::from_secs(2), async {
+            while !server
+                .requests()
+                .iter()
+                .any(|request| request.path.contains("continue="))
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("the replacement generation should reach its stalled list"));
+        cancel_sender.send_replace(true);
+        assert_eq!(
+            timeout(Duration::from_millis(250), task)
+                .await
+                .unwrap_or_else(|_| panic!("relist cancellation should join promptly"))
+                .unwrap_or_else(|_| panic!("watch task should not panic")),
+            PodWatchEnd::Stopped
+        );
+        while let Some(message) = receiver.recv().await {
+            drop(message);
+        }
+        assert_eq!(retained_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        assert_eq!(queued_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        let requests_at_cancel = server.requests().len();
+        wait_for_synthetic_connections_to_close(&server).await;
+        tokio::time::sleep(Duration::from_millis(25)).await;
+        assert_eq!(server.requests().len(), requests_at_cancel);
+        server.stop().await;
+    }
+
+    #[tokio::test]
     async fn cancellation_during_transient_backoff_releases_watch_state_promptly() {
         let server = SyntheticApiserver::start()
             .await
@@ -1308,6 +1591,7 @@ mod tests {
         assert_eq!(retained_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
         assert_eq!(queued_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
         assert_eq!(server.requests().len(), 1);
+        wait_for_synthetic_connections_to_close(&server).await;
         server.stop().await;
     }
 }

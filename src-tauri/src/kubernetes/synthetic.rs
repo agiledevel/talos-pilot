@@ -69,6 +69,8 @@ pub enum SyntheticResponse {
     StallWatchResponse,
     /// Send one valid JSON watch event whose line exceeds the configured limit.
     OversizedWatchEvent,
+    /// Send one Pod creation at the list-to-watch resource-version boundary.
+    HandoffWatchEvent,
 }
 
 /// One request the synthetic server answered.
@@ -93,6 +95,7 @@ pub struct SyntheticApiserver {
     token: String,
     response: Arc<AtomicU8>,
     transient_failures: Arc<AtomicUsize>,
+    active_connections: Arc<AtomicUsize>,
     requests: Arc<Mutex<Vec<RecordedRequest>>>,
     shutdown: Option<tokio::sync::oneshot::Sender<()>>,
     task: Option<tokio::task::JoinHandle<()>>,
@@ -112,11 +115,13 @@ impl SyntheticApiserver {
         let acceptor = TlsAcceptor::from(Arc::new(authority.server_config));
         let response = Arc::new(AtomicU8::new(SyntheticResponse::Success.code()));
         let transient_failures = Arc::new(AtomicUsize::new(0));
+        let active_connections = Arc::new(AtomicUsize::new(0));
         let requests = Arc::new(Mutex::new(Vec::new()));
         let (shutdown, mut shutdown_signal) = tokio::sync::oneshot::channel();
 
         let task_response = Arc::clone(&response);
         let task_transient_failures = Arc::clone(&transient_failures);
+        let task_active_connections = Arc::clone(&active_connections);
         let task_requests = Arc::clone(&requests);
         let token = authority.token.clone();
         let task_token = token.clone();
@@ -131,9 +136,14 @@ impl SyntheticApiserver {
                         let acceptor = acceptor.clone();
                         let response = Arc::clone(&task_response);
                         let transient_failures = Arc::clone(&task_transient_failures);
+                        task_active_connections.fetch_add(1, Ordering::AcqRel);
+                        let active_connection = ActiveConnectionGuard(Arc::clone(
+                            &task_active_connections,
+                        ));
                         let requests = Arc::clone(&task_requests);
                         let token = task_token.clone();
                         connections.spawn(async move {
+                            let _active_connection = active_connection;
                             let _ = tokio::time::timeout(
                                 CONNECTION_DEADLINE,
                                 serve_connection(
@@ -159,6 +169,7 @@ impl SyntheticApiserver {
             token,
             response,
             transient_failures,
+            active_connections,
             requests,
             shutdown: Some(shutdown),
             task: Some(task),
@@ -194,6 +205,12 @@ impl SyntheticApiserver {
             .lock()
             .map(|requests| requests.clone())
             .unwrap_or_default()
+    }
+
+    /// Returns the number of synthetic API connections that have not yet closed.
+    #[must_use]
+    pub fn active_connections(&self) -> usize {
+        self.active_connections.load(Ordering::Acquire)
     }
 
     /// Builds a kubeconfig that selects this server with one supported identity.
@@ -265,6 +282,19 @@ impl SyntheticApiserver {
         if let Some(task) = self.task.take() {
             let _ = task.await;
         }
+        assert_eq!(
+            self.active_connections(),
+            0,
+            "synthetic API shutdown must join every connection task"
+        );
+    }
+}
+
+struct ActiveConnectionGuard(Arc<AtomicUsize>);
+
+impl Drop for ActiveConnectionGuard {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
     }
 }
 
@@ -284,6 +314,7 @@ impl SyntheticResponse {
             Self::ResumedWatch => 10,
             Self::StallWatchResponse => 11,
             Self::OversizedWatchEvent => 12,
+            Self::HandoffWatchEvent => 13,
         }
     }
 
@@ -301,6 +332,7 @@ impl SyntheticResponse {
             10 => Self::ResumedWatch,
             11 => Self::StallWatchResponse,
             12 => Self::OversizedWatchEvent,
+            13 => Self::HandoffWatchEvent,
             _ => Self::Success,
         }
     }
@@ -400,6 +432,12 @@ async fn serve_connection(
         .authorization
         .as_deref()
         .is_some_and(|value| value == format!("Bearer {token}"));
+    if selected == SyntheticResponse::HandoffWatchEvent
+        && authorised
+        && request.path.contains("watch=true")
+    {
+        return serve_handoff_watch(&mut tls).await;
+    }
     if selected == SyntheticResponse::Success && authorised && request.path.contains("watch=true") {
         return serve_watch(&mut tls, false, false).await;
     }
@@ -499,7 +537,8 @@ async fn serve_connection(
             | SyntheticResponse::ClosingWatch
             | SyntheticResponse::ResumedWatch
             | SyntheticResponse::StallWatchResponse
-            | SyntheticResponse::OversizedWatchEvent => version_response(&request.path),
+            | SyntheticResponse::OversizedWatchEvent
+            | SyntheticResponse::HandoffWatchEvent => version_response(&request.path),
         }
     };
     let head = format!(
@@ -596,6 +635,28 @@ async fn serve_oversized_watch(
     stream.write_all(b"\r\n0\r\n\r\n").await?;
     stream.flush().await?;
     stream.shutdown().await
+}
+
+async fn serve_handoff_watch(
+    stream: &mut tokio_rustls::server::TlsStream<TcpStream>,
+) -> io::Result<()> {
+    stream
+        .write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\nConnection: keep-alive\r\n\r\n",
+        )
+        .await?;
+    let event = format!(
+        "{}\n",
+        watch_event("ADDED", "handoff", "uid-handoff", "43", "Running", true)
+    );
+    let length = format!("{:x}\r\n", event.len());
+    stream.write_all(length.as_bytes()).await?;
+    stream.write_all(event.as_bytes()).await?;
+    stream.write_all(b"\r\n").await?;
+    stream.flush().await?;
+    let mut byte = [0_u8; 1];
+    while stream.read(&mut byte).await? != 0 {}
+    Ok(())
 }
 
 fn watch_event(

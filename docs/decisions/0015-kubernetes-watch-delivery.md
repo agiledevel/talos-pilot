@@ -1,6 +1,6 @@
 # 0015 — Kubernetes watch recovery and acknowledged delivery
 
-- **Status:** accepted for implementation; F4 qualification remains in progress.
+- **Status:** accepted; F4 is qualified on Linux, with Kubernetes 1.35/1.37 and other platform qualification tracked separately.
 - **Date:** 2026-10-13.
 - **Context:** Kubernetes Pod lists need a live continuation without moving cluster credentials or API clients into the renderer. Lists can expire, consumers can stall, and a Pod name can be reused after deletion. The F4 packet caps watch count, queues, batches, object size, recovery, and cancellation.
 
@@ -52,7 +52,8 @@ The watch transport uses a Tower service deadline through response headers and
 a streaming body wrapper that caps each watch line before the kube decoder
 receives it. It bounds input chunks to 64 KiB while preserving the server's
 quiet-stream lifetime. These limits are verified with deterministic synthetic
-tests; full fault cleanup and resource-baseline acceptance remain open.
+tests and recorded with per-case cleanup observations in the
+[F4 resource-baseline matrix](../verification/kubernetes-watch-resource-baseline.md).
 
 ## Verification
 
@@ -60,8 +61,10 @@ Rust synthetic tests cover initial snapshots, 410 relists, exhausted retry and
 relist budgets, UID updates/deletion, cancellation, admission, exact
 acknowledgement validation, bounded response headers, quiet response bodies,
 and pre-decode event size rejection. Renderer tests cover shared consumer
-ownership, late snapshot replay, and source sequence gaps. The native
-WebKitGTK suite exercises ordered channel delivery and session-close cleanup
+ownership, late snapshot replay, source sequence gaps, and namespace
+replacement. The native WebKitGTK suite exercises ordered channel delivery,
+closed-consumer timeout, session close, and active-watch shutdown cleanup
 through Tauri IPC. The live Kubernetes 1.36 interruption and resumed-UID case
 is recorded separately in the [foundation ledger](../plans/foundation-finish/ledger.md).
-Full fault cleanup and per-case resource-baseline acceptance remain open.
+F4 acceptance evidence is complete on Linux; the 1.35/1.37 version matrix
+remains in F5.

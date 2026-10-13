@@ -538,7 +538,7 @@ async fn stream_kubernetes_pod_watch(
     let delivery_sessions = Arc::clone(&owned_sessions);
     let delivery_session_id = session_id.clone();
     let delivery_subscription_id = subscription_id.clone();
-    let delivery = tokio::spawn(async move {
+    let mut delivery = Some(tokio::spawn(async move {
         let end = deliver_pod_watch(
             delivery_sessions,
             delivery_session_id,
@@ -548,10 +548,17 @@ async fn stream_kubernetes_pod_watch(
         )
         .await;
         let _ = end_sender.send(end);
-    });
+    }));
     if let Err(error) =
-        owned_sessions.attach_watch_delivery(&session_id, &subscription_id, delivery)
+        owned_sessions.attach_watch_delivery(&session_id, &subscription_id, &mut delivery)
     {
+        if let Some(delivery) = delivery.take() {
+            delivery.abort();
+            let _ = delivery.await;
+        }
+        let _ = owned_sessions
+            .stop_pod_watch(&session_id, &subscription_id)
+            .await;
         return Err(kubernetes_error("stream_kubernetes_pod_watch", error));
     }
     let end = end_receiver

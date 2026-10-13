@@ -149,6 +149,123 @@ describe("Kubernetes workload watch state", () => {
     );
     await state.closeSession();
   });
+
+  it("stops the old namespace subscription and ignores its later events", async () => {
+    let nextSubscription = 0;
+    const handlers = new Map<string, (message: unknown) => void>();
+    const finishStreams = new Map<string, (end: string) => void>();
+    const invoke = vi.fn<IpcTransport["invoke"]>(async (command, args) => {
+      switch (command) {
+        case "list_kubernetes_credentials":
+          return [
+            {
+              credential_handle: "kubecred-AAAAAAAAAAAAAAAAAAAAAA",
+              context_label: "synthetic",
+              storage_mode: "session_only",
+            },
+          ];
+        case "open_kubernetes_session":
+          return {
+            session_id: "kube-session-7",
+            context_label: "synthetic",
+            storage_mode: "session_only",
+          };
+        case "list_kubernetes_pods": {
+          const namespace = args?.["namespace"];
+          if (typeof namespace !== "string") throw new Error("expected a namespace");
+          return {
+            ...snapshot,
+            namespace,
+            items: [pod("api", `uid-${namespace}`, "rv-1", namespace)],
+          };
+        }
+        case "open_kubernetes_pod_watch":
+          nextSubscription += 1;
+          return {
+            session_id: "kube-session-7",
+            subscription_id: `kube-watch-${nextSubscription}`,
+          };
+        case "stop_kubernetes_pod_watch": {
+          const subscriptionId = args?.["subscriptionId"];
+          if (typeof subscriptionId === "string") finishStreams.get(subscriptionId)?.("stopped");
+          return true;
+        }
+        case "acknowledge_kubernetes_pod_watch":
+          return true;
+        default:
+          return null;
+      }
+    });
+    const transport: IpcTransport = {
+      invoke,
+      invokeChannel: async (_command, args, handler) => {
+        const subscriptionId = args["subscriptionId"];
+        if (typeof subscriptionId !== "string") throw new Error("expected a subscription");
+        handlers.set(subscriptionId, handler);
+        return await new Promise((resolve) => {
+          finishStreams.set(subscriptionId, (end) => resolve(end));
+        });
+      },
+    };
+    const state = new KubernetesWorkloadsState(transport);
+    await state.loadCredentials();
+    await state.openSession();
+    state.namespace = "workloads";
+    state.listPods();
+    let query = state.queryOptions();
+    if (query.enabled) await query.queryFn({ queryKey: query.queryKey });
+
+    const oldStream = state.startWatch();
+    await vi.waitFor(() => expect(handlers.has("kube-watch-1")).toBe(true));
+    const oldHandler = handlers.get("kube-watch-1");
+    if (oldHandler === undefined) throw new Error("the original watch channel did not open");
+
+    state.namespace = "other-workloads";
+    state.listPods();
+    await oldStream;
+    expect(invoke).toHaveBeenCalledWith(
+      "stop_kubernetes_pod_watch",
+      expect.objectContaining({ subscriptionId: "kube-watch-1" }),
+    );
+    query = state.queryOptions();
+    if (query.enabled) await query.queryFn({ queryKey: query.queryKey });
+
+    const newStream = state.startWatch();
+    await vi.waitFor(() => expect(handlers.has("kube-watch-2")).toBe(true));
+    oldHandler(watchEvent("1", "1", "upsert", [], pod("api", "uid-old", "rv-old")));
+    expect(state.watchPods).toEqual([pod("api", "uid-other-workloads", "rv-1", "other-workloads")]);
+
+    const newHandler = handlers.get("kube-watch-2");
+    if (newHandler === undefined) throw new Error("the replacement watch channel did not open");
+    newHandler(watchEvent("1", "1", "snapshot_begin", [], null, null, null, "kube-watch-2"));
+    expect(state.watchStatus).toBe("stale");
+    newHandler(
+      watchEvent(
+        "1",
+        "2",
+        "snapshot_batch",
+        [pod("api", "uid-other-workloads", "rv-2", "other-workloads")],
+        null,
+        null,
+        null,
+        "kube-watch-2",
+      ),
+    );
+    expect(state.watchStatus).toBe("stale");
+    newHandler(watchEvent("1", "3", "snapshot_complete", [], null, null, null, "kube-watch-2"));
+    await vi.waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith(
+        "acknowledge_kubernetes_pod_watch",
+        expect.objectContaining({ subscriptionId: "kube-watch-2", sequence: "3" }),
+      ),
+    );
+    expect(state.watchStatus).toBe("live");
+    expect(state.watchPods).toEqual([pod("api", "uid-other-workloads", "rv-2", "other-workloads")]);
+
+    await state.stopWatch();
+    await newStream;
+    await state.closeSession();
+  });
 });
 
 const snapshot = {
@@ -159,10 +276,10 @@ const snapshot = {
   items: [] as ReturnType<typeof pod>[],
 };
 
-function pod(name: string, uid: string, resourceVersion: string) {
+function pod(name: string, uid: string, resourceVersion: string, namespace = "workloads") {
   return {
     name,
-    namespace: "workloads",
+    namespace,
     uid,
     resource_version: resourceVersion,
     phase: "Running",

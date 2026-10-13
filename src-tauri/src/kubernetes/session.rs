@@ -374,7 +374,7 @@ impl KubernetesSessionStore {
         &self,
         session_id: &str,
         subscription_id: &str,
-        delivery: tokio::task::JoinHandle<()>,
+        delivery: &mut Option<tokio::task::JoinHandle<()>>,
     ) -> Result<(), KubernetesError> {
         let mut sessions = self
             .sessions
@@ -386,10 +386,10 @@ impl KubernetesSessionStore {
             .watches
             .get_mut(subscription_id)
             .ok_or(KubernetesError::WatchUnknown)?;
-        if watch.delivery.is_some() || watch.receiver.is_some() {
+        if watch.delivery.is_some() || watch.receiver.is_some() || delivery.is_none() {
             return Err(KubernetesError::WatchUnknown);
         }
-        watch.delivery = Some(delivery);
+        watch.delivery = delivery.take();
         Ok(())
     }
 
@@ -685,8 +685,33 @@ users:
     }
 
     #[tokio::test]
+    async fn failed_delivery_attachment_returns_the_task_handle_to_its_caller() {
+        let store = KubernetesSessionStore::new();
+        let mut delivery = Some(tokio::spawn(std::future::pending::<()>()));
+
+        assert_eq!(
+            store.attach_watch_delivery("missing-session", "missing-watch", &mut delivery),
+            Err(KubernetesError::SessionUnknown)
+        );
+        let task = delivery
+            .take()
+            .unwrap_or_else(|| panic!("failed attachment must preserve task ownership"));
+        task.abort();
+        assert!(task.await.is_err());
+    }
+
+    #[tokio::test]
     async fn closing_a_session_cancels_and_joins_its_watch_task() {
         let (server, store, id) = synthetic_session().await;
+        let projection_bytes = Arc::clone(
+            &store
+                .sessions
+                .lock()
+                .unwrap_or_else(|_| panic!("synthetic test operation must succeed"))
+                .get(&id)
+                .unwrap_or_else(|| panic!("test session must remain open"))
+                .projection_bytes,
+        );
         let subscription_id = store
             .start_pod_watch(&id, "workloads", None, None)
             .await
@@ -717,12 +742,112 @@ users:
             MAX_KUBERNETES_WATCHES
         );
         assert_eq!(store.session_count().ok(), Some(0));
+        assert_eq!(
+            projection_bytes.load(std::sync::atomic::Ordering::Acquire),
+            0
+        );
+        server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn application_shutdown_joins_an_active_watch_and_releases_baseline_resources() {
+        let (server, store, id) = synthetic_session().await;
+        let projection_bytes = Arc::clone(
+            &store
+                .sessions
+                .lock()
+                .unwrap_or_else(|_| panic!("synthetic test operation must succeed"))
+                .get(&id)
+                .unwrap_or_else(|| panic!("test session must remain open"))
+                .projection_bytes,
+        );
+        let subscription_id = store
+            .start_pod_watch(&id, "workloads", None, None)
+            .await
+            .unwrap_or_else(|_| panic!("watch should start for the synthetic session"));
+        let mut receiver = store
+            .take_pod_watch_receiver(&id, &subscription_id)
+            .unwrap_or_else(|_| panic!("watch receiver should be available"));
+
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while let Some(message) = receiver.messages.recv().await {
+                let complete = matches!(
+                    message.change,
+                    super::super::PodWatchChange::SnapshotComplete
+                );
+                drop(message);
+                if complete {
+                    break;
+                }
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("the active watch should publish its initial snapshot"));
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while server.active_connections() == 0
+                || !server
+                    .requests()
+                    .iter()
+                    .any(|request| request.path.contains("watch=true"))
+            {
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("the synthetic watch socket should reach an established watch"));
+        assert!(projection_bytes.load(std::sync::atomic::Ordering::Acquire) > 0);
+        assert_eq!(
+            store.watch_admission.available_permits(),
+            MAX_KUBERNETES_WATCHES - 1
+        );
+
+        tokio::time::timeout(Duration::from_secs(2), store.shutdown())
+            .await
+            .unwrap_or_else(|_| panic!("application shutdown should join the active watch"))
+            .unwrap_or_else(|_| panic!("the session registry should remain available"));
+
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(2), &mut receiver.terminal)
+                .await
+                .unwrap_or_else(|_| panic!("shutdown should complete the watch"))
+                .unwrap_or_else(|_| panic!("the watch terminal sender should remain owned")),
+            super::super::PodWatchEnd::Stopped
+        );
+        while let Some(message) = receiver.messages.recv().await {
+            drop(message);
+        }
+        assert_eq!(store.session_count().ok(), Some(0));
+        assert_eq!(
+            store.watch_admission.available_permits(),
+            MAX_KUBERNETES_WATCHES
+        );
+        assert_eq!(
+            projection_bytes.load(std::sync::atomic::Ordering::Acquire),
+            0
+        );
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while server.active_connections() > 0 {
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("the synthetic watch socket should close on shutdown"));
+        assert_eq!(server.active_connections(), 0);
         server.stop().await;
     }
 
     #[tokio::test]
     async fn stopping_a_watch_keeps_its_credential_session_open() {
         let (server, store, id) = synthetic_session().await;
+        let projection_bytes = Arc::clone(
+            &store
+                .sessions
+                .lock()
+                .unwrap_or_else(|_| panic!("synthetic test operation must succeed"))
+                .get(&id)
+                .unwrap_or_else(|| panic!("test session must remain open"))
+                .projection_bytes,
+        );
         let subscription_id = store
             .start_pod_watch(&id, "workloads", None, None)
             .await
@@ -741,6 +866,21 @@ users:
         assert_eq!(
             store.watch_admission.available_permits(),
             MAX_KUBERNETES_WATCHES
+        );
+        assert_eq!(
+            store
+                .sessions
+                .lock()
+                .unwrap_or_else(|_| panic!("synthetic test operation must succeed"))
+                .get(&id)
+                .unwrap_or_else(|| panic!("watch stop must keep its session open"))
+                .watches
+                .len(),
+            0
+        );
+        assert_eq!(
+            projection_bytes.load(std::sync::atomic::Ordering::Acquire),
+            0
         );
         assert!(store.apiserver_version(&id).await.is_ok());
         assert_eq!(store.close(&id).await, Ok(true));

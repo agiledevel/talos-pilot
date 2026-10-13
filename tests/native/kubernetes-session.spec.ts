@@ -294,6 +294,63 @@ describe("native Kubernetes credential and session boundary", () => {
     );
   });
 
+  it("stops a native watch when its Tauri channel consumer closes", async () => {
+    const result: unknown = await browser.tauri.execute(async ({ core }) => {
+      type NativeChannel = {
+        id: number;
+        onmessage: (message: unknown) => void;
+        cleanupCallback: () => void;
+      };
+      type NativeChannelConstructor = new (onmessage?: (message: unknown) => void) => NativeChannel;
+      type TauriGlobal = { __TAURI__?: { core?: { Channel?: NativeChannelConstructor } } };
+      const tauri = window as unknown as TauriGlobal;
+      const Channel = tauri.__TAURI__?.core?.Channel;
+      if (Channel === undefined) throw new Error("the native Tauri Channel API was unavailable");
+
+      const credentials: unknown = await core.invoke("list_kubernetes_credentials");
+      if (!Array.isArray(credentials) || credentials.length !== 1) {
+        throw new Error("the native-test credential was unavailable");
+      }
+      const credential = credentials[0] as { credential_handle?: unknown };
+      if (typeof credential.credential_handle !== "string") {
+        throw new Error("the native-test credential handle was malformed");
+      }
+      const session: unknown = await core.invoke("open_kubernetes_session", {
+        credentialHandle: credential.credential_handle,
+      });
+      if (typeof session !== "object" || session === null) {
+        throw new Error("the native Kubernetes session was malformed");
+      }
+      const sessionId = (session as { session_id?: unknown }).session_id;
+      if (typeof sessionId !== "string") throw new Error("the session identity was missing");
+      const subscription: unknown = await core.invoke("open_kubernetes_pod_watch", {
+        sessionId,
+        namespace: "workloads",
+      });
+      if (typeof subscription !== "object" || subscription === null) {
+        throw new Error("the native watch subscription was malformed");
+      }
+      const subscriptionId = (subscription as { subscription_id?: unknown }).subscription_id;
+      if (typeof subscriptionId !== "string") throw new Error("the watch identity was missing");
+
+      let received = 0;
+      const channel = new Channel();
+      channel.onmessage = () => {
+        received += 1;
+        channel.cleanupCallback();
+        // Closing the renderer callback also withholds the acknowledgement.
+      };
+      const end: unknown = await core.invoke("stream_kubernetes_pod_watch", {
+        sessionId,
+        subscriptionId,
+        channel,
+      });
+      await core.invoke("close_kubernetes_session", { sessionId });
+      return { end, received };
+    });
+    assert.deepEqual(result, { end: "acknowledgement_timeout", received: 1 });
+  });
+
   it("denies the Kubernetes commands to a window without their capability", async () => {
     const results: unknown = await browser.tauri.execute(
       async ({ core }) => {
