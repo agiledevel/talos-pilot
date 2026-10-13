@@ -1,8 +1,7 @@
 # C4 disposable Talos fixture allowlist
 
-Status: **provisioned, exercised, and destroyed on 2026-10-09 and again on
-2026-10-12; an additional F1a preflight provisioned and destroyed the fixture
-on 2026-10-12 without running the harness; no fixture exists now.** The
+Status: **provisioned, exercised, and destroyed on 2026-10-09, 2026-10-12,
+and 2026-10-13; no fixture exists now.** The
 2026-10-12 run executed the full
 harness command with all four file references: six of the seven live rows
 passed and the live retry-exhaustion row stayed open, recorded in the
@@ -506,3 +505,35 @@ verified against a fresh pre-provisioning baseline, with zero fixture rules
 left, the zone list, default zone, and active zones restored exactly,
 `/tmp/tpc4` removed, and no QEMU process, `talos*` bridge, or fixture veth
 remaining.
+
+### F3 restricted paginated list (2026-10-13, third cycle)
+
+The fixture provisioned successfully with no bootstrap fallback. Talos reported
+v1.14.2 on nodes `10.79.0.2` through `10.79.0.5`. Before any Kubernetes API
+request, the kubeconfig was confirmed to select
+`admin@talos-pilot-c4-20261009` at `https://10.79.0.1:6443`; its CA SHA-256
+`4ab5ce013beccd2df2a84637355adb96db0d6696ed8e33a66645c7b6899fbc26` was
+recorded in `tests/fixtures/talos-c4.json`. The live harness then confirmed
+Kubernetes `v1.36.5`, created the allowlisted namespace and restricted reader,
+created exactly 201 named Pods, and called `KubernetesSessionStore::list_pods`
+with the reader identity. It returned 201 unique names across the 200-item page
+boundary, `complete=true`, and a non-empty resource version. The harness printed
+`fixture namespace gone: true` after UID-anchored cleanup.
+
+Three scratch-manifest rejection invocations (wrong fixture ID, expected server
+version, and CA fingerprint) each exited before the Rust test process started.
+The CLI rejected each because manifests must resolve to the checked repository
+manifest. No Kubernetes request or resource creation occurred in those
+invocations; deterministic preflight tests separately reject each wrong value
+(and a wrong context) with zero synthetic-server requests. The namespace was
+absent at the fresh-fixture baseline and the rejection invocations could not
+create it.
+
+Runbook step 7 completed. `cluster destroy --name
+talos-pilot-c4-20261009 --force` succeeded while the empty `TALOSCONFIG` guard
+was set; it did not need a Talos context. The exact five iptables rules were
+removed (FORWARD and POSTROUTING fixture counts both `0`), and the temporary
+zone was deleted. The final default zone (`public`), zone list, and active
+zones matched the captured baseline; no QEMU process, fixture bridge, guest
+interface, or `10.79.0.x` address remained; route `10.79.0.2` again used `tun0`;
+`/tmp/tpc4` and `/tmp/talos-pilot-c4-20261009` were absent.
