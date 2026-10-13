@@ -865,18 +865,20 @@ impl Collector {
         }
     }
 
-    async fn wait_for_replacement_snapshot(&self, budget: Duration) -> TalosProbeEventDto {
+    /// Waits up to `budget` for a replacement snapshot. Returns `None` on
+    /// timeout instead of panicking, because a long outage legitimately ends
+    /// the stream without one and the caller decides which outcome applies.
+    async fn wait_for_replacement_snapshot(&self, budget: Duration) -> Option<TalosProbeEventDto> {
         let deadline = tokio::time::Instant::now() + budget;
         loop {
             if let Some(snapshot) = self.snapshot().into_iter().find(|event| {
                 event.snapshot && event.state == TalosProbeState::Healthy && event.sequence != "0"
             }) {
-                return snapshot;
+                return Some(snapshot);
             }
-            assert!(
-                tokio::time::Instant::now() < deadline,
-                "the interrupted stream must recover with a replacement snapshot within {budget:?}"
-            );
+            if tokio::time::Instant::now() >= deadline {
+                return None;
+            }
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
     }
@@ -1216,12 +1218,16 @@ async fn live_reboot_asserts_outcome_against_measured_outage() {
     let replacement = collector.wait_for_replacement_snapshot(Duration::from_secs(90));
     tokio::pin!(replacement);
     let mut fresh_at = None;
+    let mut replacement_done = false;
     let mut replacement_snapshot = None;
-    while fresh_at.is_none() || (terminal.is_none() && replacement_snapshot.is_none()) {
+    while fresh_at.is_none() || (terminal.is_none() && !replacement_done) {
         tokio::select! {
             result = &mut stream, if terminal.is_none() => terminal = Some(result),
             ready_at = &mut fresh_probe, if fresh_at.is_none() => fresh_at = Some(ready_at),
-            snapshot = &mut replacement, if replacement_snapshot.is_none() => replacement_snapshot = Some(snapshot),
+            snapshot = &mut replacement, if !replacement_done => {
+                replacement_done = true;
+                replacement_snapshot = snapshot;
+            }
         }
     }
     let outage =
@@ -1264,6 +1270,12 @@ async fn live_reboot_asserts_outcome_against_measured_outage() {
             sequence + 1
         );
         assert_eq!(snapshot.session_id, session_id);
+        // The stream is still live here: a terminal result was already
+        // consumed by the loop above, and polling a completed stream panics.
+        assert!(
+            terminal.is_none(),
+            "the recovered reboot stream must still be live, saw {terminal:?}"
+        );
         assert!(
             service.stop_talos_probe(&session_id),
             "the owning session must release the recovered stream"
