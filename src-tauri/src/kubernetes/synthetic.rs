@@ -57,6 +57,8 @@ pub enum SyntheticResponse {
     ExpiredContinuation,
     /// Answer a namespaced Pod-list request with an empty successful list.
     EmptyList,
+    /// Hold the second page until the client disconnects (cancellation tests).
+    StallContinuation,
 }
 
 /// One request the synthetic server answered.
@@ -109,9 +111,11 @@ impl SyntheticApiserver {
         let token = authority.token.clone();
         let task_token = token.clone();
         let task = tokio::spawn(async move {
+            let mut connections = tokio::task::JoinSet::new();
             loop {
                 tokio::select! {
                     _ = &mut shutdown_signal => break,
+                    _ = connections.join_next(), if !connections.is_empty() => {}
                     accepted = listener.accept() => {
                         let Ok((stream, _)) = accepted else { break };
                         let acceptor = acceptor.clone();
@@ -119,7 +123,7 @@ impl SyntheticApiserver {
                         let transient_failures = Arc::clone(&task_transient_failures);
                         let requests = Arc::clone(&task_requests);
                         let token = task_token.clone();
-                        tokio::spawn(async move {
+                        connections.spawn(async move {
                             let _ = tokio::time::timeout(
                                 CONNECTION_DEADLINE,
                                 serve_connection(
@@ -136,6 +140,7 @@ impl SyntheticApiserver {
                     }
                 }
             }
+            connections.shutdown().await;
         });
 
         Ok(Self {
@@ -242,8 +247,7 @@ impl SyntheticApiserver {
     /// Stops the server and waits for its accept loop to end.
     ///
     /// The accept loop is awaited, so the listener is gone when this returns.
-    /// A connection that is already being served is bounded by its own
-    /// deadline and cannot outlive the runtime.
+    /// All connection tasks are cancelled and joined before this returns.
     pub async fn stop(mut self) {
         if let Some(shutdown) = self.shutdown.take() {
             let _ = shutdown.send(());
@@ -264,6 +268,7 @@ impl SyntheticResponse {
             Self::ExpiredContinuation => 4,
             Self::EmptyList => 5,
             Self::MissingNamespace => 6,
+            Self::StallContinuation => 7,
         }
     }
 
@@ -275,6 +280,7 @@ impl SyntheticResponse {
             4 => Self::ExpiredContinuation,
             5 => Self::EmptyList,
             6 => Self::MissingNamespace,
+            7 => Self::StallContinuation,
             _ => Self::Success,
         }
     }
@@ -365,6 +371,11 @@ async fn serve_connection(
             })
             .is_ok();
     let selected = SyntheticResponse::from_code(response.load(Ordering::SeqCst));
+    if selected == SyntheticResponse::StallContinuation && request.path.contains("continue=") {
+        let mut byte = [0_u8; 1];
+        let _ = tls.read(&mut byte).await?;
+        return Ok(());
+    }
     let authorised = request
         .authorization
         .as_deref()
@@ -425,7 +436,7 @@ async fn serve_connection(
                     r#"{"kind":"PodList","apiVersion":"v1","metadata":{"resourceVersion":"42"},"items":[]}"#.to_owned(),
                 )
             }
-            SyntheticResponse::EmptyList => version_response(&request.path),
+            SyntheticResponse::EmptyList | SyntheticResponse::StallContinuation => version_response(&request.path),
         }
     };
     let head = format!(

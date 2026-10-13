@@ -66,6 +66,18 @@ describe("Kubernetes fixture manifest validation", () => {
     ["fixture ID", (value: Record<string, unknown>) => (value.fixtureId = "owner-cluster")],
     ["server version", (value: Record<string, unknown>) => (value.kubernetesVersion = "v1.37.0")],
     [
+      "expected server version",
+      (value: Record<string, unknown>) => {
+        (value.kubernetes as Record<string, unknown>).expectedServerVersion = "v1.37.0";
+      },
+    ],
+    [
+      "context name",
+      (value: Record<string, unknown>) => {
+        (value.kubernetes as Record<string, unknown>).contextName = "owner-context";
+      },
+    ],
+    [
       "endpoint",
       (value: Record<string, unknown>) => {
         (value.kubernetes as Record<string, unknown>).endpoint = "https://10.0.0.1:6443";

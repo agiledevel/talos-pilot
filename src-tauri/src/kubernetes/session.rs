@@ -372,6 +372,121 @@ users:
         }
     }
 
+    async fn synthetic_session() -> (
+        crate::kubernetes::synthetic::SyntheticApiserver,
+        KubernetesSessionStore,
+        String,
+    ) {
+        let server = crate::kubernetes::synthetic::SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic test operation must succeed"));
+        let store = KubernetesSessionStore::new();
+        let session = store
+            .open(&ResolvedCredential {
+                handle: "synthetic".to_owned(),
+                context_label: "synthetic".to_owned(),
+                storage_mode: CredentialStorageMode::SessionOnly,
+                source: SecretBox::new(
+                    server
+                        .kubeconfig("synthetic", "cluster")
+                        .into_bytes()
+                        .into_boxed_slice(),
+                ),
+            })
+            .unwrap_or_else(|_| panic!("synthetic test operation must succeed"));
+        (server, store, session.session_id)
+    }
+
+    #[tokio::test]
+    async fn list_rejects_excess_admission_without_a_request() {
+        let (server, store, id) = synthetic_session().await;
+        let permits = (0..MAX_ADMITTED_REQUESTS)
+            .map(|_| {
+                Arc::clone(&store.admission)
+                    .try_acquire_owned()
+                    .unwrap_or_else(|_| panic!("synthetic test operation must succeed"))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(store.admission.available_permits(), 0);
+        assert_eq!(
+            store.list_pods(&id, "workloads", None, None).await.err(),
+            Some(KubernetesError::CapacityExceeded)
+        );
+        assert_eq!(server.requests().len(), 0);
+        drop(permits);
+        assert_eq!(store.admission.available_permits(), MAX_ADMITTED_REQUESTS);
+        server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn failed_list_releases_admission_and_retained_projection() {
+        let (server, store, id) = synthetic_session().await;
+        let budget = Arc::clone(
+            &store
+                .sessions
+                .lock()
+                .unwrap_or_else(|_| panic!("synthetic test operation must succeed"))
+                .get(&id)
+                .unwrap_or_else(|| panic!("test session must remain open"))
+                .projection_bytes,
+        );
+        let starting_permits = store.admission.available_permits();
+        let starting_bytes = budget.load(std::sync::atomic::Ordering::Acquire);
+        server.set_response(crate::kubernetes::synthetic::SyntheticResponse::ExpiredContinuation);
+        assert_eq!(
+            store.list_pods(&id, "workloads", None, None).await.err(),
+            Some(KubernetesError::ContinuationExpired)
+        );
+        assert_eq!(server.requests().len(), 3);
+        assert_eq!(store.admission.available_permits(), starting_permits);
+        assert_eq!(
+            budget.load(std::sync::atomic::Ordering::Acquire),
+            starting_bytes
+        );
+        // The list runs in the caller's future; awaiting its error leaves no list task.
+        server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn dropping_in_flight_list_releases_admission_and_retained_projection() {
+        let (server, store, id) = synthetic_session().await;
+        let budget = Arc::clone(
+            &store
+                .sessions
+                .lock()
+                .unwrap_or_else(|_| panic!("synthetic test operation must succeed"))
+                .get(&id)
+                .unwrap_or_else(|| panic!("test session must remain open"))
+                .projection_bytes,
+        );
+        let starting_permits = store.admission.available_permits();
+        let starting_bytes = budget.load(std::sync::atomic::Ordering::Acquire);
+        server.set_response(crate::kubernetes::synthetic::SyntheticResponse::StallContinuation);
+        // Poll the caller-owned future, without spawning a detached list task.
+        let mut list = Box::pin(store.list_pods(&id, "workloads", None, None));
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                tokio::select! {
+                    result = &mut list => panic!("held page unexpectedly completed: {}", result.is_ok()),
+                    () = tokio::task::yield_now() => {
+                        if server.requests().len() == 3 { break; }
+                    }
+                }
+            }
+        }).await.unwrap_or_else(|_| panic!("synthetic test operation must succeed"));
+        assert_eq!(store.admission.available_permits(), starting_permits - 1);
+        assert!(budget.load(std::sync::atomic::Ordering::Acquire) > starting_bytes);
+        drop(list);
+        assert_eq!(store.admission.available_permits(), starting_permits);
+        assert_eq!(
+            budget.load(std::sync::atomic::Ordering::Acquire),
+            starting_bytes
+        );
+        assert_eq!(server.requests().len(), 3);
+        // stop joins the accept loop and every connection task, including the held page.
+        server.stop().await;
+    }
+
     #[tokio::test]
     async fn admits_sessions_up_to_the_documented_limit_and_closes_them() {
         let store = KubernetesSessionStore::new();

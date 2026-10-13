@@ -3,8 +3,7 @@
 //! The test reads credentials only through an explicit file reference, validates
 //! the selected context, API endpoint, and CA fingerprint before opening the
 //! production Kubernetes adapter, then reads the API version through that
-//! adapter. Later F3 steps extend this same harness with namespaced setup,
-//! restricted reads, and UID-anchored cleanup.
+//! adapter, then lists through the restricted reader and cleans up by UID.
 
 #![cfg(feature = "native-test")]
 
@@ -128,6 +127,14 @@ async fn live_fixture_sets_up_restricted_reader_and_cleans_up_by_uid() {
         "the checked manifest CA fingerprint must identify this fixture run"
     );
 
+    validate_fixture_identity(
+        &manifest,
+        parsed.current_context.as_deref(),
+        cluster.server.as_deref(),
+        &fingerprint,
+    )
+    .unwrap_or_else(|_| panic!("fixture identity must match before any request"));
+
     let mut runtime = StorageRuntime::open_native_test()
         .unwrap_or_else(|_| panic!("isolated in-memory credential storage must open"));
     let source = SecretBox::new(std::mem::take(&mut *raw_kubeconfig).into_boxed_slice());
@@ -196,24 +203,48 @@ async fn live_fixture_sets_up_restricted_reader_and_cleans_up_by_uid() {
     let reader_session = sessions
         .open(&reader_credential)
         .unwrap_or_else(|_| panic!("the restricted fixture session must open"));
-    let reader_client = sessions
-        .client_for_fixture_harness(&reader_session.session_id)
-        .unwrap_or_else(|_| panic!("the restricted fixture session must remain available"));
-    let pods: Api<Pod> = Api::namespaced(reader_client, EXPECTED_NAMESPACE);
-    let named_pod = pods
-        .get_opt("list-probe-000")
-        .await
-        .unwrap_or_else(|_| panic!("the restricted identity must read an allowlisted Pod"));
+    let snapshot = sessions
+        .list_pods(&reader_session.session_id, EXPECTED_NAMESPACE, None, None)
+        .await;
+    // Always finish exact-name, UID-anchored cleanup before asserting the read.
+    cleanup_fixture_namespace(&admin_client, &namespace_uid).await;
+    let snapshot =
+        snapshot.unwrap_or_else(|_| panic!("restricted paginated Pod list must succeed"));
+    assert_eq!(snapshot.items.len(), EXPECTED_POD_COUNT);
+    assert!(snapshot.complete);
+    assert!(!snapshot.resource_version.is_empty());
+    let names = snapshot
+        .items
+        .iter()
+        .map(|pod| pod.name.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    let expected_names = (0..EXPECTED_POD_COUNT)
+        .map(|index| format!("{EXPECTED_POD_PREFIX}{index:03}"))
+        .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
-        named_pod.and_then(|pod| pod.metadata.name),
-        Some("list-probe-000".to_owned())
+        names.len(),
+        EXPECTED_POD_COUNT,
+        "list must contain no duplicates"
+    );
+    assert!(
+        names
+            .iter()
+            .copied()
+            .eq(expected_names.iter().map(String::as_str)),
+        "list must contain exactly the allowlisted names"
+    );
+    println!(
+        "restricted list: items={}, unique={}, complete={}, resource_version_present={}",
+        snapshot.items.len(),
+        names.len(),
+        snapshot.complete,
+        !snapshot.resource_version.is_empty()
     );
     assert_eq!(sessions.close(&reader_session.session_id), Ok(true));
-    cleanup_fixture_namespace(&admin_client, &namespace_uid).await;
     drop(reader_kubeconfig);
     assert_eq!(sessions.close(&session.session_id), Ok(true));
     println!(
-        "fixture admin setup, restricted Pod read, and UID-anchored cleanup passed: Kubernetes {} at the allowlisted endpoint",
+        "fixture admin setup, restricted paginated Pod list, and UID-anchored cleanup passed: Kubernetes {} at the allowlisted endpoint",
         version.version
     );
 }
@@ -506,6 +537,7 @@ async fn cleanup_fixture_namespace(client: &kube::Client, expected_uid: &str) {
     .await
     .unwrap_or(false);
     assert!(gone, "the fixture namespace must be absent after cleanup");
+    println!("fixture namespace gone: true");
 }
 
 fn external_input(name: &str) -> PathBuf {
@@ -580,4 +612,79 @@ fn read_credential(path: &Path) -> Zeroizing<Vec<u8>> {
         "the explicit kubeconfig grew beyond its bound while being read"
     );
     bytes
+}
+
+// Pure preflight: this must run before opening a client or requesting /version.
+fn validate_fixture_identity(
+    manifest: &serde_json::Value,
+    context: Option<&str>,
+    endpoint: Option<&str>,
+    fingerprint: &str,
+) -> Result<(), &'static str> {
+    if manifest["fixtureId"].as_str() != Some(EXPECTED_CLUSTER_NAME)
+        || manifest["kubernetes"]["expectedServerVersion"].as_str() != Some(EXPECTED_VERSION)
+        || manifest["kubernetes"]["contextName"].as_str() != Some(EXPECTED_CONTEXT)
+        || context != Some(EXPECTED_CONTEXT)
+        || manifest["kubernetes"]["endpoint"].as_str() != Some(EXPECTED_ENDPOINT)
+        || endpoint != Some(EXPECTED_ENDPOINT)
+        || manifest["kubernetes"]["certificateAuthoritySha256"].as_str() != Some(fingerprint)
+    {
+        return Err("fixture identity mismatch");
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn wrong_fixture_id_version_ca_and_context_are_rejected_before_requests() {
+    let server = talos_pilot::kubernetes::synthetic::SyntheticApiserver::start()
+        .await
+        .unwrap_or_else(|_| panic!("synthetic server must start"));
+    let valid = serde_json::json!({
+        "fixtureId": EXPECTED_CLUSTER_NAME,
+        "kubernetes": {"endpoint": EXPECTED_ENDPOINT, "contextName": EXPECTED_CONTEXT,
+            "expectedServerVersion": EXPECTED_VERSION, "certificateAuthoritySha256": "a".repeat(64)}
+    });
+    assert!(
+        validate_fixture_identity(
+            &valid,
+            Some(EXPECTED_CONTEXT),
+            Some(EXPECTED_ENDPOINT),
+            &"a".repeat(64)
+        )
+        .is_ok()
+    );
+    for field in [
+        "fixtureId",
+        "expectedServerVersion",
+        "certificateAuthoritySha256",
+        "contextName",
+    ] {
+        let mut wrong = valid.clone();
+        if field == "fixtureId" {
+            wrong[field] = serde_json::json!("wrong");
+        } else {
+            wrong["kubernetes"][field] = serde_json::json!("b".repeat(64));
+        }
+        assert!(
+            validate_fixture_identity(
+                &wrong,
+                Some(EXPECTED_CONTEXT),
+                Some(EXPECTED_ENDPOINT),
+                &"a".repeat(64)
+            )
+            .is_err()
+        );
+        assert_eq!(server.requests().len(), 0);
+    }
+    assert!(
+        validate_fixture_identity(
+            &valid,
+            Some("wrong-context"),
+            Some(EXPECTED_ENDPOINT),
+            &"a".repeat(64)
+        )
+        .is_err()
+    );
+    assert_eq!(server.requests().len(), 0);
+    server.stop().await;
 }
