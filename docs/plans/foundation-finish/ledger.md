@@ -785,6 +785,22 @@ Entries are appended below, oldest first.
 - **Questions and blockers raised:** none.
 - **Next:** add bounded acknowledged Tauri IPC forwarding with subscription/session/generation/sequence validation, then deduplicate identical query ownership and connect renderer stale/reconnect state.
 
+### 2026-10-13 — document 03, F4 acknowledged IPC and renderer projection
+
+- **Document:** 03, F4 implementation packet tasks 3, 5, and 7; partial coverage for 6 and 8.
+- **Session:** GPT-6; base revision `5900a59`; final revision: this commit.
+- **Status after this session:** in progress. Rust IPC delivery, renderer validation, visible stale/reconnect state, generated DTOs, deterministic synthetic event tests, and native channel delivery now exist. Identical-query multi-consumer ownership and live Kubernetes 1.36 interruption remain open, so F4 is not done.
+- **Acceptance cases:** 1, 2, 6, 7, 8, 10, 12, and 14 have synthetic or native evidence in this increment (not all failure variants); 3–5 and 9, 11, 13, and 15 remain unverified. The live handoff/change and resource-baseline cases need more evidence.
+- **What changed:** generated watch DTOs and capability-scoped open/stream/ack/stop commands; one outstanding sequence acknowledgement; renderer runtime validation and UID-keyed atomic generation application; visible stale and explicit reconnect controls; deterministic synthetic duplicate, delete, and recreation stream; native tests for ordered channel delivery and session-close cleanup. Added the IPC contract and decision record 0015. Fixed opening a watch to run asynchronously on Tokio; the synchronous command previously panicked on the Tauri UI thread.
+- **Commands and results:** `pnpm contracts:generate` passed; `PATH="/home/kiss/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.linux-amd64/bin:/tmp/tp-f4-tools/protoc/bin:/tmp/tp-f4-tools/node/bin:$PATH" pnpm contracts:check` passed; `cargo test --manifest-path src-tauri/Cargo.toml --locked kubernetes:: -- --nocapture` passed (38 tests); the same pinned-toolchain `pnpm test:native` passed on openSUSE Tumbleweed x86_64, WebKitGTK 605.1.15 (helper-status 12 and Kubernetes session 6); native teardown reported no helper or synthetic endpoint remained. `pnpm lint`, `pnpm lint:svelte`, and `pnpm test:run` passed earlier on this working tree; rerun on the final tree. `git diff --check` passed before documentation additions; rerun before commit.
+- **Evidence class:** deterministic Rust synthetic API tests and mock renderer tests; actual Linux Tauri/WebKitGTK IPC delivery. No real-cluster watch test.
+- **Fixture:** none used this increment. C4 was last recorded as destroyed; F4 live mutation and interruption actions still need to be explicitly added to the allowlist and exercised in one runbook session.
+- **Failed or unexecuted:** native suite initially crashed because the synchronous Tauri command spawned Tokio work without a runtime; corrected by making command and store entry point async, then the final native suite passed. No live C4 watch was run. Query deduplication is not implemented. The 2 MiB projection check follows kube object decoding, and the watch client has no response read timeout to preserve quiet streams; strict pre-decode memory and 15-second establishment behavior therefore remain incomplete. Queue/ack fault cleanup and the full baseline observation matrix need dedicated coverage.
+- **Review findings:** native logs found and fixed the UI-thread Tokio panic. Final review still needs to cover cancellation and delivery attach-error paths, sequence overflow, query sharing, and transport establishment bounds before F4 can close. The Tauri channel tests prove the ordered success path and session shutdown join only.
+- **Assumptions confirmed or refuted:** confirmed that the actual Tauri channel can deliver and acknowledge a deterministic ordered event stream and that session close joins the active watch on Linux. The prior assumption that a synchronous command could spawn the watcher was refuted by native runtime evidence.
+- **Questions and blockers raised:** none.
+- **Next:** implement shared producer ownership for identical queries; add deterministic fault/cleanup observation tests; then update the fixture allowlist and run the real 1.36 watch interruption case before deciding whether any remaining resource limit needs a design change.
+
 ## Entry template
 
 Copy this block, fill every field, and append it to the session log. Write `none` where a field does not apply; do not delete fields.

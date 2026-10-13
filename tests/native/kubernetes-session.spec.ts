@@ -206,6 +206,94 @@ describe("native Kubernetes credential and session boundary", () => {
     assert.deepEqual(closed, [true, true, true, true]);
   });
 
+  it("delivers ordered acknowledged live Pod changes through the real Tauri channel", async () => {
+    await openWorkloadsView();
+    await clickMainButton("Load saved contexts");
+    await waitForEnabledButton("Open Kubernetes session");
+    await clickMainButton("Open Kubernetes session");
+    await browser.waitUntil(async () =>
+      (await browser.tauri.execute(() => document.body.innerText))
+        .toString()
+        .includes("synthetic-native-test"),
+    );
+    await browser.tauri.execute(() => {
+      const namespaceLabel = [...document.querySelectorAll("label")].find((label) =>
+        label.textContent?.includes("Namespace"),
+      );
+      const input = namespaceLabel?.querySelector("input");
+      if (input === null || input === undefined) {
+        throw new Error("the Workloads namespace input was not rendered");
+      }
+      input.value = "workloads";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await clickMainButton("List Pods");
+    await browser.waitUntil(
+      async () =>
+        (await browser.tauri.execute(() => document.querySelectorAll("tbody tr").length)) === 2,
+    );
+    await clickMainButton("Start live watch");
+    await browser.waitUntil(
+      async () =>
+        await browser.tauri.execute(() => {
+          const rows = [...document.querySelectorAll<HTMLTableRowElement>("tbody tr")];
+          const first = rows.find((row) => row.dataset.podUid === "uid-first");
+          const recreated = rows.find((row) => row.dataset.podUid === "uid-second-recreated");
+          return first?.innerText.includes("Pending") === true && recreated !== undefined;
+        }),
+      { timeout: 15_000, timeoutMsg: "the acknowledged synthetic watch events were not applied" },
+    );
+    const state = await browser.tauri.execute(() => document.body.innerText);
+    assert.match(String(state), /Live Pod updates are current\./u);
+    await clickMainButton("Stop live watch");
+    await clickMainButton("Close Kubernetes session");
+    await browser.waitUntil(async () =>
+      (await browser.tauri.execute(() => document.body.innerText))
+        .toString()
+        .includes("No Kubernetes session is open."),
+    );
+  });
+
+  it("joins the active native watch when its Kubernetes session closes", async () => {
+    await openWorkloadsView();
+    await clickMainButton("Load saved contexts");
+    await waitForEnabledButton("Open Kubernetes session");
+    await clickMainButton("Open Kubernetes session");
+    await browser.waitUntil(async () =>
+      (await browser.tauri.execute(() => document.body.innerText))
+        .toString()
+        .includes("synthetic-native-test"),
+    );
+    await browser.tauri.execute(() => {
+      const label = [...document.querySelectorAll("label")].find((item) =>
+        item.textContent?.includes("Namespace"),
+      );
+      const input = label?.querySelector("input");
+      if (input === null || input === undefined) {
+        throw new Error("the Workloads namespace input could not be updated");
+      }
+      input.value = "workloads";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await clickMainButton("List Pods");
+    await browser.waitUntil(
+      async () =>
+        (await browser.tauri.execute(() => document.querySelectorAll("tbody tr").length)) === 2,
+    );
+    await clickMainButton("Start live watch");
+    await browser.waitUntil(async () =>
+      (await browser.tauri.execute(() => document.body.innerText))
+        .toString()
+        .includes("Live Pod updates are current."),
+    );
+    await clickMainButton("Close Kubernetes session");
+    await browser.waitUntil(async () =>
+      (await browser.tauri.execute(() => document.body.innerText))
+        .toString()
+        .includes("No Kubernetes session is open."),
+    );
+  });
+
   it("denies the Kubernetes commands to a window without their capability", async () => {
     const results: unknown = await browser.tauri.execute(
       async ({ core }) => {
@@ -223,6 +311,19 @@ describe("native Kubernetes credential and session boundary", () => {
             },
           ],
           ["close_kubernetes_session", { sessionId: "kube-session-404" }],
+          ["open_kubernetes_pod_watch", { sessionId: "kube-session-404", namespace: "workloads" }],
+          [
+            "stream_kubernetes_pod_watch",
+            { sessionId: "kube-session-404", subscriptionId: "kube-watch-1" },
+          ],
+          [
+            "acknowledge_kubernetes_pod_watch",
+            { sessionId: "kube-session-404", subscriptionId: "kube-watch-1", sequence: "1" },
+          ],
+          [
+            "stop_kubernetes_pod_watch",
+            { sessionId: "kube-session-404", subscriptionId: "kube-watch-1" },
+          ],
         ] as const;
         const outcomes: string[] = [];
         for (const [command, args] of attempted) {
@@ -237,6 +338,54 @@ describe("native Kubernetes credential and session boundary", () => {
       },
       withExecuteOptions({ windowLabel: "unauthorized" }),
     );
-    assert.deepEqual(results, ["denied", "denied", "denied", "denied", "denied"]);
+    assert.deepEqual(results, [
+      "denied",
+      "denied",
+      "denied",
+      "denied",
+      "denied",
+      "denied",
+      "denied",
+      "denied",
+      "denied",
+    ]);
   });
 });
+
+async function openWorkloadsView(): Promise<void> {
+  await browser.tauri.execute(() => {
+    const button = [...document.querySelectorAll<HTMLButtonElement>("nav button")].find(
+      (candidate) => candidate.innerText.trim() === "Workloads",
+    );
+    if (button === undefined) {
+      throw new Error("the Workloads navigation entry was not rendered");
+    }
+    button.click();
+  });
+}
+
+async function clickMainButton(label: string): Promise<void> {
+  await browser.tauri.execute((_tauri, expected) => {
+    const button = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+      (candidate) => candidate.innerText.trim() === expected,
+    );
+    if (button === undefined || button.disabled) {
+      throw new Error(`the ${expected} button is unavailable`);
+    }
+    button.click();
+  }, label);
+}
+
+async function waitForEnabledButton(label: string): Promise<void> {
+  await browser.waitUntil(
+    async () =>
+      await browser.tauri.execute(
+        (_tauri, expected) =>
+          [...document.querySelectorAll<HTMLButtonElement>("button")].some(
+            (button) => button.innerText.trim() === expected && !button.disabled,
+          ),
+        label,
+      ),
+    { timeout: 10_000, timeoutMsg: `${label} did not become available` },
+  );
+}

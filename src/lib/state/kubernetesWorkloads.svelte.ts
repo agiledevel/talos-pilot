@@ -1,5 +1,7 @@
 import type { KubernetesCredentialSummaryDto } from "../ipc/generated/KubernetesCredentialSummaryDto";
+import type { KubernetesPodDto } from "../ipc/generated/KubernetesPodDto";
 import type { KubernetesPodListDto } from "../ipc/generated/KubernetesPodListDto";
+import type { KubernetesPodWatchEventDto } from "../ipc/generated/KubernetesPodWatchEventDto";
 import type { KubernetesSessionDto } from "../ipc/generated/KubernetesSessionDto";
 import type { IpcTransport } from "../ipc/transport";
 import {
@@ -8,7 +10,10 @@ import {
   IpcTransportError,
   listKubernetesCredentials,
   listKubernetesPods,
+  openKubernetesPodWatch,
   openKubernetesSession,
+  stopKubernetesPodWatch,
+  streamKubernetesPodWatch,
 } from "../ipc/transport";
 import { IpcContractError } from "../ipc/validation";
 
@@ -65,9 +70,22 @@ export class KubernetesWorkloadsState {
   busy = $state(false);
   /** Whether a Pod list has been requested for the current input identity. */
   hasRequestedPods = $state(false);
+  /** Latest UID-keyed live projection. Old rows stay visible while stale. */
+  watchPods = $state.raw<readonly KubernetesPodDto[]>([]);
+  /** Current watch lifecycle for visible stale/reconnect feedback. */
+  watchStatus = $state<"stopped" | "connecting" | "live" | "stale" | "failed">("stopped");
+  /** Safe explanation for the last watch termination. */
+  watchError = $state<string | null>(null);
 
   #queryKey = $state.raw<KubernetesPodQueryKey | null>(null);
   #requestGeneration = $state(0);
+  #watchIdentity: { sessionId: string; subscriptionId: string } | null = null;
+  #watchQuery: KubernetesPodQueryKey | null = null;
+  #watchSequence = 0n;
+  #watchGeneration = 0n;
+  #watchRequest = 0;
+  #staging: Map<string, KubernetesPodDto> | null = null;
+  #live = new Map<string, KubernetesPodDto>();
   readonly #transport: IpcTransport | undefined;
 
   /** @param transport Native command boundary; `undefined` in an ordinary browser. */
@@ -152,6 +170,11 @@ export class KubernetesWorkloadsState {
     this.actionError = null;
     this.#queryKey = null;
     this.hasRequestedPods = false;
+    this.#live.clear();
+    this.watchPods = [];
+    await this.stopWatch();
+    this.watchStatus = "stopped";
+    this.watchError = null;
     try {
       const previous = this.session;
       if (previous !== null) {
@@ -160,6 +183,8 @@ export class KubernetesWorkloadsState {
       }
       const session = await openKubernetesSession(transport, selected);
       this.session = session;
+      this.#live.clear();
+      this.watchPods = [];
     } catch (cause: unknown) {
       this.actionError = safeActionError(cause, "The Kubernetes session could not be opened.");
     } finally {
@@ -176,6 +201,106 @@ export class KubernetesWorkloadsState {
       this.#requestGeneration === Number.MAX_SAFE_INTEGER ? 1 : this.#requestGeneration + 1;
     this.#queryKey = this.#makeQueryKey(this.session.session_id, this.#requestGeneration);
     this.hasRequestedPods = true;
+    this.#live.clear();
+    this.watchPods = [];
+    if (this.#watchIdentity !== null) {
+      this.stopWatch().catch(() => undefined);
+    }
+  }
+
+  /** Opens an acknowledged live watch for the currently requested Pod query. */
+  async startWatch(): Promise<void> {
+    const transport = this.#transport;
+    const session = this.session;
+    const queryKey = this.queryKey;
+    if (transport === undefined || session === null || queryKey === null) {
+      return;
+    }
+    await this.stopWatch();
+    const request = (this.#watchRequest += 1);
+    this.watchError = null;
+    this.watchStatus = this.#live.size > 0 ? "stale" : "connecting";
+    const [, , sessionId, namespace, , labelSelector, fieldSelector] = queryKey;
+    try {
+      const subscription = await openKubernetesPodWatch(
+        transport,
+        sessionId,
+        namespace,
+        labelSelector,
+        fieldSelector,
+      );
+      if (
+        request !== this.#watchRequest ||
+        !this.#isCurrentWatchQuery(queryKey) ||
+        subscription.session_id !== sessionId
+      ) {
+        await stopKubernetesPodWatch(
+          transport,
+          subscription.session_id,
+          subscription.subscription_id,
+        );
+        return;
+      }
+      this.#watchIdentity = {
+        sessionId: subscription.session_id,
+        subscriptionId: subscription.subscription_id,
+      };
+      this.#watchQuery = queryKey;
+      this.#watchSequence = 0n;
+      this.#watchGeneration = 0n;
+      this.#staging = null;
+      const end = await streamKubernetesPodWatch(
+        transport,
+        sessionId,
+        subscription.subscription_id,
+        (event) => this.#applyWatchEvent(event),
+      );
+      if (this.#watchIdentity?.subscriptionId !== subscription.subscription_id) {
+        return;
+      }
+      this.#watchIdentity = null;
+      this.#watchQuery = null;
+      this.#staging = null;
+      if (end === "stopped") {
+        this.watchStatus = "stopped";
+      } else if (end === "stale" || end === "queue_overflow" || end === "acknowledgement_timeout") {
+        this.watchStatus = "stale";
+        this.watchError = watchEndMessage(end);
+      } else if (end === "channel_closed") {
+        this.watchStatus = "stale";
+        this.watchError = "The live watch channel closed. Reconnect to refresh this projection.";
+      } else {
+        this.watchStatus = "failed";
+        this.watchError =
+          "The Kubernetes API could not continue this watch. Reconnect to try again.";
+      }
+    } catch (cause: unknown) {
+      this.#watchIdentity = null;
+      this.#watchQuery = null;
+      this.#staging = null;
+      this.watchStatus = cause instanceof IpcContractError ? "failed" : "stale";
+      this.watchError = safeActionError(cause, "The Kubernetes watch could not be started.");
+    }
+  }
+
+  /** Stops this view's watch while retaining its session and last projection. */
+  async stopWatch(): Promise<void> {
+    const transport = this.#transport;
+    const identity = this.#watchIdentity;
+    this.#watchRequest += 1;
+    this.#watchIdentity = null;
+    this.#watchQuery = null;
+    this.#staging = null;
+    if (transport !== undefined && identity !== null) {
+      try {
+        await stopKubernetesPodWatch(transport, identity.sessionId, identity.subscriptionId);
+      } catch (cause: unknown) {
+        this.watchError = safeActionError(cause, "The Kubernetes watch could not be stopped.");
+      }
+    }
+    if (this.watchStatus !== "stale" && this.watchStatus !== "failed") {
+      this.watchStatus = "stopped";
+    }
   }
 
   /** Closes the current backend session and hides its snapshot identity. */
@@ -189,6 +314,13 @@ export class KubernetesWorkloadsState {
     this.actionError = null;
     this.#queryKey = null;
     this.hasRequestedPods = false;
+    this.#live.clear();
+    this.watchPods = [];
+    await this.stopWatch();
+    this.watchStatus = "stopped";
+    this.watchError = null;
+    this.watchStatus = "stopped";
+    this.watchError = null;
     try {
       await closeKubernetesSession(transport, session.session_id);
       this.session = null;
@@ -204,7 +336,16 @@ export class KubernetesWorkloadsState {
     const transport = this.#transport;
     const session = this.session;
     if (transport !== undefined && session !== null) {
-      closeKubernetesSession(transport, session.session_id).catch(() => undefined);
+      const identity = this.#watchIdentity;
+      this.#watchIdentity = null;
+      const stop =
+        identity === null
+          ? Promise.resolve()
+          : stopKubernetesPodWatch(transport, identity.sessionId, identity.subscriptionId).then(
+              () => undefined,
+              () => undefined,
+            );
+      stop.then(() => closeKubernetesSession(transport, session.session_id)).catch(() => undefined);
     }
   }
 
@@ -241,7 +382,116 @@ export class KubernetesWorkloadsState {
     if (result.session_id !== sessionId || result.namespace !== namespace) {
       throw new IpcContractError();
     }
+    if (this.queryKey !== null && this.#sameQueryKey(this.queryKey, queryKey)) {
+      this.#live = new Map(result.items.map((pod) => [pod.uid, pod]));
+      this.watchPods = result.items;
+    }
     return result;
+  }
+
+  #isCurrentWatchQuery(queryKey: KubernetesPodQueryKey): boolean {
+    const current = this.queryKey;
+    return current !== null && this.#sameQueryKey(current, queryKey);
+  }
+
+  #sameQueryKey(left: KubernetesPodQueryKey, right: KubernetesPodQueryKey): boolean {
+    return left.every((part, index) => part === right[index]);
+  }
+
+  #applyWatchEvent(event: KubernetesPodWatchEventDto): void {
+    const identity = this.#watchIdentity;
+    const queryKey = this.#watchQuery;
+    if (
+      identity === null ||
+      queryKey === null ||
+      event.session_id !== identity.sessionId ||
+      event.subscription_id !== identity.subscriptionId ||
+      !this.#isCurrentWatchQuery(queryKey)
+    ) {
+      throw new IpcContractError();
+    }
+    const sequence = BigInt(event.sequence);
+    const generation = BigInt(event.generation);
+    if (sequence !== this.#watchSequence + 1n) {
+      throw new IpcContractError();
+    }
+    this.#watchSequence = sequence;
+    switch (event.change) {
+      case "snapshot_begin":
+        if (generation !== this.#watchGeneration + 1n) {
+          throw new IpcContractError();
+        }
+        this.#watchGeneration = generation;
+        this.#staging = new Map();
+        this.watchStatus = "stale";
+        return;
+      case "snapshot_batch": {
+        const staging = this.#staging;
+        if (generation !== this.#watchGeneration || staging === null) {
+          throw new IpcContractError();
+        }
+        for (const pod of event.items) {
+          if (pod.namespace !== queryKey[3] || staging.has(pod.uid)) {
+            throw new IpcContractError();
+          }
+          staging.set(pod.uid, pod);
+        }
+        return;
+      }
+      case "snapshot_complete":
+        if (generation !== this.#watchGeneration || this.#staging === null) {
+          throw new IpcContractError();
+        }
+        this.#live = this.#staging;
+        this.#staging = null;
+        this.watchPods = [...this.#live.values()].sort((left, right) =>
+          left.name.localeCompare(right.name),
+        );
+        this.watchStatus = "live";
+        return;
+      case "upsert": {
+        const pod = event.pod;
+        if (
+          generation !== this.#watchGeneration ||
+          this.#staging !== null ||
+          pod === null ||
+          pod.namespace !== queryKey[3]
+        ) {
+          throw new IpcContractError();
+        }
+        const previous = this.#live.get(pod.uid);
+        if (previous !== undefined && previous.resource_version === pod.resource_version) {
+          if (!samePodProjection(previous, pod)) {
+            throw new IpcContractError();
+          }
+          return;
+        }
+        this.#live.set(pod.uid, pod);
+        this.watchPods = [...this.#live.values()].sort((left, right) =>
+          left.name.localeCompare(right.name),
+        );
+        return;
+      }
+      case "delete":
+        if (generation !== this.#watchGeneration || this.#staging !== null) {
+          throw new IpcContractError();
+        }
+        this.#live.delete(event.uid ?? "");
+        this.watchPods = [...this.#live.values()].sort((left, right) =>
+          left.name.localeCompare(right.name),
+        );
+        return;
+      case "stale":
+        if (generation !== this.#watchGeneration) {
+          throw new IpcContractError();
+        }
+        this.watchStatus = "stale";
+        return;
+      default: {
+        const exhaustive: never = event.change;
+        throw exhaustive;
+      }
+    }
   }
 
   #makeQueryKey(sessionId: string, generation: number): KubernetesPodQueryKey {
@@ -301,6 +551,28 @@ const POD_ERROR_OUTCOMES: Readonly<Record<string, string>> = {
 function optionalSelector(value: string): string | null {
   const trimmed = value.trim();
   return trimmed === "" ? null : trimmed;
+}
+
+function samePodProjection(left: KubernetesPodDto, right: KubernetesPodDto): boolean {
+  return (
+    left.name === right.name &&
+    left.namespace === right.namespace &&
+    left.uid === right.uid &&
+    left.resource_version === right.resource_version &&
+    left.phase === right.phase &&
+    left.readiness === right.readiness
+  );
+}
+
+function watchEndMessage(end: "stale" | "queue_overflow" | "acknowledgement_timeout"): string {
+  switch (end) {
+    case "stale":
+      return "The API watch could not rebuild a complete Pod snapshot. Reconnect to refresh it.";
+    case "queue_overflow":
+      return "The live watch exceeded its delivery bound. Reconnect to refresh this projection.";
+    case "acknowledgement_timeout":
+      return "The live view did not acknowledge an update in time. Reconnect to refresh it.";
+  }
 }
 
 function safeActionError(cause: unknown, fallback: string): string {

@@ -35,10 +35,13 @@ import {
   importTalosconfig,
   listKubernetesCredentials,
   listKubernetesPods,
+  openKubernetesPodWatch,
   openKubernetesSession,
   readKubernetesVersion,
   setAppearanceSettings,
   startTalosProbe,
+  stopKubernetesPodWatch,
+  streamKubernetesPodWatch,
   stopTalosProbe,
   useSessionOnlyStorage,
 } from "./transport";
@@ -50,6 +53,7 @@ import {
   parseCredentialStorageStatusDto,
   parseHelperStatusDto,
   parseKubernetesCredentialList,
+  parseKubernetesPodWatchEventDto,
   parseKubernetesSessionDto,
   parseKubernetesVersionDto,
   parseTalosCredentialSessionDto,
@@ -103,6 +107,81 @@ describe("runtime-validated IPC transport", () => {
     );
     expect(pods.complete).toBe(false);
     expect(pods.items[0]?.readiness).toBe("unknown");
+  });
+
+  it("validates watch identity and acknowledges ordered events after application", async () => {
+    const event = {
+      session_id: VALID_SESSION_ID,
+      subscription_id: "kube-watch-7",
+      generation: "1",
+      sequence: "1",
+      change: "snapshot_begin",
+      items: [],
+      pod: null,
+      uid: null,
+      name: null,
+    };
+    const received: unknown[] = [];
+    const invoke = vi.fn<IpcTransport["invoke"]>(async (command) => {
+      if (command === "open_kubernetes_pod_watch") {
+        return { session_id: VALID_SESSION_ID, subscription_id: "kube-watch-7" };
+      }
+      return true;
+    });
+    const transport: IpcTransport = {
+      invoke,
+      invokeChannel: async (_command, _args, onMessage) => {
+        onMessage(event);
+        return "stopped";
+      },
+    };
+    await expect(openKubernetesPodWatch(transport, VALID_SESSION_ID, "workloads")).resolves.toEqual(
+      { session_id: VALID_SESSION_ID, subscription_id: "kube-watch-7" },
+    );
+    await expect(
+      streamKubernetesPodWatch(transport, VALID_SESSION_ID, "kube-watch-7", (message) => {
+        received.push(message.change);
+      }),
+    ).resolves.toBe("stopped");
+    expect(received).toEqual(["snapshot_begin"]);
+    expect(invoke).toHaveBeenCalledWith(
+      "acknowledge_kubernetes_pod_watch",
+      expect.objectContaining({ subscriptionId: "kube-watch-7", sequence: "1" }),
+    );
+    await expect(stopKubernetesPodWatch(transport, VALID_SESSION_ID, "kube-watch-7")).resolves.toBe(
+      true,
+    );
+  });
+
+  it("rejects malformed watch identities, sequences, changes, and batch sizes", () => {
+    const event = {
+      session_id: VALID_SESSION_ID,
+      subscription_id: "kube-watch-7",
+      generation: "1",
+      sequence: "1",
+      change: "snapshot_begin",
+      items: [],
+      pod: null,
+      uid: null,
+      name: null,
+    };
+    expect(parseKubernetesPodWatchEventDto(event).sequence).toBe("1");
+    expect(() => parseKubernetesPodWatchEventDto({ ...event, sequence: "01" })).toThrow(
+      IpcContractError,
+    );
+    expect(() =>
+      parseKubernetesPodWatchEventDto({ ...event, generation: "18446744073709551616" }),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseKubernetesPodWatchEventDto({ ...event, change: "snapshot_batch", items: [] }),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseKubernetesPodWatchEventDto({
+        ...event,
+        change: "snapshot_batch",
+        items: Array.from({ length: 201 }, () => ({ invalid: true })),
+      }),
+    ).toThrow(IpcContractError);
   });
 
   it("rejects missing fields, unknown variants, and inconsistent readiness", () => {

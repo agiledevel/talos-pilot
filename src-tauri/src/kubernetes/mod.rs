@@ -29,6 +29,6 @@ pub use session::{
     OwnedSession, REQUEST_DEADLINE,
 };
 pub use watch::{
-    MAX_KUBERNETES_WATCHES, MAX_WATCH_PODS, PodWatchChange, PodWatchEnd, PodWatchMessage,
-    PodWatchReceiver, WATCH_BATCH_ITEMS, WATCH_QUEUE_BYTES, WATCH_QUEUE_MESSAGES,
+    MAX_KUBERNETES_WATCHES, MAX_WATCH_EVENT_BYTES, MAX_WATCH_PODS, PodWatchChange, PodWatchEnd,
+    PodWatchMessage, PodWatchReceiver, WATCH_BATCH_ITEMS, WATCH_QUEUE_BYTES, WATCH_QUEUE_MESSAGES,
 };

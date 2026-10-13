@@ -28,6 +28,11 @@ unsupported, empty, partial, and failure states.
     })),
   );
   const listError = $derived(query.isError ? kubernetesPodListError(query.error) : null);
+  const displayedPods = $derived(
+    workloads.watchStatus === "live" || workloads.watchStatus === "stale"
+      ? workloads.watchPods
+      : (query.data?.items ?? []),
+  );
   const readinessLabel = (readiness: string): string => readiness.replaceAll("_", " ");
 </script>
 
@@ -154,11 +159,59 @@ unsupported, empty, partial, and failure states.
         />
       {/if}
       {#if query.data !== undefined}
+        <div class="flex flex-wrap items-center gap-2">
+          {#if workloads.watchStatus === "stopped"}
+            <button
+              type="button"
+              class="btn preset-outlined-surface-500"
+              disabled={!workloads.native || !query.data.complete || query.isFetching}
+              onclick={() => void workloads.startWatch()}
+            >
+              Start live watch
+            </button>
+          {:else if workloads.watchStatus === "stale" || workloads.watchStatus === "failed"}
+            <button
+              type="button"
+              class="btn preset-primary-action"
+              disabled={!workloads.native || query.isFetching}
+              onclick={() => void workloads.startWatch()}
+            >
+              Reconnect live watch
+            </button>
+          {:else}
+            <button
+              type="button"
+              class="btn preset-outlined-surface-500"
+              onclick={() => void workloads.stopWatch()}
+            >
+              Stop live watch
+            </button>
+          {/if}
+          {#if workloads.watchStatus === "connecting"}
+            <p role="status" aria-live="polite">Connecting the live Pod watch…</p>
+          {:else if workloads.watchStatus === "live"}
+            <p role="status" aria-live="polite">Live Pod updates are current.</p>
+          {/if}
+        </div>
+        {#if workloads.watchStatus === "stale"}
+          <StatusMessage
+            role="status"
+            tone="warning"
+            message={workloads.watchError ??
+              "Pod data is stale until a complete watch snapshot arrives."}
+          />
+        {:else if workloads.watchStatus === "failed"}
+          <StatusMessage
+            role="alert"
+            tone="error"
+            message={workloads.watchError ?? "The live Pod watch failed."}
+          />
+        {/if}
         {#if query.data.complete}
           <p role="status">
-            {query.data.items.length === 0
+            {displayedPods.length === 0
               ? "No Pods were found in this namespace."
-              : `${query.data.items.length} Pod summaries · resource version ${query.data.resource_version}`}
+              : `${displayedPods.length} Pod summaries${workloads.watchStatus === "live" ? " · live" : ""}`}
           </p>
         {:else}
           <StatusMessage
@@ -167,7 +220,7 @@ unsupported, empty, partial, and failure states.
             message={`Partial Pod list: ${query.data.items.length} summaries reached the backend collection limit.`}
           />
         {/if}
-        {#if query.data.items.length > 0}
+        {#if displayedPods.length > 0}
           <div class="min-w-0 overflow-x-auto rounded-base border border-surface-200-800">
             <table class="w-full min-w-[36rem] text-left text-sm">
               <caption class="sr-only">
@@ -181,8 +234,8 @@ unsupported, empty, partial, and failure states.
                 </tr>
               </thead>
               <tbody>
-                {#each query.data.items as pod (`${pod.namespace}/${pod.name}/${pod.uid}`)}
-                  <tr class="border-t border-surface-200-800">
+                {#each displayedPods as pod (`${pod.namespace}/${pod.name}/${pod.uid}`)}
+                  <tr class="border-t border-surface-200-800" data-pod-uid={pod.uid}>
                     <th scope="row" class="max-w-64 truncate p-2 font-medium" title={pod.name}>
                       {pod.name}
                     </th>

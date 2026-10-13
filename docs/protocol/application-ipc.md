@@ -14,24 +14,28 @@ Every command is granted explicitly to the `main` window in
 window or origin receives them, and an ungranted webview is rejected by the
 generated ACL rather than by a renderer check.
 
-| Command                         | Renderer arguments                           | Result                                                |
-| ------------------------------- | -------------------------------------------- | ----------------------------------------------------- |
-| `get_helper_status`             | none                                         | `HelperStatusDto`                                     |
-| `get_appearance_settings`       | none                                         | `AppearanceSettingsDto`                               |
-| `set_appearance_settings`       | `settings`                                   | `null` on success                                     |
-| `get_credential_storage_status` | none                                         | `CredentialStorageStatusDto`                          |
-| `use_session_only_storage`      | none                                         | `CredentialStorageStatusDto`                          |
-| `retry_persistent_storage`      | none                                         | `CredentialStorageStatusDto`                          |
-| `import_kubeconfig`             | none (native file picker)                    | `CredentialImportResultDto` or `null` when cancelled  |
-| `import_talosconfig`            | none (native file picker)                    | `TalosCredentialSessionDto` or `null` when cancelled  |
-| `list_kubernetes_credentials`   | none                                         | `KubernetesCredentialSummaryDto[]`                    |
-| `open_kubernetes_session`       | `credentialHandle`                           | `KubernetesSessionDto`                                |
-| `close_kubernetes_session`      | `sessionId`                                  | `true` when that session was open                     |
-| `read_kubernetes_version`       | `sessionId`                                  | `KubernetesVersionDto`                                |
-| `list_kubernetes_pods`          | `sessionId`, `namespace`, optional selectors | `KubernetesPodListDto`                                |
-| `start_talos_probe`             | `sessionId`, `node`, `channel`               | `null` on completion; events arrive on the channel    |
-| `stop_talos_probe`              | `sessionId`                                  | `true` when that session owns the active subscription |
-| `close_talos_session`           | `sessionId`                                  | `true` when an in-memory session was removed          |
+| Command                            | Renderer arguments                           | Result                                                |
+| ---------------------------------- | -------------------------------------------- | ----------------------------------------------------- |
+| `get_helper_status`                | none                                         | `HelperStatusDto`                                     |
+| `get_appearance_settings`          | none                                         | `AppearanceSettingsDto`                               |
+| `set_appearance_settings`          | `settings`                                   | `null` on success                                     |
+| `get_credential_storage_status`    | none                                         | `CredentialStorageStatusDto`                          |
+| `use_session_only_storage`         | none                                         | `CredentialStorageStatusDto`                          |
+| `retry_persistent_storage`         | none                                         | `CredentialStorageStatusDto`                          |
+| `import_kubeconfig`                | none (native file picker)                    | `CredentialImportResultDto` or `null` when cancelled  |
+| `import_talosconfig`               | none (native file picker)                    | `TalosCredentialSessionDto` or `null` when cancelled  |
+| `list_kubernetes_credentials`      | none                                         | `KubernetesCredentialSummaryDto[]`                    |
+| `open_kubernetes_session`          | `credentialHandle`                           | `KubernetesSessionDto`                                |
+| `close_kubernetes_session`         | `sessionId`                                  | `true` when that session was open                     |
+| `read_kubernetes_version`          | `sessionId`                                  | `KubernetesVersionDto`                                |
+| `list_kubernetes_pods`             | `sessionId`, `namespace`, optional selectors | `KubernetesPodListDto`                                |
+| `open_kubernetes_pod_watch`        | `sessionId`, `namespace`, optional selectors | `KubernetesPodWatchSubscriptionDto`                   |
+| `stream_kubernetes_pod_watch`      | `sessionId`, `subscriptionId`, `channel`     | `KubernetesPodWatchEndDto`; events arrive on channel  |
+| `acknowledge_kubernetes_pod_watch` | `sessionId`, `subscriptionId`, `sequence`    | `true` only for the exact outstanding event           |
+| `stop_kubernetes_pod_watch`        | `sessionId`, `subscriptionId`                | `true` when that subscription was stopped             |
+| `start_talos_probe`                | `sessionId`, `node`, `channel`               | `null` on completion; events arrive on the channel    |
+| `stop_talos_probe`                 | `sessionId`                                  | `true` when that session owns the active subscription |
+| `close_talos_session`              | `sessionId`                                  | `true` when an in-memory session was removed          |
 
 Rust parameters are declared in `snake_case` and Tauri exposes them to the
 renderer as `camelCase`, so `sessionId` binds to `session_id` and
@@ -83,6 +87,49 @@ included in any of these results. The adapter never reads ambient configuration
 (`$KUBECONFIG`, `~/.kube/config`, or the in-cluster environment), never applies
 a proxy, and never disables TLS validation; see
 [decision 0012](../decisions/0012-kubernetes-client-session-boundary.md).
+
+### Kubernetes Pod watch
+
+`open_kubernetes_pod_watch` validates the query and allocates one of at most
+seven process-wide watch slots under the named credential session. It returns
+the backend-generated subscription identity before network establishment so a
+renderer can cancel promptly. The current implementation assigns one watcher
+and one Tauri channel per subscription; identical-query sharing across multiple
+consumers remains tracked in the F4 ledger and is not claimed as complete.
+
+`stream_kubernetes_pod_watch` sends bounded
+`KubernetesPodWatchEventDto` messages. Each event identifies the session and
+subscription, has a decimal-string unsigned 64-bit sequence and generation, and
+contains one change: snapshot begin, a snapshot batch, snapshot complete, UID
+upsert, UID delete, or stale. Snapshot generations publish only after the
+backend has collected a complete bounded list. A 410 response starts a new
+generation through kube's pinned list-watch recovery; old renderer data stays
+visible as stale until the new snapshot completes. Resource versions remain
+opaque strings. A repeated object update with the same UID and resource version
+is ignored; deletes and recreations use UID identity.
+
+Each subscription retains at most 64 queued messages and 8 MiB of projected
+data, with at most 200 Pods in one snapshot batch and 10,000 Pods per
+generation. One decoded Pod is rejected when its bounded re-encoding exceeds
+2 MiB. This size check occurs after kube has decoded the object, so it limits
+accepted and retained projection work but does not cap kube's initial decode
+allocation. A delivered event remains the only outstanding event until the
+renderer validates it, applies it, and acknowledges its exact sequence. The
+backend stops the subscription on a five-second acknowledgement timeout;
+channel send failure also stops it. Queue overflow, exhausted recovery, and
+invalid projections end stale or failed with a terminal result outside the
+bounded data queue.
+
+The watcher allows three transient attempts total with 0.5-second then
+1-second backoff. A replacement snapshot has a 60-second deadline. After
+three consecutive relists without an applied event, the view becomes stale and
+requires an explicit reconnect. Session close, explicit stop, application
+shutdown, and renderer channel loss cancel and join owned tasks; cancellation
+is bounded by the watcher request and acknowledgement limits. Watch request
+connect and write timeouts are 10 and 5 seconds. The current HTTP client's
+read timeout is disabled to preserve a quiet long-lived stream, so the full
+15-second response-establishment bound is not yet demonstrated; see the F4
+ledger.
 
 ## Streaming results
 

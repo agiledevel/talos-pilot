@@ -23,8 +23,9 @@ use contracts::{
     AppearanceDensity, AppearanceSettingsDto, AppearanceTheme, ApplicationErrorDto,
     CredentialImportResultDto, CredentialStorageModeDto, CredentialStorageStatusDto,
     HelperStatusDto, KubernetesCredentialSummaryDto, KubernetesPodDto, KubernetesPodListDto,
-    KubernetesPodReadinessDto, KubernetesSessionDto, KubernetesVersionDto,
-    TalosCredentialSessionDto, TalosProbeEventDto,
+    KubernetesPodReadinessDto, KubernetesPodWatchChangeDto, KubernetesPodWatchEndDto,
+    KubernetesPodWatchEventDto, KubernetesPodWatchSubscriptionDto, KubernetesSessionDto,
+    KubernetesVersionDto, TalosCredentialSessionDto, TalosProbeEventDto,
 };
 use helper::service::HelperService;
 use kubernetes::{KubernetesError, KubernetesSessionStore};
@@ -393,7 +394,7 @@ async fn list_kubernetes_credentials(
 #[tauri::command]
 async fn open_kubernetes_session(
     storage: State<'_, AppStorage>,
-    sessions: State<'_, KubernetesSessionStore>,
+    sessions: State<'_, Arc<KubernetesSessionStore>>,
     credential_handle: String,
 ) -> Result<KubernetesSessionDto, ApplicationErrorDto> {
     let resolved = run_storage(
@@ -419,7 +420,7 @@ async fn open_kubernetes_session(
 /// Closes one Kubernetes session and releases its client.
 #[tauri::command]
 async fn close_kubernetes_session(
-    sessions: State<'_, KubernetesSessionStore>,
+    sessions: State<'_, Arc<KubernetesSessionStore>>,
     session_id: String,
 ) -> Result<bool, ApplicationErrorDto> {
     sessions
@@ -435,7 +436,7 @@ async fn close_kubernetes_session(
 /// reported version fields.
 #[tauri::command]
 async fn read_kubernetes_version(
-    sessions: State<'_, KubernetesSessionStore>,
+    sessions: State<'_, Arc<KubernetesSessionStore>>,
     session_id: String,
 ) -> Result<KubernetesVersionDto, ApplicationErrorDto> {
     let version = sessions
@@ -457,7 +458,7 @@ async fn read_kubernetes_version(
 /// flag when an aggregate retention bound stops collection.
 #[tauri::command]
 async fn list_kubernetes_pods(
-    sessions: State<'_, KubernetesSessionStore>,
+    sessions: State<'_, Arc<KubernetesSessionStore>>,
     session_id: String,
     namespace: String,
     label_selector: Option<String>,
@@ -495,6 +496,255 @@ async fn list_kubernetes_pods(
         complete: snapshot.complete,
         items,
     })
+}
+
+/// Opens a bounded Pod watch and returns its identity before API establishment.
+#[tauri::command]
+async fn open_kubernetes_pod_watch(
+    sessions: State<'_, Arc<KubernetesSessionStore>>,
+    session_id: String,
+    namespace: String,
+    label_selector: Option<String>,
+    field_selector: Option<String>,
+) -> Result<KubernetesPodWatchSubscriptionDto, ApplicationErrorDto> {
+    let subscription_id = sessions
+        .start_pod_watch(
+            &session_id,
+            &namespace,
+            label_selector.as_deref(),
+            field_selector.as_deref(),
+        )
+        .await
+        .map_err(|error| kubernetes_error("open_kubernetes_pod_watch", error))?;
+    Ok(KubernetesPodWatchSubscriptionDto {
+        session_id,
+        subscription_id,
+    })
+}
+
+/// Forwards one session-owned Pod watch over a bounded, acknowledged Tauri channel.
+#[tauri::command]
+async fn stream_kubernetes_pod_watch(
+    sessions: State<'_, Arc<KubernetesSessionStore>>,
+    session_id: String,
+    subscription_id: String,
+    channel: tauri::ipc::Channel<KubernetesPodWatchEventDto>,
+) -> Result<KubernetesPodWatchEndDto, ApplicationErrorDto> {
+    let receiver = sessions
+        .take_pod_watch_receiver(&session_id, &subscription_id)
+        .map_err(|error| kubernetes_error("stream_kubernetes_pod_watch", error))?;
+    let owned_sessions = Arc::clone(sessions.inner());
+    let (end_sender, end_receiver) = tokio::sync::oneshot::channel();
+    let delivery_sessions = Arc::clone(&owned_sessions);
+    let delivery_session_id = session_id.clone();
+    let delivery_subscription_id = subscription_id.clone();
+    let delivery = tokio::spawn(async move {
+        let end = deliver_pod_watch(
+            delivery_sessions,
+            delivery_session_id,
+            delivery_subscription_id,
+            receiver,
+            channel,
+        )
+        .await;
+        let _ = end_sender.send(end);
+    });
+    if let Err(error) =
+        owned_sessions.attach_watch_delivery(&session_id, &subscription_id, delivery)
+    {
+        return Err(kubernetes_error("stream_kubernetes_pod_watch", error));
+    }
+    let end = end_receiver
+        .await
+        .unwrap_or(KubernetesPodWatchEndDto::Stopped);
+    let _ = owned_sessions
+        .stop_pod_watch(&session_id, &subscription_id)
+        .await;
+    Ok(end)
+}
+
+async fn deliver_pod_watch(
+    sessions: Arc<KubernetesSessionStore>,
+    session_id: String,
+    subscription_id: String,
+    mut receiver: kubernetes::PodWatchReceiver,
+    channel: tauri::ipc::Channel<KubernetesPodWatchEventDto>,
+) -> KubernetesPodWatchEndDto {
+    const ACK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+    let mut cancellation = receiver.cancellation_receiver();
+    loop {
+        let message = tokio::select! {
+            changed = cancellation.changed() => {
+                if changed.is_err() || *cancellation.borrow() {
+                    break;
+                }
+                continue;
+            }
+            message = receiver.messages.recv() => message,
+        };
+        let Some(message) = message else {
+            break;
+        };
+        let sequence = message.sequence;
+        let acknowledgement =
+            match sessions.expect_watch_ack(&session_id, &subscription_id, sequence) {
+                Ok(acknowledgement) => acknowledgement,
+                Err(_) => return KubernetesPodWatchEndDto::Failed,
+            };
+        if channel
+            .send(pod_watch_event(&session_id, &subscription_id, message))
+            .is_err()
+        {
+            let _ = sessions.cancel_pod_watch(&session_id, &subscription_id);
+            return KubernetesPodWatchEndDto::ChannelClosed;
+        }
+        tokio::select! {
+            acknowledged = acknowledgement => {
+                if acknowledged.is_err() {
+                    break;
+                }
+            }
+            changed = cancellation.changed() => {
+                if changed.is_err() || *cancellation.borrow() {
+                    break;
+                }
+            }
+            () = tokio::time::sleep(ACK_TIMEOUT) => {
+                let _ = sessions
+                    .cancel_pod_watch(&session_id, &subscription_id);
+                return KubernetesPodWatchEndDto::AcknowledgementTimeout;
+            }
+        }
+    }
+    let end = (&mut receiver.terminal)
+        .await
+        .unwrap_or(kubernetes::PodWatchEnd::Stopped);
+    pod_watch_end(end)
+}
+
+/// Acknowledges exactly the currently delivered event for one watch.
+#[tauri::command]
+fn acknowledge_kubernetes_pod_watch(
+    sessions: State<'_, Arc<KubernetesSessionStore>>,
+    session_id: String,
+    subscription_id: String,
+    sequence: String,
+) -> Result<bool, ApplicationErrorDto> {
+    let parsed = sequence
+        .parse::<u64>()
+        .ok()
+        .filter(|value| value.to_string() == sequence)
+        .ok_or_else(|| {
+            kubernetes_error(
+                "acknowledge_kubernetes_pod_watch",
+                KubernetesError::InvalidWatchAck,
+            )
+        })?;
+    sessions
+        .acknowledge_pod_watch(&session_id, &subscription_id, parsed)
+        .map_err(|error| kubernetes_error("acknowledge_kubernetes_pod_watch", error))
+}
+
+/// Stops one owned Pod watch without closing its credential session.
+#[tauri::command]
+async fn stop_kubernetes_pod_watch(
+    sessions: State<'_, Arc<KubernetesSessionStore>>,
+    session_id: String,
+    subscription_id: String,
+) -> Result<bool, ApplicationErrorDto> {
+    sessions
+        .stop_pod_watch(&session_id, &subscription_id)
+        .await
+        .map_err(|error| kubernetes_error("stop_kubernetes_pod_watch", error))
+}
+
+fn pod_watch_event(
+    session_id: &str,
+    subscription_id: &str,
+    message: kubernetes::PodWatchMessage,
+) -> KubernetesPodWatchEventDto {
+    use kubernetes::PodWatchChange;
+    let (change, items, pod, uid, name) = match message.change {
+        PodWatchChange::SnapshotBegin => (
+            KubernetesPodWatchChangeDto::SnapshotBegin,
+            Vec::new(),
+            None,
+            None,
+            None,
+        ),
+        PodWatchChange::SnapshotBatch(projections) => (
+            KubernetesPodWatchChangeDto::SnapshotBatch,
+            projections.into_iter().map(pod_projection_dto).collect(),
+            None,
+            None,
+            None,
+        ),
+        PodWatchChange::SnapshotComplete => (
+            KubernetesPodWatchChangeDto::SnapshotComplete,
+            Vec::new(),
+            None,
+            None,
+            None,
+        ),
+        PodWatchChange::Upsert(projection) => (
+            KubernetesPodWatchChangeDto::Upsert,
+            Vec::new(),
+            Some(pod_projection_dto(projection)),
+            None,
+            None,
+        ),
+        PodWatchChange::Delete { uid, name } => (
+            KubernetesPodWatchChangeDto::Delete,
+            Vec::new(),
+            None,
+            Some(uid),
+            Some(name),
+        ),
+        PodWatchChange::Stale => (
+            KubernetesPodWatchChangeDto::Stale,
+            Vec::new(),
+            None,
+            None,
+            None,
+        ),
+    };
+    KubernetesPodWatchEventDto {
+        session_id: session_id.to_owned(),
+        subscription_id: subscription_id.to_owned(),
+        generation: message.generation.to_string(),
+        sequence: message.sequence.to_string(),
+        change,
+        items,
+        pod,
+        uid,
+        name,
+    }
+}
+
+fn pod_projection_dto(pod: kubernetes::PodProjection) -> KubernetesPodDto {
+    KubernetesPodDto {
+        name: pod.name,
+        namespace: pod.namespace,
+        uid: pod.uid,
+        resource_version: pod.resource_version,
+        phase: pod.phase,
+        readiness: match pod.ready {
+            kubernetes::ReadySummary::Ready => KubernetesPodReadinessDto::Ready,
+            kubernetes::ReadySummary::NotReady => KubernetesPodReadinessDto::NotReady,
+            kubernetes::ReadySummary::Unknown => KubernetesPodReadinessDto::Unknown,
+        },
+    }
+}
+
+fn pod_watch_end(end: kubernetes::PodWatchEnd) -> KubernetesPodWatchEndDto {
+    match end {
+        kubernetes::PodWatchEnd::Stopped => KubernetesPodWatchEndDto::Stopped,
+        kubernetes::PodWatchEnd::Stale | kubernetes::PodWatchEnd::InvalidProjection => {
+            KubernetesPodWatchEndDto::Stale
+        }
+        kubernetes::PodWatchEnd::Failed => KubernetesPodWatchEndDto::Failed,
+        kubernetes::PodWatchEnd::QueueOverflow => KubernetesPodWatchEndDto::QueueOverflow,
+    }
 }
 
 async fn pick_kubeconfig_file(
@@ -636,6 +886,16 @@ fn kubernetes_error(action: &str, error: KubernetesError) -> ApplicationErrorDto
         KubernetesError::SessionUnknown => (
             "KUBERNETES_SESSION_UNKNOWN",
             "The Kubernetes session is no longer open.",
+            false,
+        ),
+        KubernetesError::WatchUnknown => (
+            "KUBERNETES_WATCH_UNKNOWN",
+            "The Kubernetes watch is no longer active.",
+            false,
+        ),
+        KubernetesError::InvalidWatchAck => (
+            "KUBERNETES_WATCH_ACK_INVALID",
+            "The Kubernetes watch acknowledgement is invalid.",
             false,
         ),
         KubernetesError::CapacityExceeded => (
@@ -819,7 +1079,7 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .manage(HelperService::default())
         .manage(TalosSessionStore::default())
-        .manage(KubernetesSessionStore::default())
+        .manage(Arc::new(KubernetesSessionStore::default()))
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let storage = open_storage_runtime(app.handle())?;
@@ -860,6 +1120,10 @@ pub fn run() {
             close_kubernetes_session,
             read_kubernetes_version,
             list_kubernetes_pods,
+            open_kubernetes_pod_watch,
+            stream_kubernetes_pod_watch,
+            acknowledge_kubernetes_pod_watch,
+            stop_kubernetes_pod_watch,
             start_talos_probe,
             stop_talos_probe,
             close_talos_session
@@ -868,6 +1132,10 @@ pub fn run() {
     match application {
         Ok(application) => application.run(|handle, event| {
             if matches!(event, tauri::RunEvent::Exit) {
+                let sessions = handle.state::<Arc<KubernetesSessionStore>>();
+                if tauri::async_runtime::block_on(sessions.shutdown()).is_err() {
+                    eprintln!("Talos Pilot could not join all Kubernetes watches during shutdown.");
+                }
                 let service = handle.state::<HelperService>();
                 tauri::async_runtime::block_on(service.shutdown());
             }

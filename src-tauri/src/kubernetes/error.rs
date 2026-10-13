@@ -22,6 +22,12 @@ pub enum KubernetesError {
     /// The named session is unknown or was already closed.
     #[error("the Kubernetes session is unknown")]
     SessionUnknown,
+    /// The named watch subscription is unknown, already stopped, or already has a stream owner.
+    #[error("the Kubernetes watch subscription is unknown")]
+    WatchUnknown,
+    /// A watch acknowledgement did not match the one outstanding event.
+    #[error("the Kubernetes watch acknowledgement is invalid")]
+    InvalidWatchAck,
     /// Every admitted-request slot is in use.
     #[error("the Kubernetes request capacity is exhausted")]
     CapacityExceeded,

@@ -256,6 +256,74 @@ pub struct KubernetesPodListDto {
     pub items: Vec<KubernetesPodDto>,
 }
 
+/// Event kind for one session-owned Pod watch projection.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum KubernetesPodWatchChangeDto {
+    /// A new snapshot generation is being assembled.
+    SnapshotBegin,
+    /// A bounded portion of a completed snapshot.
+    SnapshotBatch,
+    /// The completed generation may replace the previous view.
+    SnapshotComplete,
+    /// One Pod was added or changed.
+    Upsert,
+    /// One Pod UID was removed.
+    Delete,
+    /// The existing projection is stale and requires an explicit reconnect.
+    Stale,
+}
+
+/// Identity returned before watch establishment so the owner can cancel it.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+pub struct KubernetesPodWatchSubscriptionDto {
+    /// Kubernetes credential session that owns the subscription.
+    pub session_id: String,
+    /// Backend-generated subscription identity.
+    pub subscription_id: String,
+}
+
+/// Ordered, bounded Pod watch projection sent over a Tauri channel.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+pub struct KubernetesPodWatchEventDto {
+    /// Session that owns this event.
+    pub session_id: String,
+    /// Subscription identity that owns this event.
+    pub subscription_id: String,
+    /// Complete snapshot generation encoded as a decimal string.
+    pub generation: String,
+    /// Strictly increasing per-subscription sequence encoded as a decimal string.
+    pub sequence: String,
+    /// Safe projection change.
+    pub change: KubernetesPodWatchChangeDto,
+    /// Populated only for a snapshot batch.
+    pub items: Vec<KubernetesPodDto>,
+    /// Populated only for an upsert.
+    pub pod: Option<KubernetesPodDto>,
+    /// Populated only for a delete.
+    pub uid: Option<String>,
+    /// Populated only for a delete.
+    pub name: Option<String>,
+}
+
+/// Why one Pod watch stream ended.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum KubernetesPodWatchEndDto {
+    /// Explicitly stopped by its owner.
+    Stopped,
+    /// The projection became stale and requires an explicit reconnect.
+    Stale,
+    /// The Kubernetes API rejected the request or projection.
+    Failed,
+    /// The bounded queue filled.
+    QueueOverflow,
+    /// The renderer did not acknowledge an event within five seconds.
+    AcknowledgementTimeout,
+    /// The Tauri channel closed.
+    ChannelClosed,
+}
+
 /// A stable, nonsensitive error returned over application IPC.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
 pub struct ApplicationErrorDto {

@@ -9,9 +9,14 @@ import type { HelperCapability } from "./generated/HelperCapability";
 import type { HelperState } from "./generated/HelperState";
 import type { HelperStatusDto } from "./generated/HelperStatusDto";
 import type { KubernetesCredentialSummaryDto } from "./generated/KubernetesCredentialSummaryDto";
+import type { KubernetesPodDto } from "./generated/KubernetesPodDto";
 import type { KubernetesPodListDto } from "./generated/KubernetesPodListDto";
 import type { KubernetesPodReadinessDto } from "./generated/KubernetesPodReadinessDto";
 import type { KubernetesSessionDto } from "./generated/KubernetesSessionDto";
+import type { KubernetesPodWatchChangeDto } from "./generated/KubernetesPodWatchChangeDto";
+import type { KubernetesPodWatchEndDto } from "./generated/KubernetesPodWatchEndDto";
+import type { KubernetesPodWatchEventDto } from "./generated/KubernetesPodWatchEventDto";
+import type { KubernetesPodWatchSubscriptionDto } from "./generated/KubernetesPodWatchSubscriptionDto";
 import type { KubernetesVersionDto } from "./generated/KubernetesVersionDto";
 import type { TalosCredentialSessionDto } from "./generated/TalosCredentialSessionDto";
 import type { TalosProbeEventDto } from "./generated/TalosProbeEventDto";
@@ -33,6 +38,24 @@ const MAX_VERSION_FIELD_LENGTH = 64;
  */
 const MAX_CREDENTIAL_LIST_LENGTH = 512;
 const MAX_POD_LIST_LENGTH = 10_000;
+const MAX_POD_WATCH_BATCH_LENGTH = 200;
+const MAX_WATCH_U64 = 18_446_744_073_709_551_615n;
+const KUBERNETES_WATCH_CHANGES: ReadonlySet<string> = new Set([
+  "snapshot_begin",
+  "snapshot_batch",
+  "snapshot_complete",
+  "upsert",
+  "delete",
+  "stale",
+]);
+const KUBERNETES_WATCH_ENDS: ReadonlySet<string> = new Set([
+  "stopped",
+  "stale",
+  "failed",
+  "queue_overflow",
+  "acknowledgement_timeout",
+  "channel_closed",
+]);
 const UTF8_ENCODER = new TextEncoder();
 const TALOS_PROBE_STATES: ReadonlySet<string> = new Set([
   "connecting",
@@ -302,6 +325,124 @@ export function parseKubernetesPodListDto(value: unknown): KubernetesPodListDto 
     complete: value.complete,
     items,
   };
+}
+
+/** Validates the identity returned before a watch begins its network request. */
+export function parseKubernetesPodWatchSubscriptionDto(
+  value: unknown,
+): KubernetesPodWatchSubscriptionDto {
+  if (
+    !isRecord(value) ||
+    !isKubernetesSessionId(value.session_id) ||
+    !isKubernetesWatchId(value.subscription_id)
+  ) {
+    throw new IpcContractError();
+  }
+  return { session_id: value.session_id, subscription_id: value.subscription_id };
+}
+
+/** Validates one ordered Pod watch event, including change-specific fields and batch limits. */
+export function parseKubernetesPodWatchEventDto(value: unknown): KubernetesPodWatchEventDto {
+  if (
+    !isRecord(value) ||
+    !isKubernetesSessionId(value.session_id) ||
+    !isKubernetesWatchId(value.subscription_id) ||
+    !isDecimalU64(value.generation, false) ||
+    !isDecimalU64(value.sequence, false) ||
+    !isKubernetesPodWatchChange(value.change) ||
+    !Array.isArray(value.items) ||
+    value.items.length > MAX_POD_WATCH_BATCH_LENGTH
+  ) {
+    throw new IpcContractError();
+  }
+  const change = value.change;
+  const items = value.items.map((item) => parseWatchPod(item));
+  const pod = value.pod === null ? null : parseWatchPod(value.pod);
+  const uid = value.uid;
+  const name = value.name;
+  const empty = items.length === 0 && pod === null && uid === null && name === null;
+  const hasPayload = change === "snapshot_batch" || change === "upsert" || change === "delete";
+  if (
+    (change === "snapshot_batch" &&
+      (items.length === 0 || pod !== null || uid !== null || name !== null)) ||
+    (change === "upsert" && (pod === null || items.length > 0 || uid !== null || name !== null)) ||
+    (change === "delete" &&
+      (items.length > 0 ||
+        pod !== null ||
+        !isBoundedUtf8String(uid, 64) ||
+        !isKubernetesPodName(name))) ||
+    (!hasPayload && !empty)
+  ) {
+    throw new IpcContractError();
+  }
+  return {
+    session_id: value.session_id,
+    subscription_id: value.subscription_id,
+    generation: value.generation,
+    sequence: value.sequence,
+    change,
+    items,
+    pod,
+    uid: typeof uid === "string" ? uid : null,
+    name: typeof name === "string" ? name : null,
+  };
+}
+
+/** Validates the bounded, nonsensitive terminal result for a Pod watch. */
+export function parseKubernetesPodWatchEndDto(value: unknown): KubernetesPodWatchEndDto {
+  if (!isKubernetesPodWatchEnd(value)) {
+    throw new IpcContractError();
+  }
+  return value;
+}
+
+function isKubernetesPodWatchChange(value: unknown): value is KubernetesPodWatchChangeDto {
+  return typeof value === "string" && KUBERNETES_WATCH_CHANGES.has(value);
+}
+
+function isKubernetesPodWatchEnd(value: unknown): value is KubernetesPodWatchEndDto {
+  return typeof value === "string" && KUBERNETES_WATCH_ENDS.has(value);
+}
+
+function parseWatchPod(value: unknown): KubernetesPodDto {
+  if (
+    !isRecord(value) ||
+    !isKubernetesPodName(value.name) ||
+    !isKubernetesNamespace(value.namespace) ||
+    !isBoundedUtf8String(value.uid, 64) ||
+    !isBoundedUtf8String(value.resource_version, 128) ||
+    !isBoundedUtf8String(value.phase, 32) ||
+    !isKubernetesPodReadiness(value.readiness)
+  ) {
+    throw new IpcContractError();
+  }
+  return {
+    name: value.name,
+    namespace: value.namespace,
+    uid: value.uid,
+    resource_version: value.resource_version,
+    phase: value.phase,
+    readiness: value.readiness,
+  };
+}
+
+function isDecimalU64(value: unknown, allowZero: boolean): value is string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 20) {
+    return false;
+  }
+  if (!/^(0|[1-9][0-9]*)$/u.test(value)) {
+    return false;
+  }
+  try {
+    const parsed = BigInt(value);
+    return parsed <= MAX_WATCH_U64 && (allowZero || parsed > 0n);
+  } catch {
+    return false;
+  }
+}
+
+function isKubernetesWatchId(value: unknown): value is string {
+  return typeof value === "string" && /^kube-watch-[1-9][0-9]{0,19}$/u.test(value);
 }
 
 /** Validates safe metadata returned after importing a native Talos context. */

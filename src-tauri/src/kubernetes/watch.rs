@@ -2,6 +2,7 @@
 
 use std::{
     collections::BTreeMap,
+    io,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -28,9 +29,12 @@ pub const WATCH_QUEUE_MESSAGES: usize = 64;
 pub const WATCH_QUEUE_BYTES: usize = 8 * 1024 * 1024;
 /// Maximum projected Pods in one initial or replacement generation.
 pub const MAX_WATCH_PODS: usize = 10_000;
+/// Maximum serialized size accepted for one decoded Kubernetes Pod event.
+pub const MAX_WATCH_EVENT_BYTES: usize = 2 * 1024 * 1024;
 /// Maximum projected Pods in a snapshot batch.
 pub const WATCH_BATCH_ITEMS: usize = 200;
 const RELIST_LIMIT: usize = 3;
+const SNAPSHOT_DEADLINE: Duration = Duration::from_secs(60);
 const RETRY_DELAYS: [Duration; 2] = [Duration::from_millis(500), Duration::from_secs(1)];
 
 /// One bounded projection event emitted by an owned Pod watch.
@@ -76,6 +80,13 @@ pub struct PodWatchReceiver {
     /// Reports why the producer ended, including overflow when a full queue cannot carry a marker.
     pub terminal: oneshot::Receiver<PodWatchEnd>,
     pub(super) cancellation: tokio::sync::watch::Sender<bool>,
+}
+
+impl PodWatchReceiver {
+    /// Creates a cancellation observer for a native channel delivery task.
+    pub(crate) fn cancellation_receiver(&self) -> tokio::sync::watch::Receiver<bool> {
+        self.cancellation.subscribe()
+    }
 }
 
 impl Drop for PodWatchReceiver {
@@ -139,6 +150,9 @@ pub(super) async fn run_pod_watch(run: WatchRun) -> PodWatchEnd {
     let mut sequence = 0_u64;
     let mut relists_without_update = 0_usize;
     let mut failures = 0_usize;
+    let mut snapshot_building = false;
+    let snapshot_timer = tokio::time::sleep(SNAPSHOT_DEADLINE);
+    tokio::pin!(snapshot_timer);
     let mut staging_lease = ProjectionLease::new(Arc::clone(&projection_bytes));
     let mut current_lease = ProjectionLease::new(Arc::clone(&projection_bytes));
 
@@ -146,6 +160,18 @@ pub(super) async fn run_pod_watch(run: WatchRun) -> PodWatchEnd {
     loop {
         let item = tokio::select! {
             _ = cancellation.changed() => break,
+            _ = &mut snapshot_timer, if snapshot_building => {
+                end = PodWatchEnd::Stale;
+                let _ = emit(
+                    &messages,
+                    &queue_bytes,
+                    &mut sequence,
+                    generation,
+                    PodWatchChange::Stale,
+                )
+                .await;
+                break;
+            }
             item = stream.next() => item,
         };
         let Some(item) = item else {
@@ -191,6 +217,10 @@ pub(super) async fn run_pod_watch(run: WatchRun) -> PodWatchEnd {
                 }
             }
             Ok(WatcherEvent::Init) => {
+                snapshot_building = true;
+                snapshot_timer
+                    .as_mut()
+                    .reset(tokio::time::Instant::now() + SNAPSHOT_DEADLINE);
                 if generation > 0 {
                     if relists_without_update >= RELIST_LIMIT {
                         end = PodWatchEnd::Stale;
@@ -208,7 +238,10 @@ pub(super) async fn run_pod_watch(run: WatchRun) -> PodWatchEnd {
                 }
                 staging.clear();
                 staging_lease = ProjectionLease::new(Arc::clone(&projection_bytes));
-                let next_generation = generation.saturating_add(1);
+                let Some(next_generation) = generation.checked_add(1) else {
+                    end = PodWatchEnd::Stale;
+                    break;
+                };
                 if emit(
                     &messages,
                     &queue_bytes,
@@ -224,6 +257,10 @@ pub(super) async fn run_pod_watch(run: WatchRun) -> PodWatchEnd {
                 }
             }
             Ok(WatcherEvent::InitApply(pod)) => {
+                if !within_decoded_event_limit(&pod) {
+                    end = PodWatchEnd::InvalidProjection;
+                    break;
+                }
                 let Ok(projection) = list::project_pod(pod) else {
                     end = PodWatchEnd::InvalidProjection;
                     let _ = emit(
@@ -252,7 +289,11 @@ pub(super) async fn run_pod_watch(run: WatchRun) -> PodWatchEnd {
                 }
             }
             Ok(WatcherEvent::InitDone) => {
-                generation = generation.saturating_add(1);
+                snapshot_building = false;
+                let Some(next_generation) = generation.checked_add(1) else {
+                    return PodWatchEnd::Stale;
+                };
+                generation = next_generation;
                 current = std::mem::take(&mut staging);
                 current_lease = std::mem::replace(
                     &mut staging_lease,
@@ -305,6 +346,18 @@ pub(super) async fn run_pod_watch(run: WatchRun) -> PodWatchEnd {
                 failures = 0;
             }
             Ok(WatcherEvent::Apply(pod)) => {
+                if !within_decoded_event_limit(&pod) {
+                    end = PodWatchEnd::InvalidProjection;
+                    let _ = emit(
+                        &messages,
+                        &queue_bytes,
+                        &mut sequence,
+                        generation,
+                        PodWatchChange::Stale,
+                    )
+                    .await;
+                    break;
+                }
                 let Ok(projection) = list::project_pod(pod) else {
                     end = PodWatchEnd::InvalidProjection;
                     let _ = emit(
@@ -348,6 +401,10 @@ pub(super) async fn run_pod_watch(run: WatchRun) -> PodWatchEnd {
                 }
             }
             Ok(WatcherEvent::Delete(pod)) => {
+                if !within_decoded_event_limit(&pod) {
+                    end = PodWatchEnd::InvalidProjection;
+                    break;
+                }
                 let Ok(projection) = list::project_pod(pod) else {
                     end = PodWatchEnd::InvalidProjection;
                     let _ = emit(
@@ -360,6 +417,10 @@ pub(super) async fn run_pod_watch(run: WatchRun) -> PodWatchEnd {
                     .await;
                     break;
                 };
+                if projection.namespace != namespace {
+                    end = PodWatchEnd::InvalidProjection;
+                    break;
+                }
                 if let Some(removed) = current.remove(&projection.uid) {
                     current_lease.release(list::projection_size(&removed));
                     relists_without_update = 0;
@@ -385,6 +446,31 @@ pub(super) async fn run_pod_watch(run: WatchRun) -> PodWatchEnd {
         }
     }
     end
+}
+
+fn within_decoded_event_limit(pod: &Pod) -> bool {
+    struct BoundedCounter {
+        count: usize,
+    }
+
+    impl io::Write for BoundedCounter {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            let Some(next) = self.count.checked_add(bytes.len()) else {
+                return Err(io::Error::other("decoded event size overflow"));
+            };
+            if next > MAX_WATCH_EVENT_BYTES {
+                return Err(io::Error::other("decoded event exceeds the size limit"));
+            }
+            self.count = next;
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    serde_json::to_writer(&mut BoundedCounter { count: 0 }, pod).is_ok()
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -423,6 +509,9 @@ async fn emit(
     generation: u64,
     change: PodWatchChange,
 ) -> Result<(), ()> {
+    let Some(next_sequence) = sequence.checked_add(1) else {
+        return Err(());
+    };
     let size = change_size(&change);
     let mut observed = queued_bytes.load(Ordering::Acquire);
     loop {
@@ -442,7 +531,7 @@ async fn emit(
             Err(actual) => observed = actual,
         }
     }
-    *sequence = sequence.saturating_add(1);
+    *sequence = next_sequence;
     let message = PodWatchMessage {
         generation,
         sequence: *sequence,
@@ -567,14 +656,31 @@ impl Drop for QueueLease {
 #[cfg(test)]
 mod tests {
     use std::{
+        collections::BTreeMap,
         sync::{Arc, atomic::AtomicUsize},
         time::Duration,
     };
 
     use tokio::{sync::mpsc, time::timeout};
 
-    use super::{PodWatchChange, PodWatchEnd, WATCH_QUEUE_MESSAGES, WatchRun, run_pod_watch};
+    use super::{
+        MAX_WATCH_EVENT_BYTES, PodWatchChange, PodWatchEnd, WATCH_QUEUE_MESSAGES, WatchRun,
+        run_pod_watch, within_decoded_event_limit,
+    };
     use crate::kubernetes::synthetic::{SyntheticApiserver, SyntheticResponse, build_test_client};
+
+    #[test]
+    fn rejects_a_decoded_pod_event_over_two_mibibytes_without_building_a_second_large_buffer() {
+        let mut pod = k8s_openapi::api::core::v1::Pod::default();
+        pod.metadata.annotations = Some(BTreeMap::from([(
+            "synthetic-size-check".to_owned(),
+            "x".repeat(MAX_WATCH_EVENT_BYTES + 1),
+        )]));
+        assert!(!within_decoded_event_limit(&pod));
+        assert!(within_decoded_event_limit(
+            &k8s_openapi::api::core::v1::Pod::default()
+        ));
+    }
 
     #[tokio::test]
     async fn recovering_watcher_publishes_only_a_complete_bounded_initial_generation() {
@@ -629,6 +735,81 @@ mod tests {
         assert_eq!(generation[1].name, "second");
         assert_eq!(generation[0].uid, "uid-first");
         assert_eq!(generation[1].uid, "uid-second");
+
+        cancel_sender.send_replace(true);
+        assert_eq!(
+            timeout(Duration::from_secs(2), task)
+                .await
+                .unwrap_or_else(|_| panic!("watch task should join promptly"))
+                .unwrap_or_else(|_| panic!("watch task should not panic")),
+            PodWatchEnd::Stopped
+        );
+        assert_eq!(retained_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        assert_eq!(queued_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn synthetic_watch_delivers_ordered_duplicate_delete_and_recreation_events_by_uid() {
+        let server = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic API server should start"));
+        let client = build_test_client(&server.kubeconfig("watch-context", "watch-cluster"))
+            .unwrap_or_else(|_| panic!("synthetic client should build"));
+        let retained_bytes = Arc::new(AtomicUsize::new(0));
+        let queued_bytes = Arc::new(AtomicUsize::new(0));
+        let (sender, mut receiver) = mpsc::channel(WATCH_QUEUE_MESSAGES);
+        let (cancel_sender, cancellation) = tokio::sync::watch::channel(false);
+        let task = tokio::spawn(run_pod_watch(WatchRun {
+            client,
+            namespace: "workloads".to_owned(),
+            label_selector: None,
+            field_selector: None,
+            projection_bytes: Arc::clone(&retained_bytes),
+            cancellation,
+            messages: sender,
+            queue_bytes: Arc::clone(&queued_bytes),
+        }));
+
+        let mut changes = Vec::new();
+        let received = timeout(Duration::from_secs(5), async {
+            while changes.len() < 7 {
+                let Some(message) = receiver.recv().await else {
+                    break;
+                };
+                changes.push(message.change.clone());
+                drop(message);
+            }
+        })
+        .await;
+        assert!(
+            received.is_ok(),
+            "synthetic watch events should arrive promptly; changes={changes:?}; requests={:?}",
+            server.requests()
+        );
+        assert!(matches!(
+            changes.first(),
+            Some(PodWatchChange::SnapshotBegin)
+        ));
+        assert!(
+            matches!(changes.get(1), Some(PodWatchChange::SnapshotBatch(items)) if items.len() == 2)
+        );
+        assert!(matches!(
+            changes.get(2),
+            Some(PodWatchChange::SnapshotComplete)
+        ));
+        assert!(
+            matches!(changes.get(3), Some(PodWatchChange::Upsert(pod)) if pod.uid == "uid-first" && pod.resource_version == "43")
+        );
+        assert!(
+            matches!(changes.get(4), Some(PodWatchChange::Upsert(pod)) if pod.uid == "uid-first" && pod.resource_version == "43")
+        );
+        assert!(
+            matches!(changes.get(5), Some(PodWatchChange::Delete { uid, name }) if uid == "uid-second" && name == "second")
+        );
+        assert!(
+            matches!(changes.get(6), Some(PodWatchChange::Upsert(pod)) if pod.name == "second" && pod.uid == "uid-second-recreated")
+        );
 
         cancel_sender.send_replace(true);
         assert_eq!(
