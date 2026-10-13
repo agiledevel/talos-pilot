@@ -28,6 +28,7 @@ The fixture holds only synthetic credentials that Talos generates. It is created
 - Change the host only by the remediation block below, and remove it before the session ends.
 - The only Talos actions authorized after provisioning are: issuing the two role-scoped client configurations, rebooting the worker `10.79.0.5` with the admin identity, and sending `SIGSTOP` or `SIGCONT` to the worker's own QEMU process. No reset, no upgrade, and nothing on a control plane.
 - Kubernetes actions are authorized only once the allowlist names them. Document 02 adds them before using them.
+- **Never let `talosctl` load the host's ambient configuration.** The host has an owner configuration at `~/.talos/config` whose contexts point at owner clusters. Set the guard in step 1 before any `talosctl` command, and give every command that contacts a server an explicit `--talosconfig /tmp/tpc4/...` file. The only `talosctl` commands that may run without that flag are `version --client`, `cluster create`, and `cluster destroy`, in the forms written below.
 - **Amend the allowlist before an action it does not yet authorize, never afterwards.**
 - If any step is denied by the session's permission policy, stop, restore what you have changed, and record it. Do not work around a denial.
 
@@ -40,7 +41,21 @@ Two things still apply. Never contact a VPN host in that range as part of fixtur
 ## Step 1: tools
 
 1. Provision the pinned toolchain as the series README describes.
-2. Confirm `src-tauri/.local-tools/talosctl` reports v1.14.2 and that its SHA-256 matches the `talosctl-linux-amd64` entry in the v1.14.2 release's `sha256sum.txt`. On 2026-10-12 that value was `c6c9552b0e5f767352c595fa1c0af4f186f697488646872955057d23990a66c4`; verify it against the release, do not trust this line.
+2. Confirm the pinned binary with `src-tauri/.local-tools/talosctl version --client`, which must report v1.14.2, and check that its SHA-256 matches the `talosctl-linux-amd64` entry in the v1.14.2 release's `sha256sum.txt`. On 2026-10-12 that value was `c6c9552b0e5f767352c595fa1c0af4f186f697488646872955057d23990a66c4`; verify it against the release, do not trust this line. **Never run `talosctl version` without `--client` here.** Without it the command also asks a server for its version, and on 2026-10-13 that loaded the ambient configuration and contacted the owner's node `10.0.10.79` (ledger blocker B6).
+3. Set the ambient-configuration guard, in the shell that runs every later `talosctl` command, and keep it set for the whole session:
+
+   ```sh
+   mkdir -p "$SCRATCH/talos-guard"
+   (umask 077; printf 'context: ""\ncontexts: {}\n' > "$SCRATCH/talos-guard/talosconfig")
+   export TALOSCONFIG="$SCRATCH/talos-guard/talosconfig"
+   src-tauri/.local-tools/talosctl config contexts
+   ```
+
+   `$SCRATCH` is your session's scratch directory, outside the repository. The last command reads only the local file and must print the header row and nothing else. If it prints any context, the guard is not in effect: stop, and do not run another `talosctl` command.
+
+   The guard file must exist. With pinned `talosctl` v1.14.2, a `TALOSCONFIG` that names a missing file is ignored and the ambient `~/.talos/config` is loaded instead; this was observed on 2026-10-13. For the same reason, do not point the guard at `/tmp/tpc4/talosconfig`, which does not exist until step 4. With the guard set, a server command that lacks `--talosconfig` fails with `failed to determine endpoints` and contacts nothing.
+
+   Do not pass `--talosconfig` a path that provisioning has not written yet. `talosctl` creates an empty configuration at a missing explicit path, and a stray file under `/tmp/tpc4` causes the `-1` context suffix described in step 4.
 
 ## Step 2: baseline before provisioning
 
@@ -156,8 +171,16 @@ and wait until `get members` lists the worker. Record that you needed this fallb
 2. Give each of the three contexts the node list, with `talosctl --talosconfig <file> config node 10.79.0.2 10.79.0.3 10.79.0.4 10.79.0.5`. This edits only the client's target selection.
 3. The three files are created by root. The test harness runs as your user and must read them. The 2026-10-12 run changed the ownership of exactly those three files to the harness user and kept mode 600. If the allowlist does not name that step when you read it, add it to the allowlist first.
 4. Verify, and record in your ledger entry:
-   - the Talos version each node reports is v1.14.2;
-   - the Kubernetes server version is v1.36.5;
+   - the Talos version each node reports is v1.14.2. Read it only with the fixture's own configuration, after sub-step 3 has made that file readable:
+
+     ```sh
+     src-tauri/.local-tools/talosctl --talosconfig /tmp/tpc4/talosconfig \
+       --nodes 10.79.0.2,10.79.0.3,10.79.0.4,10.79.0.5 version
+     ```
+
+     Every `NODE:` line in the output must be one of those four addresses. Any other address means the wrong configuration was loaded: stop, and go to step 7;
+
+   - the Kubernetes server version is v1.36.5. `pnpm kubernetes:fixture` reads it from the fixture API as its first request, once document 02's allowlist section applies; do not read it any other way;
    - the context names are `talos-pilot-c4-20261009`, `reader@talos-pilot-c4-20261009`, and `etcd:backup@talos-pilot-c4-20261009`;
    - the endpoints and nodes match the manifest exactly.
 

@@ -28,7 +28,7 @@ Work the documents in order. Documents 05 to 07 do not depend on the fixture and
 
 ## What the owner has decided
 
-These decisions were made on 2026-10-12. Do not reopen them and do not ask again.
+These decisions were made on 2026-10-12, and items 8 and 9 on 2026-10-13. Do not reopen them and do not ask again.
 
 1. **Milestone 1 may stay open without blocking further work.** The owner has no macOS or Windows machine. The macOS and Windows rows of packet F9 are deferred to [document 10](10-platform-revisit.md) until those platforms are available. Milestone 2 feature work may start once documents 01 to 09 are done on Linux.
 2. **Deferred is not passed.** A deferred row is recorded as unexecuted, with the missing resource named. Hosted CI runners for macOS 15 and Windows Server 2022 are hosted evidence only. Never count them as macOS 13.3 or Windows 11 qualification.
@@ -37,6 +37,8 @@ These decisions were made on 2026-10-12. Do not reopen them and do not ask again
 5. **The fixture may shadow the VPN route indefinitely.** The fixture network `10.79.0.0/24` sits inside a VPN route on the host. Do not ask about it again.
 6. **A node reboot that outlasts the reconnect budget ends the Talos subscription.** This is [decision 0013](../../decisions/0013-talos-stream-stall-detection.md). The retry policy must not be changed.
 7. **F1 is closed and F2 is accepted.** Do not redo them.
+8. **`talosctl` never loads the host's ambient configuration in a fixture session.** Check the binary with `talosctl version --client`, give every server command an explicit fixture `--talosconfig`, and keep `TALOSCONFIG` on an existing empty guard file for the whole session. The [fixture runbook](fixture-runbook.md#step-1-tools) has the commands. This answers question Q4 in the ledger.
+9. **A commit that changes only the ledger gets no follow-up commit for its hosted result.** The next working session reads that result and records it inside its own entry. See [Hosted results](#hosted-results).
 
 ## How to run one session
 
@@ -94,7 +96,7 @@ The host is openSUSE Tumbleweed on x86_64. `sudo -n` works and `/dev/kvm` exists
   - `talosctl`: lives in the ignored directory `src-tauri/.local-tools/`. Verify its SHA-256 against the release's `sha256sum.txt` before use.
 - **Git has no identity configured.** Commits on this branch are made as `Tamas Kiss <ifjkt@ifjkt.com>` with per-command options: `git -c user.name="Tamas Kiss" -c user.email="ifjkt@ifjkt.com" commit ...`. Do not edit git config.
 - **Pushing works over SSH** since the owner changed the remote on 2026-10-12. Push after each commit. If a push fails, continue locally, do not change remotes or credentials, and record it as a blocker in the ledger.
-- **`gh` is installed and signed in** (account `agiledevel`, since 2026-10-12). After each push, read the hosted result for your commit with `gh pr checks 2`, `gh run list --branch ft-foundation-completion`, and `gh run view <id>`, and record it in the ledger. Each push starts three runs: the foundation checks for the push, the same checks for the pull request, and the security scans. The desktop jobs take up to 75 minutes; do not wait idle for them, keep working and read them when they finish. A pushed commit is not a passed run: a run you did not read to completion is recorded as unexecuted or still in progress. To read one job's log while its run is still going, use `gh api --allow-escape-sequences repos/agiledevel/talos-pilot/actions/jobs/<job id>/logs`.
+- **`gh` is installed and signed in** (account `agiledevel`, since 2026-10-12). Read hosted results with `gh pr checks 2`, `gh run list --branch ft-foundation-completion`, and `gh run view <id>`. To read one job's log while its run is still going, use `gh api --allow-escape-sequences repos/agiledevel/talos-pilot/actions/jobs/<job id>/logs`. [Hosted results](#hosted-results) says which results to record and when.
 - **`pnpm test:native` opens application windows.** Run it on a private `Xvfb` display with the X11 GDK backend, and point `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, and `XDG_CACHE_HOME` at your scratch directory.
 - **`pnpm test:native` replaces the release executable.** Run `pnpm desktop:build` again before `pnpm production:check`.
 - **A VPN route covers the fixture network.** The owner accepts the fixture shadowing it. See the [fixture runbook](fixture-runbook.md).
@@ -117,6 +119,15 @@ Run the gates for every boundary your change touches, on the final tree. The exa
 | Dependencies                   | `pnpm install --frozen-lockfile`, `pnpm inventory:check`, `pnpm audit --audit-level=low`, `pnpm audit:go`, `pnpm advisories:check`                                                                                                                                                                                 |
 
 `pnpm format:check` covers Markdown. An earlier handoff failed CI because a ledger table was not formatted.
+
+## Hosted results
+
+Each push starts three runs: the foundation checks for the push, the same checks for the pull request, and the security scans. The desktop jobs take up to 75 minutes. Do not wait idle for them; keep working and read them when they finish. A pushed commit is not a passed run: a run you did not read to completion is recorded as unexecuted or still in progress.
+
+- **At the start of a session**, read the hosted result for the branch head you start from and record it in your session entry. This is where the result of the previous session's last commit is recorded.
+- **A commit that changes anything besides the ledger**: read its result before your session ends, if it finishes in time, and record it in your session entry. If your entry is already committed, one further ledger-only commit may record it.
+- **A commit that changes only the ledger gets no follow-up commit.** Never commit only to record the hosted result of a ledger-only commit. The next working session records it under the first rule. The owner decided this on 2026-10-13, after five consecutive commits each recorded the result of the one before.
+- A ledger-only push runs `pnpm format:check` in the renderer job and skips the desktop matrix. Run `pnpm format` and `pnpm format:check` before every commit, so that this job cannot fail on the ledger's tables.
 
 ## Commits
 

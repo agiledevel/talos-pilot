@@ -39,6 +39,29 @@ reported endpoint, Kubernetes endpoint, and node addresses; those exact values
 are the only network identities the C4 integration harness may target. Do not
 use wildcard endpoint or node entries.
 
+### Client configuration scope (owner decision, 2026-10-13)
+
+No fixture session may let `talosctl` load the host's ambient configuration
+(`~/.talos/config`), whose contexts point at owner clusters. On 2026-10-13 an
+unqualified `talosctl version` loaded it and requested the version of the
+owner's node `10.0.10.79`; the session stopped before provisioning (ledger
+blocker B6). The owner approved these rules the same day:
+
+- the pinned binary is checked with `talosctl version --client` only;
+- every `talosctl` command that contacts a server names a fixture file with
+  `--talosconfig /tmp/tpc4/...`; `cluster create` and `cluster destroy` keep
+  the exact forms recorded below;
+- for the whole session, `TALOSCONFIG` names an existing, empty guard
+  configuration in the session's scratch directory, outside the repository.
+  With pinned `talosctl` v1.14.2 a `TALOSCONFIG` that names a missing file is
+  ignored in favour of the ambient configuration, so the guard file must exist
+  before the first command. The
+  [runbook](../../plans/foundation-finish/fixture-runbook.md#step-1-tools) holds
+  the exact commands and the check that the guard is in effect.
+
+Any `talosctl` output that names a node or endpoint outside this allowlist ends
+the session's fixture work: stop, restore the host, and record it.
+
 ## Provision and teardown
 
 The host's QEMU network setup requires root, so the pinned CLI runs with
