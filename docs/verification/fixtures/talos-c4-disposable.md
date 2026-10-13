@@ -520,6 +520,31 @@ with the reader identity. It returned 201 unique names across the 200-item page
 boundary, `complete=true`, and a non-empty resource version. The harness printed
 `fixture namespace gone: true` after UID-anchored cleanup.
 
+### F4 Pod watch qualification (authorized 2026-10-13)
+
+For F4 only, the same disposable fixture and namespace may be used to verify
+the Rust-owned Kubernetes Pod watch. The admin fixture identity may create the
+same namespace-scoped `list-reader` ServiceAccount, Role, RoleBinding, and 201
+`list-probe-000` through `list-probe-200` Pods already listed above. For this
+watch test, the Role may additionally grant `watch` on core Pods. The harness
+may create exactly one additional Pod named `watch-probe-primary`, change only
+its status phase from `Pending` to `Running`, delete it, and recreate the same
+name to verify a new server UID. To interrupt the live watch, the harness may
+run `sudo -n ss -K state established dst 10.79.0.1 dport = :6443`, which
+terminates only established host TCP sockets connected to this fixture's
+Kubernetes endpoint. It may then
+create exactly one `watch-probe-resumed` Pod and require its server UID to
+arrive through the recovered watch. No firewall rule or route is changed for
+this interruption.
+
+The watch test is read-only outside these named objects and the allowlisted
+namespace. Cleanup remains limited to the exact 201 list-probe names, the two
+watch-probe names, the named RoleBinding, Role, and ServiceAccount, then
+UID-preconditioned deletion of the namespace created by that test. No Talos
+configuration or cluster resource is changed. The normal fixture destroy and
+host restoration steps remain mandatory. This authority does not include any
+other Kubernetes cluster or namespace.
+
 Three scratch-manifest rejection invocations (wrong fixture ID, expected server
 version, and CA fingerprint) each exited before the Rust test process started.
 The CLI rejected each because manifests must resolve to the checked repository

@@ -123,7 +123,8 @@ bounded data queue.
 The watcher allows three transient attempts total with 0.5-second then
 1-second backoff. A replacement snapshot has a 60-second deadline. After
 three consecutive relists without an applied event, the view becomes stale and
-requires an explicit reconnect. Session close, explicit stop, application
+requires an explicit reconnect. Watches request a 290-second server lifetime.
+Session close, explicit stop, application
 shutdown, and renderer channel loss cancel and join owned tasks; cancellation
 is bounded by the watcher request and acknowledgement limits. Watch request
 connect and write timeouts are 10 and 5 seconds. The current HTTP client's

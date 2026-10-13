@@ -17,9 +17,15 @@ const setupScope = [
   "create_namespaced_role_binding",
   "create_201_named_pods",
   "request_service_account_token",
+  "create_watch_probe_primary",
+  "update_watch_probe_status",
+  "delete_watch_probe_primary",
+  "recreate_watch_probe_primary",
+  "create_watch_probe_after_resume",
 ] as const;
 const cleanupScope = [
   "delete_named_pods",
+  "delete_named_watch_probe_pods",
   "delete_namespaced_role_binding",
   "delete_namespaced_role",
   "delete_service_account",

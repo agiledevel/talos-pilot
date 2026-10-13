@@ -371,8 +371,32 @@ pub(super) async fn run_pod_watch(run: WatchRun) -> PodWatchEnd {
                     break;
                 };
                 if projection.namespace != namespace
-                    || !replace_current(&mut current, &mut current_lease, projection.clone())
+                    || current.get(&projection.uid).is_some_and(|existing| {
+                        existing.resource_version == projection.resource_version
+                            && existing != &projection
+                    })
                 {
+                    end = PodWatchEnd::InvalidProjection;
+                    let _ = emit(
+                        &messages,
+                        &queue_bytes,
+                        &mut sequence,
+                        generation,
+                        PodWatchChange::Stale,
+                    )
+                    .await;
+                    break;
+                }
+                if current.get(&projection.uid).is_some_and(|existing| {
+                    existing.resource_version == projection.resource_version
+                }) {
+                    // The list/watch boundary may repeat an object already
+                    // present in the current generation; identical resource
+                    // versions are ignored, while conflicting projections
+                    // for one version are rejected above.
+                    continue;
+                }
+                if !replace_current(&mut current, &mut current_lease, projection.clone()) {
                     end = PodWatchEnd::InvalidProjection;
                     let _ = emit(
                         &messages,
@@ -750,7 +774,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn synthetic_watch_delivers_ordered_duplicate_delete_and_recreation_events_by_uid() {
+    async fn synthetic_watch_ignores_duplicate_updates_and_tracks_uid_recreation() {
         let server = SyntheticApiserver::start()
             .await
             .unwrap_or_else(|_| panic!("synthetic API server should start"));
@@ -773,7 +797,7 @@ mod tests {
 
         let mut changes = Vec::new();
         let received = timeout(Duration::from_secs(5), async {
-            while changes.len() < 7 {
+            while changes.len() < 6 {
                 let Some(message) = receiver.recv().await else {
                     break;
                 };
@@ -802,13 +826,83 @@ mod tests {
             matches!(changes.get(3), Some(PodWatchChange::Upsert(pod)) if pod.uid == "uid-first" && pod.resource_version == "43")
         );
         assert!(
-            matches!(changes.get(4), Some(PodWatchChange::Upsert(pod)) if pod.uid == "uid-first" && pod.resource_version == "43")
+            matches!(changes.get(4), Some(PodWatchChange::Delete { uid, name }) if uid == "uid-second" && name == "second")
         );
         assert!(
-            matches!(changes.get(5), Some(PodWatchChange::Delete { uid, name }) if uid == "uid-second" && name == "second")
+            matches!(changes.get(5), Some(PodWatchChange::Upsert(pod)) if pod.name == "second" && pod.uid == "uid-second-recreated")
         );
+
+        cancel_sender.send_replace(true);
+        assert_eq!(
+            timeout(Duration::from_secs(2), task)
+                .await
+                .unwrap_or_else(|_| panic!("watch task should join promptly"))
+                .unwrap_or_else(|_| panic!("watch task should not panic")),
+            PodWatchEnd::Stopped
+        );
+        assert_eq!(retained_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        assert_eq!(queued_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn a_closed_watch_stream_reopens_and_delivers_new_events() {
+        let server = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic API server should start"));
+        server.set_response(SyntheticResponse::ClosingWatch);
+        let client = build_test_client(&server.kubeconfig("watch-context", "watch-cluster"))
+            .unwrap_or_else(|_| panic!("synthetic client should build"));
+        let retained_bytes = Arc::new(AtomicUsize::new(0));
+        let queued_bytes = Arc::new(AtomicUsize::new(0));
+        let (sender, mut receiver) = mpsc::channel(WATCH_QUEUE_MESSAGES);
+        let (cancel_sender, cancellation) = tokio::sync::watch::channel(false);
+        let task = tokio::spawn(run_pod_watch(WatchRun {
+            client,
+            namespace: "workloads".to_owned(),
+            label_selector: None,
+            field_selector: None,
+            projection_bytes: Arc::clone(&retained_bytes),
+            cancellation,
+            messages: sender,
+            queue_bytes: Arc::clone(&queued_bytes),
+        }));
+
+        let mut initial_generation = None;
+        let mut resumed_event = false;
+        let received = timeout(Duration::from_secs(5), async {
+            while initial_generation.is_none() || !resumed_event {
+                let Some(message) = receiver.recv().await else {
+                    break;
+                };
+                if matches!(&message.change, PodWatchChange::SnapshotComplete)
+                    && initial_generation.is_none()
+                {
+                    initial_generation = Some(message.generation);
+                }
+                if matches!(&message.change, PodWatchChange::Upsert(pod) if pod.name == "resumed" && pod.uid == "uid-resumed")
+                {
+                    resumed_event = true;
+                }
+                drop(message);
+            }
+        })
+        .await;
         assert!(
-            matches!(changes.get(6), Some(PodWatchChange::Upsert(pod)) if pod.name == "second" && pod.uid == "uid-second-recreated")
+            received.is_ok(),
+            "the closed watch should reconnect and deliver a distinct event; requests={:?}",
+            server.requests()
+        );
+        assert!(initial_generation.is_some());
+        assert!(resumed_event);
+        assert!(
+            server
+                .requests()
+                .iter()
+                .filter(|request| request.path.contains("watch=true"))
+                .count()
+                >= 2,
+            "the watcher should establish a replacement watch after stream closure"
         );
 
         cancel_sender.send_replace(true);

@@ -25,7 +25,7 @@ The fixture holds only synthetic credentials that Talos generates. It is created
 ## Rules
 
 - Touch only this fixture. Never contact, inspect, or change any other Docker, libvirt, Talos, or Kubernetes cluster, including the owner's `Win11 Jump` virtual machine.
-- Change the host only by the remediation block below, and remove it before the session ends.
+- Change host firewall and network configuration only by the remediation block below, and remove it before the session ends. The F4 allowlist also permits one exact fixture-endpoint TCP socket reset as a live watch interruption; it leaves host configuration unchanged.
 - The only Talos actions authorized after provisioning are: issuing the two role-scoped client configurations, rebooting the worker `10.79.0.5` with the admin identity, and sending `SIGSTOP` or `SIGCONT` to the worker's own QEMU process. No reset, no upgrade, and nothing on a control plane.
 - Kubernetes actions are authorized only once the allowlist names them. Document 02 adds them before using them.
 - **Never let `talosctl` load the host's ambient configuration.** The host has an owner configuration at `~/.talos/config` whose contexts point at owner clusters. Set the guard in step 1 before any `talosctl` command, and give every command that contacts a server an explicit `--talosconfig /tmp/tpc4/...` file. The only `talosctl` commands that may run without that flag are `version --client`, `cluster create`, and `cluster destroy`, in the forms written below.
@@ -169,7 +169,7 @@ and wait until `get members` lists the worker. Record that you needed this fallb
    This signs client certificates and changes nothing on the cluster.
 
 2. Give each of the three contexts the node list, with `talosctl --talosconfig <file> config node 10.79.0.2 10.79.0.3 10.79.0.4 10.79.0.5`. This edits only the client's target selection.
-3. The three files are created by root. The test harness runs as your user and must read them. The 2026-10-12 run changed the ownership of exactly those three files to the harness user and kept mode 600. If the allowlist does not name that step when you read it, add it to the allowlist first.
+3. The Talos configs and generated Kubernetes admin kubeconfig are created by root. The test harness runs as your user and must read them. Change ownership of exactly `/tmp/tpc4/talosconfig`, `/tmp/tpc4/talosconfig.reader`, `/tmp/tpc4/talosconfig.etcdbackup`, and `/tmp/tpc4/kubeconfig` to the harness user, keeping each file at mode 600. The fixture allowlist authorizes those exact file ownership changes; do not change directory or other credential permissions.
 4. Verify, and record in your ledger entry:
    - the Talos version each node reports is v1.14.2. Read it only with the fixture's own configuration, after sub-step 3 has made that file readable:
 

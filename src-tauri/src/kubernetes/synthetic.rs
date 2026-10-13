@@ -61,6 +61,10 @@ pub enum SyntheticResponse {
     StallContinuation,
     /// Send a Kubernetes watch `ERROR` event with code 410 to trigger a relist.
     ExpiredWatch,
+    /// Close one established watch stream, then hold the replacement open.
+    ClosingWatch,
+    /// After closing one stream, send one distinct event on the replacement.
+    ResumedWatch,
 }
 
 /// One request the synthetic server answered.
@@ -272,6 +276,8 @@ impl SyntheticResponse {
             Self::MissingNamespace => 6,
             Self::StallContinuation => 7,
             Self::ExpiredWatch => 8,
+            Self::ClosingWatch => 9,
+            Self::ResumedWatch => 10,
         }
     }
 
@@ -285,6 +291,8 @@ impl SyntheticResponse {
             6 => Self::MissingNamespace,
             7 => Self::StallContinuation,
             8 => Self::ExpiredWatch,
+            9 => Self::ClosingWatch,
+            10 => Self::ResumedWatch,
             _ => Self::Success,
         }
     }
@@ -385,7 +393,20 @@ async fn serve_connection(
         .as_deref()
         .is_some_and(|value| value == format!("Bearer {token}"));
     if selected == SyntheticResponse::Success && authorised && request.path.contains("watch=true") {
-        return serve_watch(&mut tls).await;
+        return serve_watch(&mut tls, false, false).await;
+    }
+    if selected == SyntheticResponse::ClosingWatch
+        && authorised
+        && request.path.contains("watch=true")
+    {
+        response.store(SyntheticResponse::ResumedWatch.code(), Ordering::SeqCst);
+        return serve_watch(&mut tls, true, false).await;
+    }
+    if selected == SyntheticResponse::ResumedWatch
+        && authorised
+        && request.path.contains("watch=true")
+    {
+        return serve_watch(&mut tls, false, true).await;
     }
     let (status, body) = if transient {
         (
@@ -451,7 +472,10 @@ async fn serve_connection(
                     r#"{"kind":"PodList","apiVersion":"v1","metadata":{"resourceVersion":"42"},"items":[]}"#.to_owned(),
                 )
             }
-            SyntheticResponse::EmptyList | SyntheticResponse::StallContinuation => version_response(&request.path),
+            SyntheticResponse::EmptyList
+            | SyntheticResponse::StallContinuation
+            | SyntheticResponse::ClosingWatch
+            | SyntheticResponse::ResumedWatch => version_response(&request.path),
         }
     };
     let head = format!(
@@ -465,31 +489,52 @@ async fn serve_connection(
 }
 
 /// Serves a persistent synthetic watch with duplicate and same-name recreation events.
-async fn serve_watch(stream: &mut tokio_rustls::server::TlsStream<TcpStream>) -> io::Result<()> {
+async fn serve_watch(
+    stream: &mut tokio_rustls::server::TlsStream<TcpStream>,
+    close_after_events: bool,
+    resumed: bool,
+) -> io::Result<()> {
     stream
         .write_all(
             b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\nConnection: keep-alive\r\n\r\n",
         )
         .await?;
-    for event in [
-        watch_event("MODIFIED", "first", "uid-first", "43", "Pending", false),
-        watch_event("MODIFIED", "first", "uid-first", "43", "Pending", false),
-        watch_event("DELETED", "second", "uid-second", "44", "Running", true),
-        watch_event(
+    let events = if resumed {
+        vec![watch_event(
             "ADDED",
-            "second",
-            "uid-second-recreated",
-            "45",
+            "resumed",
+            "uid-resumed",
+            "46",
             "Running",
             true,
-        ),
-    ] {
+        )]
+    } else {
+        vec![
+            watch_event("MODIFIED", "first", "uid-first", "43", "Pending", false),
+            watch_event("MODIFIED", "first", "uid-first", "43", "Pending", false),
+            watch_event("DELETED", "second", "uid-second", "44", "Running", true),
+            watch_event(
+                "ADDED",
+                "second",
+                "uid-second-recreated",
+                "45",
+                "Running",
+                true,
+            ),
+        ]
+    };
+    for event in events {
         let event = format!("{event}\n");
         let length = format!("{:x}\r\n", event.len());
         stream.write_all(length.as_bytes()).await?;
         stream.write_all(event.as_bytes()).await?;
         stream.write_all(b"\r\n").await?;
         stream.flush().await?;
+    }
+    if close_after_events {
+        stream.write_all(b"0\r\n\r\n").await?;
+        stream.flush().await?;
+        return stream.shutdown().await;
     }
     let mut byte = [0_u8; 1];
     while stream.read(&mut byte).await? != 0 {}

@@ -10,14 +10,17 @@
 use std::{
     fs,
     io::{Read, Write},
+    panic::{AssertUnwindSafe, resume_unwind},
     path::{Path, PathBuf},
+    process::Command,
     time::Duration,
 };
 
 use base64::{Engine, engine::general_purpose::STANDARD};
+use futures_util::FutureExt;
 use k8s_openapi::api::{
     authentication::v1::{TokenRequest, TokenRequestSpec},
-    core::v1::{Container, Namespace, Pod, PodSpec, ServiceAccount},
+    core::v1::{Container, Namespace, Pod, PodSpec, PodStatus, ServiceAccount},
     rbac::v1::{PolicyRule, Role, RoleBinding, RoleRef, Subject},
 };
 use kube::{
@@ -27,7 +30,7 @@ use kube::{
 use secrecy::{ExposeSecret, SecretBox, SecretString};
 use sha2::{Digest, Sha256};
 use talos_pilot::{
-    kubernetes::KubernetesSessionStore,
+    kubernetes::{KubernetesSessionStore, PodWatchChange, PodWatchEnd, PodWatchReceiver},
     storage::{StorageRuntime, validate_kubeconfig},
 };
 use zeroize::Zeroizing;
@@ -43,6 +46,8 @@ const EXPECTED_ROLE: &str = "list-reader";
 const EXPECTED_ROLE_BINDING: &str = "list-reader";
 const EXPECTED_POD_PREFIX: &str = "list-probe-";
 const EXPECTED_POD_COUNT: usize = 201;
+const WATCH_POD_NAME: &str = "watch-probe-primary";
+const RESUMED_WATCH_POD_NAME: &str = "watch-probe-resumed";
 const MAX_CREDENTIAL_BYTES: u64 = 4 * 1024 * 1024;
 
 #[tokio::test]
@@ -206,8 +211,6 @@ async fn live_fixture_sets_up_restricted_reader_and_cleans_up_by_uid() {
     let snapshot = sessions
         .list_pods(&reader_session.session_id, EXPECTED_NAMESPACE, None, None)
         .await;
-    // Always finish exact-name, UID-anchored cleanup before asserting the read.
-    cleanup_fixture_namespace(&admin_client, &namespace_uid).await;
     let snapshot =
         snapshot.unwrap_or_else(|_| panic!("restricted paginated Pod list must succeed"));
     assert_eq!(snapshot.items.len(), EXPECTED_POD_COUNT);
@@ -233,6 +236,19 @@ async fn live_fixture_sets_up_restricted_reader_and_cleans_up_by_uid() {
             .eq(expected_names.iter().map(String::as_str)),
         "list must contain exactly the allowlisted names"
     );
+    let watch_result = AssertUnwindSafe(async {
+        delete_fixture_list_pods(&admin_client).await;
+        run_live_watch_case(&sessions, &reader_session.session_id, &admin_client).await;
+    })
+    .catch_unwind()
+    .await;
+    if let Err(failure) = watch_result {
+        let _ = sessions.close(&reader_session.session_id).await;
+        cleanup_fixture_namespace(&admin_client, &namespace_uid).await;
+        resume_unwind(failure);
+    }
+    // The namespace UID anchors cleanup of the exact list and watch objects.
+    cleanup_fixture_namespace(&admin_client, &namespace_uid).await;
     println!(
         "restricted list: items={}, unique={}, complete={}, resource_version_present={}",
         snapshot.items.len(),
@@ -247,6 +263,249 @@ async fn live_fixture_sets_up_restricted_reader_and_cleans_up_by_uid() {
         "fixture admin setup, restricted paginated Pod list, and UID-anchored cleanup passed: Kubernetes {} at the allowlisted endpoint",
         version.version
     );
+}
+
+async fn run_live_watch_case(
+    sessions: &KubernetesSessionStore,
+    reader_session_id: &str,
+    admin_client: &kube::Client,
+) {
+    let subscription_id = sessions
+        .start_pod_watch(reader_session_id, EXPECTED_NAMESPACE, None, None)
+        .await
+        .unwrap_or_else(|_| panic!("the fixture reader must open a Pod watch"));
+    let mut receiver = sessions
+        .take_pod_watch_receiver(reader_session_id, &subscription_id)
+        .unwrap_or_else(|_| panic!("the live fixture watch receiver must be available"));
+    let initial_generation = loop {
+        let message = next_watch_message(&mut receiver, Duration::from_secs(60)).await;
+        if matches!(message.change, PodWatchChange::SnapshotComplete) {
+            break message.generation;
+        }
+    };
+
+    let pods: Api<Pod> = Api::namespaced(admin_client.clone(), EXPECTED_NAMESPACE);
+    let created = create_watch_probe(&pods, WATCH_POD_NAME).await;
+    let original_uid = created
+        .metadata
+        .uid
+        .as_deref()
+        .unwrap_or_else(|| panic!("the watch probe must have a server UID"))
+        .to_owned();
+    wait_for_watch_change(&mut receiver, Duration::from_secs(30), |change| {
+        matches!(change, PodWatchChange::Upsert(pod) if pod.name == WATCH_POD_NAME && pod.uid == original_uid)
+    })
+    .await;
+
+    let mut changed = pods
+        .get(WATCH_POD_NAME)
+        .await
+        .unwrap_or_else(|_| panic!("the watch probe must be readable for its update"));
+    changed.status = Some(PodStatus {
+        phase: Some("Running".to_owned()),
+        ..Default::default()
+    });
+    pods.replace_status(WATCH_POD_NAME, &PostParams::default(), &changed)
+        .await
+        .unwrap_or_else(|_| panic!("the watch probe status update must succeed"));
+    wait_for_watch_change(&mut receiver, Duration::from_secs(30), |change| {
+        matches!(change, PodWatchChange::Upsert(pod) if pod.name == WATCH_POD_NAME && pod.phase == "Running")
+    })
+    .await;
+
+    pods.delete(WATCH_POD_NAME, &DeleteParams::default())
+        .await
+        .unwrap_or_else(|_| panic!("the exact watch probe Pod must be deleted"));
+    wait_for_watch_change(&mut receiver, Duration::from_secs(30), |change| {
+        matches!(change, PodWatchChange::Delete { uid, name } if name == WATCH_POD_NAME && uid == &original_uid)
+    })
+    .await;
+
+    let recreated = create_watch_probe(&pods, WATCH_POD_NAME).await;
+    let recreated_uid = recreated
+        .metadata
+        .uid
+        .as_deref()
+        .unwrap_or_else(|| panic!("the recreated watch probe must have a new UID"));
+    assert_ne!(recreated_uid, original_uid);
+    wait_for_watch_change(&mut receiver, Duration::from_secs(30), |change| {
+        matches!(change, PodWatchChange::Upsert(pod) if pod.name == WATCH_POD_NAME && pod.uid == recreated_uid)
+    })
+    .await;
+    println!("live watch: add, status change, delete, and same-name recreation passed");
+
+    interrupt_fixture_watch();
+    let resumed = create_watch_probe(&pods, RESUMED_WATCH_POD_NAME).await;
+    let resumed_uid = resumed
+        .metadata
+        .uid
+        .as_deref()
+        .unwrap_or_else(|| panic!("the resumed watch probe must have a UID"))
+        .to_owned();
+    wait_for_resumed_watch_pod(&mut receiver, initial_generation, &resumed_uid).await;
+    assert_eq!(
+        sessions
+            .stop_pod_watch(reader_session_id, &subscription_id)
+            .await,
+        Ok(true)
+    );
+    println!("live watch: recovered after endpoint socket reset and delivered the resumed Pod UID");
+}
+
+fn interrupt_fixture_watch() {
+    let matches = Command::new("sudo")
+        .args([
+            "-n",
+            "ss",
+            "-H",
+            "-nt",
+            "state",
+            "established",
+            "dst",
+            "10.79.0.1",
+            "dport",
+            "=",
+            ":6443",
+        ])
+        .output()
+        .unwrap_or_else(|_| panic!("fixture watch socket inspection must succeed"));
+    assert!(matches.status.success());
+    let active_sockets = String::from_utf8_lossy(&matches.stdout)
+        .lines()
+        .filter(|line| !line.starts_with("Netid "))
+        .count();
+    assert!(
+        active_sockets > 0,
+        "an established fixture API socket must be active before interruption"
+    );
+
+    let reset = Command::new("sudo")
+        .args([
+            "-n",
+            "ss",
+            "-K",
+            "state",
+            "established",
+            "dst",
+            "10.79.0.1",
+            "dport",
+            "=",
+            ":6443",
+        ])
+        .output()
+        .unwrap_or_else(|_| panic!("fixture watch socket reset must run"));
+    assert!(
+        reset.status.success(),
+        "only the established fixture API socket may be reset"
+    );
+    println!("live watch: reset an established connection to 10.79.0.1:6443");
+}
+
+async fn wait_for_resumed_watch_pod(
+    receiver: &mut PodWatchReceiver,
+    initial_generation: u64,
+    expected_uid: &str,
+) {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let message = next_watch_message(receiver, Duration::from_secs(30)).await;
+            if message.generation < initial_generation {
+                panic!("the recovered watch returned a stale generation");
+            }
+            match &message.change {
+                PodWatchChange::SnapshotBatch(items)
+                    if items.iter().any(|pod| pod.uid == expected_uid) =>
+                {
+                    break;
+                }
+                PodWatchChange::Upsert(pod) if pod.uid == expected_uid => {
+                    break;
+                }
+                PodWatchChange::Stale => {
+                    panic!("the interrupted watch became stale before the resumed Pod arrived");
+                }
+                _ => {}
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("the recovered live watch must deliver the resumed Pod"));
+}
+
+async fn delete_fixture_list_pods(client: &kube::Client) {
+    let pods: Api<Pod> = Api::namespaced(client.clone(), EXPECTED_NAMESPACE);
+    for index in 0..EXPECTED_POD_COUNT {
+        let name = format!("{EXPECTED_POD_PREFIX}{index:03}");
+        pods.delete(
+            &name,
+            &DeleteParams {
+                grace_period_seconds: Some(0),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap_or_else(|_| panic!("only the exact allowlisted list-probe Pod may be deleted"));
+    }
+}
+
+async fn create_watch_probe(pods: &Api<Pod>, name: &str) -> Pod {
+    pods.create(
+        &PostParams::default(),
+        &Pod {
+            metadata: kube::core::ObjectMeta {
+                name: Some(name.to_owned()),
+                ..Default::default()
+            },
+            spec: Some(PodSpec {
+                automount_service_account_token: Some(false),
+                containers: vec![Container {
+                    name: "pause".to_owned(),
+                    image: Some("fixture.invalid/talos-pilot-watch-probe:never".to_owned()),
+                    image_pull_policy: Some("Never".to_owned()),
+                    ..Default::default()
+                }],
+                restart_policy: Some("Never".to_owned()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap_or_else(|_| panic!("only the named watch probe Pod may be created"))
+}
+
+async fn wait_for_watch_change(
+    receiver: &mut PodWatchReceiver,
+    deadline: Duration,
+    matches: impl Fn(&PodWatchChange) -> bool,
+) {
+    tokio::time::timeout(deadline, async {
+        loop {
+            let message = next_watch_message(receiver, deadline).await;
+            if matches(&message.change) {
+                break;
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("the fixture watch did not deliver the expected change"));
+}
+
+async fn next_watch_message(
+    receiver: &mut PodWatchReceiver,
+    timeout: Duration,
+) -> talos_pilot::kubernetes::PodWatchMessage {
+    tokio::time::timeout(timeout, receiver.messages.recv())
+        .await
+        .unwrap_or_else(|_| panic!("the fixture watch event deadline expired"))
+        .unwrap_or_else(|| {
+            let end = receiver
+                .terminal
+                .try_recv()
+                .ok()
+                .unwrap_or(PodWatchEnd::Failed);
+            panic!("the fixture watch ended before the expected event: {end:?}")
+        })
 }
 
 async fn create_fixture_namespace(client: &kube::Client) -> (String, Zeroizing<String>) {
@@ -313,7 +572,7 @@ async fn create_fixture_reader(client: &kube::Client) {
                 rules: Some(vec![PolicyRule {
                     api_groups: Some(vec![String::new()]),
                     resources: Some(vec!["pods".to_owned()]),
-                    verbs: vec!["get".to_owned(), "list".to_owned()],
+                    verbs: vec!["get".to_owned(), "list".to_owned(), "watch".to_owned()],
                     ..Default::default()
                 }]),
             },
@@ -470,15 +729,10 @@ async fn cleanup_fixture_namespace(client: &kube::Client, expected_uid: &str) {
     let pods: Api<Pod> = Api::namespaced(client.clone(), EXPECTED_NAMESPACE);
     for index in 0..EXPECTED_POD_COUNT {
         let name = format!("{EXPECTED_POD_PREFIX}{index:03}");
-        pods.delete(
-            &name,
-            &DeleteParams {
-                grace_period_seconds: Some(0),
-                ..Default::default()
-            },
-        )
-        .await
-        .unwrap_or_else(|_| panic!("only the exact allowlisted Pod may be deleted"));
+        delete_named_fixture_pod(&pods, &name).await;
+    }
+    for name in [WATCH_POD_NAME, RESUMED_WATCH_POD_NAME] {
+        delete_named_fixture_pod(&pods, name).await;
     }
     let bindings: Api<RoleBinding> = Api::namespaced(client.clone(), EXPECTED_NAMESPACE);
     bindings
@@ -522,7 +776,7 @@ async fn cleanup_fixture_namespace(client: &kube::Client, expected_uid: &str) {
         )
         .await
         .unwrap_or_else(|_| panic!("the UID-matched namespace must be deleted"));
-    let gone = tokio::time::timeout(Duration::from_secs(15), async {
+    let gone = tokio::time::timeout(Duration::from_secs(60), async {
         loop {
             let current = namespaces
                 .get_opt(EXPECTED_NAMESPACE)
@@ -538,6 +792,23 @@ async fn cleanup_fixture_namespace(client: &kube::Client, expected_uid: &str) {
     .unwrap_or(false);
     assert!(gone, "the fixture namespace must be absent after cleanup");
     println!("fixture namespace gone: true");
+}
+
+async fn delete_named_fixture_pod(pods: &Api<Pod>, name: &str) {
+    match pods
+        .delete(
+            name,
+            &DeleteParams {
+                grace_period_seconds: Some(0),
+                ..Default::default()
+            },
+        )
+        .await
+    {
+        Ok(_) => {}
+        Err(kube::Error::Api(status)) if status.code == 404 => {}
+        Err(_) => panic!("only the exact allowlisted fixture Pod may be deleted"),
+    }
 }
 
 fn external_input(name: &str) -> PathBuf {
