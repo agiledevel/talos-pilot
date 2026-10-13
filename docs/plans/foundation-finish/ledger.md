@@ -913,6 +913,22 @@ Entries are appended below, oldest first.
 - **Questions and blockers raised:** none.
 - **Next:** begin document 04, F5 Kubernetes version fixtures.
 
+### 2026-10-13 — document 03, hosted verification handoff
+
+- **Document:** 03, F4 hosted checks for the completed implementation.
+- **Session:** GPT-6; base revision `9d25f5b`; final revision: the commit carrying this entry.
+- **Status after this session:** done. Hosted Foundation and security workflows both passed for implementation commit `9d25f5b71f48b4bb1ed30e762711e6ec6c24d1a9`.
+- **Acceptance cases:** no product acceptance behavior changed. Hosted checks corroborate the local gates recorded in the preceding closure entry; 1–15 remain passed with the evidence already listed there.
+- **What changed:** Appended hosted workflow run IDs and platform results to this ledger. No application source or protocol changed.
+- **Commands and results:** `gh run view 38410479032 --json status,conclusion,jobs --jq '{status,conclusion,jobs:[.jobs[]|{name,status,conclusion}]}'` reported `success`: renderer, workflow scope, and desktop jobs on `windows-2022`, `macos-15`, and `ubuntu-22.04` all passed. `gh run view 38410479322` reported `success`: Trivy filesystem scan and CodeQL for Actions, Rust, and JavaScript/TypeScript passed. `gh pr checks 2` reported every required check `pass`, including Foundation checks result. Both runs target the same pushed implementation SHA above. The check for this ledger-only commit is not awaited, per the owner decision recorded in this ledger on 2026-10-12.
+- **Evidence class:** hosted GitHub Actions checks. Foundation run: [38410479032](https://github.com/agiledevel/talos-pilot/actions/runs/38410479032). Security run: [38410479322](https://github.com/agiledevel/talos-pilot/actions/runs/38410479322).
+- **Fixture:** none; no cluster or host mutation occurred.
+- **Failed or unexecuted:** none for the completed implementation SHA. Workflows triggered by this ledger-only commit are intentionally not followed by another ledger commit, as directed by the standing owner decision.
+- **Review findings:** Confirmed both hosted runs and the PR rollup target the pushed implementation commit, and all required jobs concluded successfully.
+- **Assumptions confirmed or refuted:** Confirmed hosted Linux, macOS, and Windows build/native test gates and hosted security gates pass for `9d25f5b`.
+- **Questions and blockers raised:** none.
+- **Next:** begin document 04, F5 Kubernetes version fixtures.
+
 ## Entry template
 
 Copy this block, fill every field, and append it to the session log. Write `none` where a field does not apply; do not delete fields.
