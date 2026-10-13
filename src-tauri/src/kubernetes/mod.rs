@@ -17,6 +17,7 @@ mod client;
 mod error;
 mod list;
 mod session;
+mod watch;
 
 #[cfg(any(test, feature = "native-test"))]
 pub mod synthetic;
@@ -26,4 +27,8 @@ pub use list::{PodProjection, PodSnapshot, ReadySummary};
 pub use session::{
     ApiserverVersion, KubernetesSessionStore, MAX_ADMITTED_REQUESTS, MAX_KUBERNETES_SESSIONS,
     OwnedSession, REQUEST_DEADLINE,
+};
+pub use watch::{
+    MAX_KUBERNETES_WATCHES, MAX_WATCH_PODS, PodWatchChange, PodWatchEnd, PodWatchMessage,
+    PodWatchReceiver, WATCH_BATCH_ITEMS, WATCH_QUEUE_BYTES, WATCH_QUEUE_MESSAGES,
 };

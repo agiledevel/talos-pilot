@@ -361,7 +361,7 @@ where
     Ok(bytes)
 }
 
-fn project_pod(pod: Pod) -> Result<PodProjection, KubernetesError> {
+pub(super) fn project_pod(pod: Pod) -> Result<PodProjection, KubernetesError> {
     let metadata = pod.metadata;
     let name = bounded_field(metadata.name.as_deref().unwrap_or_default(), 253)?;
     let namespace = bounded_field(metadata.namespace.as_deref().unwrap_or_default(), 63)?;
@@ -411,7 +411,7 @@ fn bounded_field(value: &str, max_bytes: usize) -> Result<String, KubernetesErro
     Ok(value.to_owned())
 }
 
-fn projection_size(pod: &PodProjection) -> usize {
+pub(super) fn projection_size(pod: &PodProjection) -> usize {
     std::mem::size_of::<PodProjection>()
         + pod.name.len()
         + pod.namespace.len()

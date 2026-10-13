@@ -240,9 +240,9 @@ async fn live_fixture_sets_up_restricted_reader_and_cleans_up_by_uid() {
         snapshot.complete,
         !snapshot.resource_version.is_empty()
     );
-    assert_eq!(sessions.close(&reader_session.session_id), Ok(true));
+    assert_eq!(sessions.close(&reader_session.session_id).await, Ok(true));
     drop(reader_kubeconfig);
-    assert_eq!(sessions.close(&session.session_id), Ok(true));
+    assert_eq!(sessions.close(&session.session_id).await, Ok(true));
     println!(
         "fixture admin setup, restricted paginated Pod list, and UID-anchored cleanup passed: Kubernetes {} at the allowlisted endpoint",
         version.version

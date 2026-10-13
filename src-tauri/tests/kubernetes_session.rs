@@ -74,7 +74,7 @@ async fn imports_a_synthetic_credential_and_reads_the_version_through_the_real_c
         Some(format!("Bearer {}", server.token()).as_str())
     );
 
-    assert_eq!(sessions.close(&session.session_id), Ok(true));
+    assert_eq!(sessions.close(&session.session_id).await, Ok(true));
     assert_eq!(
         sessions.apiserver_version(&session.session_id).await.err(),
         Some(KubernetesError::SessionUnknown)
@@ -233,7 +233,7 @@ async fn resolves_no_ambient_credential_for_an_unknown_handle() {
             Err(talos_pilot::storage::StorageError::UnknownCredential)
         ));
     }
-    assert_eq!(sessions.close("kube-session-1"), Ok(false));
+    assert_eq!(sessions.close("kube-session-1").await, Ok(false));
     assert_eq!(
         sessions.apiserver_version("kube-session-1").await.err(),
         Some(KubernetesError::SessionUnknown)

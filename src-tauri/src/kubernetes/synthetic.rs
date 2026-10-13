@@ -59,6 +59,8 @@ pub enum SyntheticResponse {
     EmptyList,
     /// Hold the second page until the client disconnects (cancellation tests).
     StallContinuation,
+    /// Send a Kubernetes watch `ERROR` event with code 410 to trigger a relist.
+    ExpiredWatch,
 }
 
 /// One request the synthetic server answered.
@@ -269,6 +271,7 @@ impl SyntheticResponse {
             Self::EmptyList => 5,
             Self::MissingNamespace => 6,
             Self::StallContinuation => 7,
+            Self::ExpiredWatch => 8,
         }
     }
 
@@ -281,6 +284,7 @@ impl SyntheticResponse {
             5 => Self::EmptyList,
             6 => Self::MissingNamespace,
             7 => Self::StallContinuation,
+            8 => Self::ExpiredWatch,
             _ => Self::Success,
         }
     }
@@ -428,6 +432,14 @@ async fn serve_connection(
                 )
             }
             SyntheticResponse::MissingNamespace => version_response(&request.path),
+            SyntheticResponse::ExpiredWatch if request.path.contains("watch=true") => (
+                "200 OK",
+                format!(
+                    "{{\"type\":\"ERROR\",\"object\":{}}}\n",
+                    status_body(410, "Expired", "synthetic watch resource version expired")
+                ),
+            ),
+            SyntheticResponse::ExpiredWatch => version_response(&request.path),
             SyntheticResponse::EmptyList
                 if request.path.starts_with("/api/v1/namespaces/") =>
             {

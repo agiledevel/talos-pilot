@@ -13,7 +13,12 @@ use secrecy::ExposeSecret;
 
 use super::KubernetesError;
 use super::client::build_client;
-use super::list::{PodSnapshot, collect_pods};
+use super::{
+    list::{PodSnapshot, collect_pods},
+    watch::{
+        MAX_KUBERNETES_WATCHES, PodWatchReceiver, WATCH_QUEUE_MESSAGES, WatchRun, run_pod_watch,
+    },
+};
 use crate::storage::{CredentialStorageMode, ResolvedCredential};
 
 /// Maximum number of concurrent Kubernetes credential sessions.
@@ -69,11 +74,19 @@ pub struct KubernetesSessionStore {
     sessions: Mutex<BTreeMap<String, ClientSession>>,
     next_id: AtomicU64,
     admission: Arc<tokio::sync::Semaphore>,
+    watch_admission: Arc<tokio::sync::Semaphore>,
+    next_watch_id: AtomicU64,
 }
 
 struct ClientSession {
     client: kube::Client,
     projection_bytes: Arc<AtomicUsize>,
+    watches: BTreeMap<String, OwnedWatchTask>,
+}
+
+struct OwnedWatchTask {
+    cancellation: tokio::sync::watch::Sender<bool>,
+    task: tokio::task::JoinHandle<()>,
 }
 
 impl KubernetesSessionStore {
@@ -84,6 +97,8 @@ impl KubernetesSessionStore {
             sessions: Mutex::new(BTreeMap::new()),
             next_id: AtomicU64::new(1),
             admission: Arc::new(tokio::sync::Semaphore::new(MAX_ADMITTED_REQUESTS)),
+            watch_admission: Arc::new(tokio::sync::Semaphore::new(MAX_KUBERNETES_WATCHES)),
+            next_watch_id: AtomicU64::new(1),
         }
     }
 
@@ -131,6 +146,7 @@ impl KubernetesSessionStore {
             ClientSession {
                 client,
                 projection_bytes: Arc::new(AtomicUsize::new(0)),
+                watches: BTreeMap::new(),
             },
         );
 
@@ -240,18 +256,133 @@ impl KubernetesSessionStore {
         .await
     }
 
+    /// Starts a session-owned bounded Pod watcher for a validated query.
+    ///
+    /// The watcher uses kube's recovering list/watch stream. It buffers a new
+    /// generation until `InitDone`, then emits it in chunks of at most 200
+    /// projections. Its channel is limited to 64 messages and 8 MiB. The
+    /// session store retains the cancellation signal and task handle, and joins
+    /// the task when the subscription or session closes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`KubernetesError::SessionUnknown`] for an unknown session,
+    /// [`KubernetesError::CapacityExceeded`] when all seven watch slots are
+    /// occupied, [`KubernetesError::InvalidQuery`] for malformed selectors,
+    /// or [`KubernetesError::RegistryUnavailable`] when the registry is
+    /// inaccessible.
+    pub fn start_pod_watch(
+        &self,
+        session_id: &str,
+        namespace: &str,
+        label_selector: Option<&str>,
+        field_selector: Option<&str>,
+    ) -> Result<PodWatchReceiver, KubernetesError> {
+        super::list::validate_query(namespace, label_selector, field_selector)?;
+        let mut sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| KubernetesError::RegistryUnavailable)?;
+        let session = sessions
+            .get_mut(session_id)
+            .ok_or(KubernetesError::SessionUnknown)?;
+        let permit = Arc::clone(&self.watch_admission)
+            .try_acquire_owned()
+            .map_err(|_| KubernetesError::CapacityExceeded)?;
+        let id = self
+            .next_watch_id
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                current.checked_add(1)
+            })
+            .map_err(|_| KubernetesError::RegistryUnavailable)?;
+        let subscription_id = format!("kube-watch-{id}");
+        let (sender, messages) = tokio::sync::mpsc::channel(WATCH_QUEUE_MESSAGES);
+        let (cancel_sender, cancellation) = tokio::sync::watch::channel(false);
+        let receiver_cancellation = cancel_sender.clone();
+        let (terminal_sender, terminal) = tokio::sync::oneshot::channel();
+        let queue_bytes = Arc::new(AtomicUsize::new(0));
+        let client = session.client.clone();
+        let projection_bytes = Arc::clone(&session.projection_bytes);
+        let namespace = namespace.to_owned();
+        let label_selector = label_selector.map(str::to_owned);
+        let field_selector = field_selector.map(str::to_owned);
+        let task = tokio::spawn(async move {
+            let _permit = permit;
+            let end = run_pod_watch(WatchRun {
+                client,
+                namespace,
+                label_selector,
+                field_selector,
+                projection_bytes,
+                cancellation,
+                messages: sender,
+                queue_bytes,
+            })
+            .await;
+            let _ = terminal_sender.send(end);
+        });
+        session.watches.insert(
+            subscription_id.clone(),
+            OwnedWatchTask {
+                cancellation: cancel_sender,
+                task,
+            },
+        );
+        Ok(PodWatchReceiver {
+            subscription_id,
+            messages,
+            terminal,
+            cancellation: receiver_cancellation,
+        })
+    }
+
+    /// Stops one watch and joins its task before returning.
+    pub async fn stop_pod_watch(
+        &self,
+        session_id: &str,
+        subscription_id: &str,
+    ) -> Result<bool, KubernetesError> {
+        let mut task = {
+            let mut sessions = self
+                .sessions
+                .lock()
+                .map_err(|_| KubernetesError::RegistryUnavailable)?;
+            let Some(session) = sessions.get_mut(session_id) else {
+                return Err(KubernetesError::SessionUnknown);
+            };
+            session.watches.remove(subscription_id)
+        };
+        if let Some(task) = task.take() {
+            task.cancellation.send_replace(true);
+            let _ = task.task.await;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
     /// Closes one session, releasing its client and admission use.
     ///
     /// # Errors
     ///
     /// Returns [`KubernetesError::RegistryUnavailable`] when the registry lock
     /// was poisoned by an earlier panic.
-    pub fn close(&self, session_id: &str) -> Result<bool, KubernetesError> {
-        let mut sessions = self
-            .sessions
-            .lock()
-            .map_err(|_| KubernetesError::RegistryUnavailable)?;
-        Ok(sessions.remove(session_id).is_some())
+    pub async fn close(&self, session_id: &str) -> Result<bool, KubernetesError> {
+        let mut session = {
+            let mut sessions = self
+                .sessions
+                .lock()
+                .map_err(|_| KubernetesError::RegistryUnavailable)?;
+            sessions.remove(session_id)
+        };
+        let Some(mut session) = session.take() else {
+            return Ok(false);
+        };
+        for (_, watch) in std::mem::take(&mut session.watches) {
+            watch.cancellation.send_replace(true);
+            let _ = watch.task.await;
+        }
+        Ok(true)
     }
 
     /// Clones a session client for the ignored disposable-fixture harness.
@@ -311,13 +442,13 @@ fn bounded_version_field(value: String) -> Result<String, KubernetesError> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{sync::Arc, time::Duration};
 
     use secrecy::SecretBox;
 
     use super::{
         KubernetesSessionStore, MAX_ADMITTED_REQUESTS, MAX_KUBERNETES_SESSIONS,
-        bounded_version_field,
+        MAX_KUBERNETES_WATCHES, bounded_version_field,
     };
     use crate::kubernetes::KubernetesError;
     use crate::storage::{CredentialStorageMode, ResolvedCredential};
@@ -395,6 +526,86 @@ users:
             })
             .unwrap_or_else(|_| panic!("synthetic test operation must succeed"));
         (server, store, session.session_id)
+    }
+
+    #[tokio::test]
+    async fn closing_a_session_cancels_and_joins_its_watch_task() {
+        let (server, store, id) = synthetic_session().await;
+        let mut receiver = store
+            .start_pod_watch(&id, "workloads", None, None)
+            .unwrap_or_else(|_| panic!("watch should start for the synthetic session"));
+        assert_eq!(
+            store.watch_admission.available_permits(),
+            MAX_KUBERNETES_WATCHES - 1
+        );
+
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(2), store.close(&id))
+                .await
+                .unwrap_or_else(|_| panic!("session close should join the owned watch")),
+            Ok(true)
+        );
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(2), &mut receiver.terminal)
+                .await
+                .unwrap_or_else(|_| panic!("watch should report its terminal state"))
+                .unwrap_or_else(|_| panic!("watch terminal sender should remain owned")),
+            super::super::PodWatchEnd::Stopped
+        );
+        assert_eq!(
+            store.watch_admission.available_permits(),
+            MAX_KUBERNETES_WATCHES
+        );
+        assert_eq!(store.session_count().ok(), Some(0));
+        server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn stopping_a_watch_keeps_its_credential_session_open() {
+        let (server, store, id) = synthetic_session().await;
+        let mut receiver = store
+            .start_pod_watch(&id, "workloads", None, None)
+            .unwrap_or_else(|_| panic!("watch should start for the synthetic session"));
+        let subscription_id = receiver.subscription_id.clone();
+        assert_eq!(store.stop_pod_watch(&id, &subscription_id).await, Ok(true));
+        assert_eq!(
+            (&mut receiver.terminal)
+                .await
+                .unwrap_or_else(|_| panic!("watch terminal sender should remain owned")),
+            super::super::PodWatchEnd::Stopped
+        );
+        assert_eq!(store.session_count().ok(), Some(1));
+        assert_eq!(
+            store.watch_admission.available_permits(),
+            MAX_KUBERNETES_WATCHES
+        );
+        assert!(store.apiserver_version(&id).await.is_ok());
+        assert_eq!(store.close(&id).await, Ok(true));
+        server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn watch_admission_rejects_an_eighth_subscription_before_network_access() {
+        let (server, store, id) = synthetic_session().await;
+        let permits = (0..MAX_KUBERNETES_WATCHES)
+            .map(|_| {
+                Arc::clone(&store.watch_admission)
+                    .try_acquire_owned()
+                    .unwrap_or_else(|_| panic!("synthetic test operation must succeed"))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            store.start_pod_watch(&id, "workloads", None, None).err(),
+            Some(KubernetesError::CapacityExceeded)
+        );
+        assert!(server.requests().is_empty());
+        drop(permits);
+        assert_eq!(
+            store.watch_admission.available_permits(),
+            MAX_KUBERNETES_WATCHES
+        );
+        assert_eq!(store.close(&id).await, Ok(true));
+        server.stop().await;
     }
 
     #[tokio::test]
@@ -505,8 +716,8 @@ users:
         );
         assert_eq!(store.session_count().ok(), Some(MAX_KUBERNETES_SESSIONS));
 
-        assert_eq!(store.close(&ids[0]), Ok(true));
-        assert_eq!(store.close(&ids[0]), Ok(false));
+        assert_eq!(store.close(&ids[0]).await, Ok(true));
+        assert_eq!(store.close(&ids[0]).await, Ok(false));
         assert_eq!(
             store.session_count().ok(),
             Some(MAX_KUBERNETES_SESSIONS - 1)
@@ -562,7 +773,7 @@ users:
             1,
             "the read must reach the injected endpoint exactly once"
         );
-        assert_eq!(store.close(&session.session_id), Ok(true));
+        assert_eq!(store.close(&session.session_id).await, Ok(true));
         server.stop().await;
     }
 

@@ -418,12 +418,13 @@ async fn open_kubernetes_session(
 
 /// Closes one Kubernetes session and releases its client.
 #[tauri::command]
-fn close_kubernetes_session(
+async fn close_kubernetes_session(
     sessions: State<'_, KubernetesSessionStore>,
     session_id: String,
 ) -> Result<bool, ApplicationErrorDto> {
     sessions
         .close(&session_id)
+        .await
         .map_err(|error| kubernetes_error("close_kubernetes_session", error))
 }
 
