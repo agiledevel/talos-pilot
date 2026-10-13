@@ -32,6 +32,7 @@ kube = { version = "=4.2.0", default-features = false, features = [
   "config",
   "ring",
   "rustls-tls",
+  "runtime",
 ] }
 pem = "=3.0.6"
 prost = "=0.14.4"

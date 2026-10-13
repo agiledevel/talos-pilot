@@ -17,18 +17,18 @@ A document is `done` only when every acceptance case in it has recorded evidence
 
 ## Status board
 
-| Document                                                                        | Packet           | Status      | Last commit | Updated    | Next action                                                                                        |
-| ------------------------------------------------------------------------------- | ---------------- | ----------- | ----------- | ---------- | -------------------------------------------------------------------------------------------------- |
-| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | in progress | this commit | 2026-10-13 | After document 02 is done: run the seven live cases in a fixture session under the amended runbook |
-| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | done        | this commit | 2026-10-13 | Document 03: F4 Kubernetes watch                                                                   |
-| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started | —           | 2026-10-12 | After 02                                                                                           |
-| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started | —           | 2026-10-12 | After 03                                                                                           |
-| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                              |
-| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started | —           | 2026-10-12 | After 05                                                                                           |
-| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                           |
-| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | —           | 2026-10-12 | After 07                                                                                           |
-| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-12 | After 08                                                                                           |
-| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                             |
+| Document                                                                        | Packet           | Status      | Last commit | Updated    | Next action                                                                                                   |
+| ------------------------------------------------------------------------------- | ---------------- | ----------- | ----------- | ---------- | ------------------------------------------------------------------------------------------------------------- |
+| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | in progress | this commit | 2026-10-13 | After document 02 is done: run the seven live cases in a fixture session under the amended runbook            |
+| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | done        | this commit | 2026-10-13 | Document 03: F4 Kubernetes watch                                                                              |
+| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | in progress | this commit | 2026-10-13 | Implement the owned watch service, subscription identities, bounded acknowledged delivery, and renderer state |
+| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started | —           | 2026-10-12 | After 03                                                                                                      |
+| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                                         |
+| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started | —           | 2026-10-12 | After 05                                                                                                      |
+| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                                      |
+| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | —           | 2026-10-12 | After 07                                                                                                      |
+| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-12 | After 08                                                                                                      |
+| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                                        |
 
 ## Standing owner decisions
 
@@ -752,6 +752,22 @@ Entries are appended below, oldest first.
 - **Assumptions confirmed or refuted:** none from the table. Confirmed: `cluster destroy` works with the `TALOSCONFIG` guard set, which the series-maintenance entry had left untested.
 - **Questions and blockers raised:** none.
 - **Next:** document 03, F4 Kubernetes watch. Keep the provisioning output and the step 5 version output in the scratch directory, and quote the node version lines in the entry.
+
+### 2026-10-13 — document 03, F4 dependency setup
+
+- **Document:** 03, F4 prerequisite research and packet task 1 setup.
+- **Session:** GPT-6; base revision `4c69ec5`; final revision: this commit.
+- **Status after this session:** in progress. The pinned kube watcher feature is enabled and verified, but no watch service, IPC stream, acknowledgement contract, renderer behavior, or fixture watch has been implemented.
+- **Acceptance cases:** 1–15 unexecuted; this session only enabled and checked the pinned library capability.
+- **What changed:** `src-tauri/Cargo.toml` enables only kube's `runtime` feature; `src-tauri/Cargo.lock` adds the exact `kube-runtime` 4.2.0 graph; `docs/dependencies.md` records feature purpose and pinned watcher documentation; this ledger records progress.
+- **Commands and results:** `cargo check` in `src-tauri/` passed after lockfile update. `cargo tree --locked --manifest-path src-tauri/Cargo.toml -e features -i kube-runtime` confirmed `kube-runtime` is reached through `kube/runtime`. `cargo fmt --manifest-path src-tauri/Cargo.toml --check`, `cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings`, and the same Clippy command with `--features native-test` passed on openSUSE Tumbleweed x86_64. `protoc` 36.2 was downloaded under `/tmp/tp-f4-tools` and matched SHA-256 `121f6c7afe1d4d0e3ea6aab9432038599250134cbf4474cb1167d2c7decd4278`. `pnpm format` and `pnpm format:check` passed on 158 files; `git diff --check` passed.
+- **Evidence class:** dependency graph and compilation only. No deterministic watch tests, native Tauri run, or real-cluster run.
+- **Fixture:** none. The allowlisted C4 fixture does not currently exist; no host networking or cluster was changed.
+- **Failed or unexecuted:** all Rust tests, rustdoc, frontend/IPC/native gates, synthetic watch fault cases, and the F4 real-cluster interruption run are unexecuted because this increment introduces only dependency configuration and documentation.
+- **Review findings:** review confirmed the feature is exact-pinned by the lockfile and only the selected `runtime` feature is enabled; kube default features remain disabled. The protocol has not changed, so no generated IPC artifacts changed.
+- **Assumptions confirmed or refuted:** confirmed from kube 4.2.0 source/docs: `runtime` exposes the supported watcher; watcher `Init`/`InitDone` events delimit replacement lists and its documented recovery owns resource-version bookkeeping, including relisting after an expired resource version.
+- **Questions and blockers raised:** none.
+- **Next:** implement a bounded session-owned watcher around kube 4.2.0's watcher events, then add deterministic relist/cancellation/UID tests before introducing IPC and renderer changes.
 
 ## Entry template
 
