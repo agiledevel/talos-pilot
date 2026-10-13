@@ -17,18 +17,18 @@ A document is `done` only when every acceptance case in it has recorded evidence
 
 ## Status board
 
-| Document                                                                        | Packet           | Status      | Last commit | Updated    | Next action                                                                                                 |
-| ------------------------------------------------------------------------------- | ---------------- | ----------- | ----------- | ---------- | ----------------------------------------------------------------------------------------------------------- |
-| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | in progress | this commit | 2026-10-13 | After document 02 is done: run the seven live cases in a fixture session under the amended runbook          |
-| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | done        | this commit | 2026-10-13 | Document 03: F4 Kubernetes watch                                                                            |
-| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | in progress | this commit | 2026-10-13 | Implement per-consumer ownership over shared query watches; finish cleanup fault observation and establish the 15 s transport bound |
-| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started | —           | 2026-10-12 | After 03                                                                                                    |
-| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                                       |
-| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started | —           | 2026-10-12 | After 05                                                                                                    |
-| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                                    |
-| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | —           | 2026-10-12 | After 07                                                                                                    |
-| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-12 | After 08                                                                                                    |
-| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                                      |
+| Document                                                                        | Packet           | Status      | Last commit | Updated    | Next action                                                                                        |
+| ------------------------------------------------------------------------------- | ---------------- | ----------- | ----------- | ---------- | -------------------------------------------------------------------------------------------------- |
+| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | in progress | this commit | 2026-10-13 | After document 02 is done: run the seven live cases in a fixture session under the amended runbook |
+| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | done        | this commit | 2026-10-13 | Document 03: F4 Kubernetes watch                                                                   |
+| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | in progress | this commit | 2026-10-13 | Bound watch establishment and event bytes; complete cleanup fault coverage                         |
+| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started | —           | 2026-10-12 | After 03                                                                                           |
+| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                              |
+| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started | —           | 2026-10-12 | After 05                                                                                           |
+| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                           |
+| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | —           | 2026-10-12 | After 07                                                                                           |
+| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-12 | After 08                                                                                           |
+| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                             |
 
 ## Standing owner decisions
 
@@ -832,6 +832,38 @@ Entries are appended below, oldest first.
 - **Assumptions confirmed or refuted:** confirmed that the refined live harness's quieting step permits stable live watch mutation and reconnection evidence on a newly created fixture, not only on the earlier run.
 - **Questions and blockers raised:** none.
 - **Next:** implement shared query groups with independent consumer queues, replayable current snapshots, and ref-counted watch/task ownership; then test owner removal while another consumer remains active.
+
+### 2026-10-13 — document 03, shared renderer query ownership
+
+- **Document:** 03, F4 tasks 3–7; acceptance cases 7–10 and 12.
+- **Session:** GPT-6; base revision `5eca5ed`; final revision: the commit carrying this entry.
+- **Status after this session:** in progress. Identical queries in one renderer transport now share one native subscription with independently releasable consumer leases and bounded snapshot replay. The establishment/body bounds and complete fault cleanup matrix remain open.
+- **Acceptance cases:** 7 passed for sequence-gap rejection in the shared source path and per-consumer contiguous sequence validation in state tests; 8 remains covered by existing session/query identity guards, though no dedicated two-session registry test was added; 9 passed in deterministic renderer-registry tests: two consumers share one `open`/channel, one can leave while the other receives an event, and a late owner gets the last complete snapshot; 10 and 12 retain queue/ack/native evidence from earlier entries, but full overflow/timeout/shutdown observation is incomplete. Cases 1–6 and 11, 13–15 retain their previous evidence and gaps.
+- **What changed:** added `kubernetesPodWatchRegistry.ts` with query identity keyed by session, namespace, and selectors; source IPC sequence checking before fanout; independent renderer-local sequence counters; bounded 10,000-item complete snapshot cache with 200-item replay batches; owner ref-counting, cancellation of the final owner, and rejoin handling while a snapshot is being built. `KubernetesWorkloadsState` now acquires/releases a registry lease. Added deterministic two-owner, late replay, and source-gap tests. Updated IPC protocol and README stage notes.
+- **Commands and results:** `pnpm check` passed with 18 test files, 150 tests, and the production Vite renderer build before the final sequence-gap test was added; after that test, `pnpm lint` and `pnpm vitest run src/lib/ipc/kubernetesPodWatchRegistry.test.ts` passed (3 tests). `PATH="/home/kiss/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.linux-amd64/bin:/tmp/tp-f4-tools/protoc/bin:/tmp/tp-f4-tools/node/bin:$PATH" pnpm contracts:check` passed. The same pinned-toolchain `pnpm test:native` passed on openSUSE Tumbleweed x86_64 with WebKitGTK 605.1.15: helper-status 12, Kubernetes session 6, no helper or synthetic endpoint left after teardown. Full `pnpm check` is to be rerun after this entry's final test addition.
+- **Evidence class:** deterministic renderer registry/state tests; actual native Tauri channel, ordered delivery, and session-close tests. The two-owner registry test uses an injected transport to isolate ownership behavior; it does not itself exercise two owner leases over a live Tauri window.
+- **Fixture:** none this increment. The immediately preceding entry records the repeat real Kubernetes 1.36.5 run and host restoration.
+- **Failed or unexecuted:** `pnpm contracts:check` without the pinned `protoc` path again failed to start `protoc` with `EACCES`; rerunning with `/tmp/tp-f4-tools/protoc/bin` passed. No final full check after the last test-only change yet. The strict 15-second response-establishment bound, pre-decode 2 MiB watch event limit, relist/backoff cancellation cases, acknowledgement timeout, and complete resource-baseline matrix remain unimplemented or unverified.
+- **Review findings:** review found a join-before-initial-snapshot race; the owner is now registered before waiting for native stream readiness, and activation replays a completed snapshot or waits for the in-progress replacement to complete. Last-owner release keeps the registry entry in a closing state until backend stop completes, preventing an overlapping replacement subscription. Internal fanout sequence numbers are explicitly documented as renderer-local; the actual IPC source sequence is checked before any consumer receives or acknowledges an event.
+- **Assumptions confirmed or refuted:** confirmed that a renderer-level owner registry can share one backend/Tauri stream while preserving independent per-view application sequence validation, provided only the shared source event is acknowledged once after synchronous fanout.
+- **Questions and blockers raised:** none.
+- **Next:** implement a transport layer that bounds initial response headers without imposing an idle timeout on established watch bodies, then add an event-frame size limiter before kube's JSON decoder and test those bounds.
+
+### 2026-10-13 — correction to shared ownership verification entry
+
+- **Document:** 03, correction to the preceding shared renderer query ownership entry.
+- **Session:** GPT-6; base revision `5eca5ed`; final revision: the commit carrying this correction.
+- **Status after this session:** in progress, unchanged.
+- **Acceptance cases:** unchanged from the preceding entry.
+- **What changed:** correction only; no source change.
+- **Commands and results:** after adding the sequence-gap test, `pnpm format && pnpm check` passed: formatting, Oxlint/type diagnostics, Svelte diagnostics (0 errors/warnings), 18 test files / 151 tests, and production Vite build. `PATH="/home/kiss/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.linux-amd64/bin:/tmp/tp-f4-tools/protoc/bin:/tmp/tp-f4-tools/node/bin:$PATH" pnpm contracts:check` passed. `git diff --check` passed.
+- **Evidence class:** local renderer tests/build and generated-contract check; no new native or fixture execution.
+- **Fixture:** none.
+- **Failed or unexecuted:** none for these commands. This does not change the remaining F4 acceptance gaps listed in the prior entry.
+- **Review findings:** this entry corrects the prior entry's statement that the full `pnpm check` remained to be rerun; it passed after the final test addition.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** none.
+- **Next:** implement and verify the remaining transport and decoded-event bounds.
 
 ## Entry template
 

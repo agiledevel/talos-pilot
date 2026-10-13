@@ -93,9 +93,16 @@ a proxy, and never disables TLS validation; see
 `open_kubernetes_pod_watch` validates the query and allocates one of at most
 seven process-wide watch slots under the named credential session. It returns
 the backend-generated subscription identity before network establishment so a
-renderer can cancel promptly. The current implementation assigns one watcher
-and one Tauri channel per subscription; identical-query sharing across multiple
-consumers remains tracked in the F4 ledger and is not claimed as complete.
+renderer can cancel promptly. The renderer's Pod watch registry keys ownership
+by session, namespace, label selector, and field selector. Consumers with the
+same key share one native subscription and one Tauri channel. Each consumer has
+its own internal sequence counter, while the shared IPC source sequence is
+validated for gaps before fanout. A late consumer receives a replay of the
+latest complete snapshot in batches of at most 200 Pods; the shared cache
+retains at most 10,000 Pod projections by reference. The internal fanout events
+never cross IPC. Releasing one owner leaves the channel active for other
+owners; releasing the final owner stops the backend subscription. Selector or
+session changes create a different key and release the old owner.
 
 `stream_kubernetes_pod_watch` sends bounded
 `KubernetesPodWatchEventDto` messages. Each event identifies the session and

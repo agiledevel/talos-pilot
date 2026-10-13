@@ -1,20 +1,21 @@
 import type { KubernetesCredentialSummaryDto } from "../ipc/generated/KubernetesCredentialSummaryDto";
 import type { KubernetesPodDto } from "../ipc/generated/KubernetesPodDto";
 import type { KubernetesPodListDto } from "../ipc/generated/KubernetesPodListDto";
-import type { KubernetesPodWatchEventDto } from "../ipc/generated/KubernetesPodWatchEventDto";
 import type { KubernetesSessionDto } from "../ipc/generated/KubernetesSessionDto";
 import type { IpcTransport } from "../ipc/transport";
+import type {
+  KubernetesPodWatchConsumerEvent,
+  KubernetesPodWatchLease,
+} from "../ipc/kubernetesPodWatchRegistry";
 import {
   closeKubernetesSession,
   IpcApplicationError,
   IpcTransportError,
   listKubernetesCredentials,
   listKubernetesPods,
-  openKubernetesPodWatch,
   openKubernetesSession,
-  stopKubernetesPodWatch,
-  streamKubernetesPodWatch,
 } from "../ipc/transport";
+import { acquireKubernetesPodWatch } from "../ipc/kubernetesPodWatchRegistry";
 import { IpcContractError } from "../ipc/validation";
 
 /** Cache identity for one whole backend-collected Pod snapshot. */
@@ -80,6 +81,7 @@ export class KubernetesWorkloadsState {
   #queryKey = $state.raw<KubernetesPodQueryKey | null>(null);
   #requestGeneration = $state(0);
   #watchIdentity: { sessionId: string; subscriptionId: string } | null = null;
+  #watchLease: KubernetesPodWatchLease | null = null;
   #watchQuery: KubernetesPodQueryKey | null = null;
   #watchSequence = 0n;
   #watchGeneration = 0n;
@@ -222,43 +224,35 @@ export class KubernetesWorkloadsState {
     this.watchStatus = this.#live.size > 0 ? "stale" : "connecting";
     const [, , sessionId, namespace, , labelSelector, fieldSelector] = queryKey;
     try {
-      const subscription = await openKubernetesPodWatch(
+      const lease = await acquireKubernetesPodWatch(
         transport,
-        sessionId,
-        namespace,
-        labelSelector,
-        fieldSelector,
+        { sessionId, namespace, labelSelector, fieldSelector },
+        (event) => this.#applyWatchEvent(event),
       );
       if (
         request !== this.#watchRequest ||
         !this.#isCurrentWatchQuery(queryKey) ||
-        subscription.session_id !== sessionId
+        lease.identity.session_id !== sessionId
       ) {
-        await stopKubernetesPodWatch(
-          transport,
-          subscription.session_id,
-          subscription.subscription_id,
-        );
+        await lease.release();
         return;
       }
       this.#watchIdentity = {
-        sessionId: subscription.session_id,
-        subscriptionId: subscription.subscription_id,
+        sessionId: lease.identity.session_id,
+        subscriptionId: lease.identity.subscription_id,
       };
+      this.#watchLease = lease;
       this.#watchQuery = queryKey;
       this.#watchSequence = 0n;
       this.#watchGeneration = 0n;
       this.#staging = null;
-      const end = await streamKubernetesPodWatch(
-        transport,
-        sessionId,
-        subscription.subscription_id,
-        (event) => this.#applyWatchEvent(event),
-      );
-      if (this.#watchIdentity?.subscriptionId !== subscription.subscription_id) {
+      lease.activate();
+      const end = await lease.done;
+      if (this.#watchIdentity?.subscriptionId !== lease.identity.subscription_id) {
         return;
       }
       this.#watchIdentity = null;
+      this.#watchLease = null;
       this.#watchQuery = null;
       this.#staging = null;
       if (end === "stopped") {
@@ -276,6 +270,7 @@ export class KubernetesWorkloadsState {
       }
     } catch (cause: unknown) {
       this.#watchIdentity = null;
+      this.#watchLease = null;
       this.#watchQuery = null;
       this.#staging = null;
       this.watchStatus = cause instanceof IpcContractError ? "failed" : "stale";
@@ -286,14 +281,15 @@ export class KubernetesWorkloadsState {
   /** Stops this view's watch while retaining its session and last projection. */
   async stopWatch(): Promise<void> {
     const transport = this.#transport;
-    const identity = this.#watchIdentity;
+    const lease = this.#watchLease;
     this.#watchRequest += 1;
     this.#watchIdentity = null;
+    this.#watchLease = null;
     this.#watchQuery = null;
     this.#staging = null;
-    if (transport !== undefined && identity !== null) {
+    if (transport !== undefined && lease !== null) {
       try {
-        await stopKubernetesPodWatch(transport, identity.sessionId, identity.subscriptionId);
+        await lease.release();
       } catch (cause: unknown) {
         this.watchError = safeActionError(cause, "The Kubernetes watch could not be stopped.");
       }
@@ -336,15 +332,10 @@ export class KubernetesWorkloadsState {
     const transport = this.#transport;
     const session = this.session;
     if (transport !== undefined && session !== null) {
-      const identity = this.#watchIdentity;
+      const lease = this.#watchLease;
       this.#watchIdentity = null;
-      const stop =
-        identity === null
-          ? Promise.resolve()
-          : stopKubernetesPodWatch(transport, identity.sessionId, identity.subscriptionId).then(
-              () => undefined,
-              () => undefined,
-            );
+      this.#watchLease = null;
+      const stop = lease === null ? Promise.resolve() : lease.release();
       stop.then(() => closeKubernetesSession(transport, session.session_id)).catch(() => undefined);
     }
   }
@@ -398,7 +389,7 @@ export class KubernetesWorkloadsState {
     return left.every((part, index) => part === right[index]);
   }
 
-  #applyWatchEvent(event: KubernetesPodWatchEventDto): void {
+  #applyWatchEvent(event: KubernetesPodWatchConsumerEvent): void {
     const identity = this.#watchIdentity;
     const queryKey = this.#watchQuery;
     if (
