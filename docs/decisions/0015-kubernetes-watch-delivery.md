@@ -32,9 +32,6 @@ the F4 plan packet.
 - Treat successful Tauri channel send as consumption: rejected because it does
   not prove the renderer applied the event. Explicit acknowledgement bounds
   outstanding renderer work.
-- Share an identical-query producer across consumers: planned by F4 but not yet
-  implemented. Current subscriptions have one consumer each, and the ledger
-  keeps this requirement open.
 
 ## Consequences
 
@@ -45,19 +42,26 @@ Old visible data is marked stale while a replacement generation is assembled.
 The channel and acknowledgement contract is more involved than fire-and-forget
 delivery, but it exposes consumer failure and has an explicit cleanup owner.
 
-The 2 MiB Pod limit is checked after kube has decoded each object; it does not
-constrain the SDK's transient decode allocation. The long-lived HTTP client has
-no read timeout. Connect and write timeouts are bounded, but a strict 15-second
-watch response-establishment deadline still needs a transport implementation
-that preserves indefinite quiet streams. Both are recorded limitations pending
-F4 closure.
+The renderer registry coalesces identical query keys into one native
+subscription, keeps one bounded complete snapshot cache by reference, and
+releases that subscription only after its final owner leaves. It assigns an
+internal sequence per renderer owner while checking the shared IPC source
+sequence before fanout; those internal events do not cross IPC.
+
+The watch transport uses a Tower service deadline through response headers and
+a streaming body wrapper that caps each watch line before the kube decoder
+receives it. It bounds input chunks to 64 KiB while preserving the server's
+quiet-stream lifetime. These limits are verified with deterministic synthetic
+tests; full fault cleanup and resource-baseline acceptance remain open.
 
 ## Verification
 
 Rust synthetic tests cover initial snapshots, 410 relists, exhausted retry and
-relist budgets, UID updates/deletion, cancellation, admission, and exact
-acknowledgement validation. The native WebKitGTK suite exercises ordered
-channel delivery and session-close cleanup through Tauri IPC. Those checks do
-not establish the live Kubernetes 1.36 interruption case, multi-consumer
-deduplication, or the remaining transport and resource-baseline acceptance
-cases; see the [foundation ledger](../plans/foundation-finish/ledger.md).
+relist budgets, UID updates/deletion, cancellation, admission, exact
+acknowledgement validation, bounded response headers, quiet response bodies,
+and pre-decode event size rejection. Renderer tests cover shared consumer
+ownership, late snapshot replay, and source sequence gaps. The native
+WebKitGTK suite exercises ordered channel delivery and session-close cleanup
+through Tauri IPC. The live Kubernetes 1.36 interruption and resumed-UID case
+is recorded separately in the [foundation ledger](../plans/foundation-finish/ledger.md).
+Full fault cleanup and per-case resource-baseline acceptance remain open.

@@ -2,11 +2,13 @@
 
 use std::time::Duration;
 
+use kube::client::ClientBuilder;
 use kube::config::{AuthInfo, Config};
 use secrecy::SecretString;
 
 use super::KubernetesError;
 use super::session::REQUEST_DEADLINE;
+use super::watch_transport::WatchResponseLimitLayer;
 use crate::storage::{KubeconfigError, KubeconfigIdentity, select_kubeconfig};
 
 /// Connect deadline for one API server connection, shorter than the attempt.
@@ -43,23 +45,39 @@ const CONNECT_DEADLINE: Duration = Duration::from_secs(10);
 /// select a supported credential, and [`KubernetesError::ClientUnavailable`]
 /// when the transport cannot be constructed. No partial client is returned.
 pub(super) fn build_client(source: &[u8]) -> Result<kube::Client, KubernetesError> {
-    build_client_with_timeouts(source, Some(REQUEST_DEADLINE), Some(REQUEST_DEADLINE))
+    build_client_with_timeouts(source, Some(REQUEST_DEADLINE), Some(REQUEST_DEADLINE), None)
 }
 
 /// Builds the same validated client for a long-lived watch stream.
 ///
 /// Kubernetes watches have no response-read deadline; their server-side
 /// lifetime and watcher idle timeout bound the stream. Connection setup is
-/// capped at ten seconds and request writes at five seconds, so establishment
-/// has a fifteen-second upper bound without cutting off a quiet healthy stream.
+/// capped at ten seconds and request writes at five seconds. A Tower response
+/// deadline bounds the whole attempt through response headers, and a body
+/// wrapper caps each newline-delimited event before kube's JSON decoder while
+/// leaving the established stream open during quiet periods.
 pub(super) fn build_watch_client(source: &[u8]) -> Result<kube::Client, KubernetesError> {
-    build_client_with_timeouts(source, None, Some(Duration::from_secs(5)))
+    build_client_with_timeouts(
+        source,
+        None,
+        Some(Duration::from_secs(5)),
+        Some(REQUEST_DEADLINE),
+    )
+}
+
+#[cfg(test)]
+pub(super) fn build_watch_client_with_deadline(
+    source: &[u8],
+    deadline: Duration,
+) -> Result<kube::Client, KubernetesError> {
+    build_client_with_timeouts(source, None, Some(Duration::from_secs(5)), Some(deadline))
 }
 
 fn build_client_with_timeouts(
     source: &[u8],
     read_timeout: Option<Duration>,
     write_timeout: Option<Duration>,
+    response_deadline: Option<Duration>,
 ) -> Result<kube::Client, KubernetesError> {
     let selected = select_kubeconfig(source).map_err(selection_error)?;
     let cluster_url = selected
@@ -83,7 +101,14 @@ fn build_client_with_timeouts(
     config.read_timeout = read_timeout;
     config.write_timeout = write_timeout;
 
-    kube::Client::try_from(config).map_err(|_| KubernetesError::ClientUnavailable)
+    let builder =
+        ClientBuilder::try_from(config).map_err(|_| KubernetesError::ClientUnavailable)?;
+    match response_deadline {
+        Some(deadline) => Ok(builder
+            .with_layer(&WatchResponseLimitLayer::new(deadline))
+            .build()),
+        None => Ok(builder.build()),
+    }
 }
 
 /// Maps a kubeconfig selection failure onto the client error surface.

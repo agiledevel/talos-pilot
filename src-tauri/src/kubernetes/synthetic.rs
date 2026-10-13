@@ -65,6 +65,10 @@ pub enum SyntheticResponse {
     ClosingWatch,
     /// After closing one stream, send one distinct event on the replacement.
     ResumedWatch,
+    /// Hold the watch request open before sending response headers.
+    StallWatchResponse,
+    /// Send one valid JSON watch event whose line exceeds the configured limit.
+    OversizedWatchEvent,
 }
 
 /// One request the synthetic server answered.
@@ -278,6 +282,8 @@ impl SyntheticResponse {
             Self::ExpiredWatch => 8,
             Self::ClosingWatch => 9,
             Self::ResumedWatch => 10,
+            Self::StallWatchResponse => 11,
+            Self::OversizedWatchEvent => 12,
         }
     }
 
@@ -293,6 +299,8 @@ impl SyntheticResponse {
             8 => Self::ExpiredWatch,
             9 => Self::ClosingWatch,
             10 => Self::ResumedWatch,
+            11 => Self::StallWatchResponse,
+            12 => Self::OversizedWatchEvent,
             _ => Self::Success,
         }
     }
@@ -408,6 +416,20 @@ async fn serve_connection(
     {
         return serve_watch(&mut tls, false, true).await;
     }
+    if selected == SyntheticResponse::StallWatchResponse
+        && authorised
+        && request.path.contains("watch=true")
+    {
+        let mut byte = [0_u8; 1];
+        let _ = tls.read(&mut byte).await?;
+        return Ok(());
+    }
+    if selected == SyntheticResponse::OversizedWatchEvent
+        && authorised
+        && request.path.contains("watch=true")
+    {
+        return serve_oversized_watch(&mut tls).await;
+    }
     let (status, body) = if transient {
         (
             "503 Service Unavailable",
@@ -475,7 +497,9 @@ async fn serve_connection(
             SyntheticResponse::EmptyList
             | SyntheticResponse::StallContinuation
             | SyntheticResponse::ClosingWatch
-            | SyntheticResponse::ResumedWatch => version_response(&request.path),
+            | SyntheticResponse::ResumedWatch
+            | SyntheticResponse::StallWatchResponse
+            | SyntheticResponse::OversizedWatchEvent => version_response(&request.path),
         }
     };
     let head = format!(
@@ -539,6 +563,39 @@ async fn serve_watch(
     let mut byte = [0_u8; 1];
     while stream.read(&mut byte).await? != 0 {}
     Ok(())
+}
+
+async fn serve_oversized_watch(
+    stream: &mut tokio_rustls::server::TlsStream<TcpStream>,
+) -> io::Result<()> {
+    let body = format!(
+        "{}\n",
+        serde_json::json!({
+            "type": "ADDED",
+            "object": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "metadata": {
+                    "name": "large",
+                    "namespace": "workloads",
+                    "uid": "uid-large",
+                    "resourceVersion": "47",
+                    "annotations": {
+                        "oversized": "x".repeat(super::watch::MAX_WATCH_EVENT_BYTES),
+                    },
+                },
+            },
+        })
+    );
+    let head = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\nConnection: keep-alive\r\n\r\n{:x}\r\n",
+        body.len()
+    );
+    stream.write_all(head.as_bytes()).await?;
+    stream.write_all(body.as_bytes()).await?;
+    stream.write_all(b"\r\n0\r\n\r\n").await?;
+    stream.flush().await?;
+    stream.shutdown().await
 }
 
 fn watch_event(
@@ -691,6 +748,21 @@ fn status_body(code: u16, reason: &str, message: &str) -> String {
 #[cfg(test)]
 pub(crate) fn build_test_client(kubeconfig: &str) -> Result<kube::Client, super::KubernetesError> {
     super::client::build_client(kubeconfig.as_bytes())
+}
+
+#[cfg(test)]
+pub(crate) fn build_test_watch_client(
+    kubeconfig: &str,
+) -> Result<kube::Client, super::KubernetesError> {
+    super::client::build_watch_client(kubeconfig.as_bytes())
+}
+
+#[cfg(test)]
+pub(crate) fn build_test_watch_client_with_deadline(
+    kubeconfig: &str,
+    deadline: std::time::Duration,
+) -> Result<kube::Client, super::KubernetesError> {
+    super::client::build_watch_client_with_deadline(kubeconfig.as_bytes(), deadline)
 }
 
 #[cfg(test)]

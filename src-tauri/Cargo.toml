@@ -22,10 +22,12 @@ tauri-build = { version = "=2.7.1", features = [] }
 
 [dependencies]
 base64 = "=0.22.1"
+bytes = "=1.12.1"
 chacha20poly1305 = { version = "=0.11.0", features = ["zeroize"] }
 getrandom = "=0.4.3"
 futures-util = { version = "=0.3.34", default-features = false, features = ["io"] }
 http = "=1.5.0"
+http-body = "=1.1.0"
 k8s-openapi = { version = "=0.28.0", default-features = false, features = ["v1_36"] }
 kube = { version = "=4.2.0", default-features = false, features = [
   "client",
@@ -47,6 +49,7 @@ tauri-plugin-dialog = "=2.8.1"
 tauri-plugin-wdio = { version = "=1.5.0", optional = true }
 tauri-plugin-wdio-webdriver = { version = "=1.5.0", optional = true }
 thiserror = "=2.0.21"
+tower = { version = "=0.5.3", default-features = false }
 tokio = { version = "=1.53.2", features = [
   "io-util",
   "macros",

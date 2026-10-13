@@ -117,11 +117,11 @@ is ignored; deletes and recreations use UID identity.
 
 Each subscription retains at most 64 queued messages and 8 MiB of projected
 data, with at most 200 Pods in one snapshot batch and 10,000 Pods per
-generation. One decoded Pod is rejected when its bounded re-encoding exceeds
-2 MiB. This size check occurs after kube has decoded the object, so it limits
-accepted and retained projection work but does not cap kube's initial decode
-allocation. A delivered event remains the only outstanding event until the
-renderer validates it, applies it, and acknowledges its exact sequence. The
+generation. The watch HTTP body wrapper rejects any newline-delimited event
+over 2 MiB before passing its bytes to kube's decoder; it also yields bounded
+64 KiB chunks to that decoder. Rust checks the decoded Pod projection size
+again before retaining it. A delivered event remains the only outstanding
+event until the renderer validates it, applies it, and acknowledges its exact sequence. The
 backend stops the subscription on a five-second acknowledgement timeout;
 channel send failure also stops it. Queue overflow, exhausted recovery, and
 invalid projections end stale or failed with a terminal result outside the
@@ -133,11 +133,11 @@ three consecutive relists without an applied event, the view becomes stale and
 requires an explicit reconnect. Watches request a 290-second server lifetime.
 Session close, explicit stop, application
 shutdown, and renderer channel loss cancel and join owned tasks; cancellation
-is bounded by the watcher request and acknowledgement limits. Watch request
-connect and write timeouts are 10 and 5 seconds. The current HTTP client's
-read timeout is disabled to preserve a quiet long-lived stream, so the full
-15-second response-establishment bound is not yet demonstrated; see the F4
-ledger.
+is bounded by the watcher request and acknowledgement limits. The watch
+transport applies a 15-second deadline through response headers, including
+connection, request write, and server response establishment. It leaves the
+body open without an idle read timeout so a quiet watch remains active; see the
+F4 ledger for the tests and remaining acceptance cases.
 
 ## Streaming results
 

@@ -18,6 +18,7 @@ mod error;
 mod list;
 mod session;
 mod watch;
+mod watch_transport;
 
 #[cfg(any(test, feature = "native-test"))]
 pub mod synthetic;

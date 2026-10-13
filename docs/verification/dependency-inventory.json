@@ -8,7 +8,7 @@
     "go": "1.27.2",
     "lockfiles": {
       "pnpmLock": "a929fca81c3d986a6ab0bd3dd720ea70af69545e702e0c766bf476340f3b5a1f",
-      "cargoLock": "d5c5fba1edffbf4676c61d341ac33f696d3b99d6c45742350873cb766d6b4785",
+      "cargoLock": "a599783f0de32f0a9c1c121bcea9bf239351ac9dbecc9e3ebff927f676551dfc",
       "goSum": "ffb278d2583c3268a8ca81ca86449aa64e8e2f788deea074fbfee96032f7e00b"
     }
   },
@@ -4379,6 +4379,12 @@
       "hasNotice": false
     },
     {
+      "name": "allocator-api2",
+      "version": "0.2.21",
+      "license": "MIT OR Apache-2.0",
+      "hasNotice": false
+    },
+    {
       "name": "android_system_properties",
       "version": "0.1.6",
       "license": "MIT OR Apache-2.0",
@@ -4469,6 +4475,18 @@
       "hasNotice": false
     },
     {
+      "name": "async-stream",
+      "version": "0.3.6",
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "async-stream-impl",
+      "version": "0.3.6",
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
       "name": "async-task",
       "version": "4.7.1",
       "license": "Apache-2.0 OR MIT",
@@ -4502,6 +4520,12 @@
       "name": "autocfg",
       "version": "1.5.1",
       "license": "Apache-2.0 OR MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "backon",
+      "version": "1.6.0",
+      "license": "Apache-2.0",
       "hasNotice": false
     },
     {
@@ -5015,6 +5039,12 @@
       "hasNotice": false
     },
     {
+      "name": "educe",
+      "version": "0.6.0",
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
       "name": "either",
       "version": "1.19.0",
       "license": "MIT OR Apache-2.0",
@@ -5047,6 +5077,18 @@
     {
       "name": "endi",
       "version": "1.1.1",
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "enum-ordinalize",
+      "version": "4.4.2",
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "enum-ordinalize-derive",
+      "version": "4.4.2",
       "license": "MIT",
       "hasNotice": false
     },
@@ -5345,6 +5387,12 @@
       "hasNotice": false
     },
     {
+      "name": "gloo-timers",
+      "version": "0.3.0",
+      "license": "MIT OR Apache-2.0",
+      "hasNotice": false
+    },
+    {
       "name": "gobject-sys",
       "version": "0.18.0",
       "license": "MIT",
@@ -5394,6 +5442,12 @@
     },
     {
       "name": "hashbrown",
+      "version": "0.16.1",
+      "license": "MIT OR Apache-2.0",
+      "hasNotice": false
+    },
+    {
+      "name": "hashbrown",
       "version": "0.17.1",
       "license": "MIT OR Apache-2.0",
       "hasNotice": false
@@ -5432,6 +5486,12 @@
       "name": "hmac",
       "version": "0.12.1",
       "license": "MIT OR Apache-2.0",
+      "hasNotice": false
+    },
+    {
+      "name": "hostname",
+      "version": "0.4.2",
+      "license": "MIT",
       "hasNotice": false
     },
     {
@@ -5754,6 +5814,12 @@
     },
     {
       "name": "kube-core",
+      "version": "4.2.0",
+      "license": "Apache-2.0",
+      "hasNotice": false
+    },
+    {
+      "name": "kube-runtime",
       "version": "4.2.0",
       "license": "Apache-2.0",
       "hasNotice": false
@@ -6242,6 +6308,18 @@
       "name": "phf_shared",
       "version": "0.13.1",
       "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "pin-project",
+      "version": "1.1.13",
+      "license": "Apache-2.0 OR MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "pin-project-internal",
+      "version": "1.1.13",
+      "license": "Apache-2.0 OR MIT",
       "hasNotice": false
     },
     {

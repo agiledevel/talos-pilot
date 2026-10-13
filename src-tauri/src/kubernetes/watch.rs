@@ -507,6 +507,10 @@ enum WatchErrorClass {
 fn classify_watch_error(error: &watcher::Error) -> WatchErrorClass {
     use watcher::Error::{InitialListFailed, WatchError, WatchFailed, WatchStartFailed};
 
+    if super::watch_transport::is_watch_event_too_large(error) {
+        return WatchErrorClass::Fatal;
+    }
+
     match error {
         InitialListFailed(error) | WatchFailed(error) | WatchStartFailed(error) => {
             if matches!(
@@ -691,7 +695,10 @@ mod tests {
         MAX_WATCH_EVENT_BYTES, PodWatchChange, PodWatchEnd, WATCH_QUEUE_MESSAGES, WatchRun,
         run_pod_watch, within_decoded_event_limit,
     };
-    use crate::kubernetes::synthetic::{SyntheticApiserver, SyntheticResponse, build_test_client};
+    use crate::kubernetes::synthetic::{
+        SyntheticApiserver, SyntheticResponse, build_test_watch_client,
+        build_test_watch_client_with_deadline,
+    };
 
     #[test]
     fn rejects_a_decoded_pod_event_over_two_mibibytes_without_building_a_second_large_buffer() {
@@ -711,7 +718,7 @@ mod tests {
         let server = SyntheticApiserver::start()
             .await
             .unwrap_or_else(|_| panic!("synthetic API server should start"));
-        let client = build_test_client(&server.kubeconfig("watch-context", "watch-cluster"))
+        let client = build_test_watch_client(&server.kubeconfig("watch-context", "watch-cluster"))
             .unwrap_or_else(|_| panic!("synthetic client should build"));
         let retained_bytes = Arc::new(AtomicUsize::new(0));
         let queued_bytes = Arc::new(AtomicUsize::new(0));
@@ -778,7 +785,7 @@ mod tests {
         let server = SyntheticApiserver::start()
             .await
             .unwrap_or_else(|_| panic!("synthetic API server should start"));
-        let client = build_test_client(&server.kubeconfig("watch-context", "watch-cluster"))
+        let client = build_test_watch_client(&server.kubeconfig("watch-context", "watch-cluster"))
             .unwrap_or_else(|_| panic!("synthetic client should build"));
         let retained_bytes = Arc::new(AtomicUsize::new(0));
         let queued_bytes = Arc::new(AtomicUsize::new(0));
@@ -851,7 +858,7 @@ mod tests {
             .await
             .unwrap_or_else(|_| panic!("synthetic API server should start"));
         server.set_response(SyntheticResponse::ClosingWatch);
-        let client = build_test_client(&server.kubeconfig("watch-context", "watch-cluster"))
+        let client = build_test_watch_client(&server.kubeconfig("watch-context", "watch-cluster"))
             .unwrap_or_else(|_| panic!("synthetic client should build"));
         let retained_bytes = Arc::new(AtomicUsize::new(0));
         let queued_bytes = Arc::new(AtomicUsize::new(0));
@@ -919,11 +926,170 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn watch_response_headers_are_bounded_without_timing_out_a_quiet_body() {
+        let server = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic API server should start"));
+        server.set_response(SyntheticResponse::StallWatchResponse);
+        let client = build_test_watch_client_with_deadline(
+            &server.kubeconfig("watch-context", "watch-cluster"),
+            Duration::from_millis(100),
+        )
+        .unwrap_or_else(|_| panic!("synthetic watch client should build"));
+        let retained_bytes = Arc::new(AtomicUsize::new(0));
+        let queued_bytes = Arc::new(AtomicUsize::new(0));
+        let (sender, mut receiver) = mpsc::channel(WATCH_QUEUE_MESSAGES);
+        let (cancel_sender, cancellation) = tokio::sync::watch::channel(false);
+        let task = tokio::spawn(run_pod_watch(WatchRun {
+            client,
+            namespace: "workloads".to_owned(),
+            label_selector: None,
+            field_selector: None,
+            projection_bytes: Arc::clone(&retained_bytes),
+            cancellation,
+            messages: sender,
+            queue_bytes: Arc::clone(&queued_bytes),
+        }));
+
+        timeout(Duration::from_secs(3), async {
+            loop {
+                let watch_requests = server
+                    .requests()
+                    .iter()
+                    .filter(|request| request.path.contains("watch=true"))
+                    .count();
+                if watch_requests >= 2 {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("the bounded response timeout should permit a retry"));
+        cancel_sender.send_replace(true);
+        assert_eq!(
+            timeout(Duration::from_secs(2), task)
+                .await
+                .unwrap_or_else(|_| panic!("watch cancellation should join promptly"))
+                .unwrap_or_else(|_| panic!("watch task should not panic")),
+            PodWatchEnd::Stopped
+        );
+        assert_eq!(retained_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        while let Some(message) = receiver.recv().await {
+            drop(message);
+        }
+        assert_eq!(queued_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn established_quiet_watch_body_survives_past_the_header_deadline() {
+        let server = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic API server should start"));
+        let client = build_test_watch_client_with_deadline(
+            &server.kubeconfig("watch-context", "watch-cluster"),
+            Duration::from_millis(100),
+        )
+        .unwrap_or_else(|_| panic!("synthetic watch client should build"));
+        let retained_bytes = Arc::new(AtomicUsize::new(0));
+        let queued_bytes = Arc::new(AtomicUsize::new(0));
+        let (sender, mut receiver) = mpsc::channel(WATCH_QUEUE_MESSAGES);
+        let (cancel_sender, cancellation) = tokio::sync::watch::channel(false);
+        let task = tokio::spawn(run_pod_watch(WatchRun {
+            client,
+            namespace: "workloads".to_owned(),
+            label_selector: None,
+            field_selector: None,
+            projection_bytes: Arc::clone(&retained_bytes),
+            cancellation,
+            messages: sender,
+            queue_bytes: Arc::clone(&queued_bytes),
+        }));
+
+        timeout(Duration::from_secs(3), async {
+            while let Some(message) = receiver.recv().await {
+                let complete = matches!(message.change, PodWatchChange::SnapshotComplete);
+                drop(message);
+                if complete {
+                    break;
+                }
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("the initial list should finish"));
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(
+            !task.is_finished(),
+            "quiet watch bodies have no idle read timeout"
+        );
+        cancel_sender.send_replace(true);
+        assert_eq!(
+            timeout(Duration::from_secs(2), task)
+                .await
+                .unwrap_or_else(|_| panic!("watch cancellation should join promptly"))
+                .unwrap_or_else(|_| panic!("watch task should not panic")),
+            PodWatchEnd::Stopped
+        );
+        while let Some(message) = receiver.recv().await {
+            drop(message);
+        }
+        assert_eq!(retained_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        assert_eq!(queued_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn oversized_watch_line_fails_before_kube_decodes_the_pod() {
+        let server = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic API server should start"));
+        server.set_response(SyntheticResponse::OversizedWatchEvent);
+        let client = build_test_watch_client(&server.kubeconfig("watch-context", "watch-cluster"))
+            .unwrap_or_else(|_| panic!("synthetic watch client should build"));
+        let retained_bytes = Arc::new(AtomicUsize::new(0));
+        let queued_bytes = Arc::new(AtomicUsize::new(0));
+        let (sender, mut receiver) = mpsc::channel(WATCH_QUEUE_MESSAGES);
+        let (_cancel_sender, cancellation) = tokio::sync::watch::channel(false);
+        let task = tokio::spawn(run_pod_watch(WatchRun {
+            client,
+            namespace: "workloads".to_owned(),
+            label_selector: None,
+            field_selector: None,
+            projection_bytes: Arc::clone(&retained_bytes),
+            cancellation,
+            messages: sender,
+            queue_bytes: Arc::clone(&queued_bytes),
+        }));
+
+        assert_eq!(
+            timeout(Duration::from_secs(5), task)
+                .await
+                .unwrap_or_else(|_| panic!("oversized watch event should be rejected promptly"))
+                .unwrap_or_else(|_| panic!("watch task should not panic")),
+            PodWatchEnd::Failed
+        );
+        assert!(
+            server
+                .requests()
+                .iter()
+                .any(|request| request.path.contains("watch=true")),
+            "the synthetic watch event must reach the response body guard"
+        );
+        while let Some(message) = receiver.recv().await {
+            drop(message);
+        }
+        assert_eq!(retained_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        assert_eq!(queued_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        server.stop().await;
+    }
+
+    #[tokio::test]
     async fn closed_consumer_releases_queued_bytes_and_ends_the_producer() {
         let server = SyntheticApiserver::start()
             .await
             .unwrap_or_else(|_| panic!("synthetic API server should start"));
-        let client = build_test_client(&server.kubeconfig("watch-context", "watch-cluster"))
+        let client = build_test_watch_client(&server.kubeconfig("watch-context", "watch-cluster"))
             .unwrap_or_else(|_| panic!("synthetic client should build"));
         let retained_bytes = Arc::new(AtomicUsize::new(0));
         let queued_bytes = Arc::new(AtomicUsize::new(0));
@@ -958,7 +1124,7 @@ mod tests {
             .await
             .unwrap_or_else(|_| panic!("synthetic API server should start"));
         server.set_response(SyntheticResponse::RequestDenied);
-        let client = build_test_client(&server.kubeconfig("watch-context", "watch-cluster"))
+        let client = build_test_watch_client(&server.kubeconfig("watch-context", "watch-cluster"))
             .unwrap_or_else(|_| panic!("synthetic client should build"));
         let retained_bytes = Arc::new(AtomicUsize::new(0));
         let queued_bytes = Arc::new(AtomicUsize::new(0));
@@ -997,7 +1163,7 @@ mod tests {
             .await
             .unwrap_or_else(|_| panic!("synthetic API server should start"));
         server.set_response(SyntheticResponse::ExpiredWatch);
-        let client = build_test_client(&server.kubeconfig("watch-context", "watch-cluster"))
+        let client = build_test_watch_client(&server.kubeconfig("watch-context", "watch-cluster"))
             .unwrap_or_else(|_| panic!("synthetic client should build"));
         let retained_bytes = Arc::new(AtomicUsize::new(0));
         let queued_bytes = Arc::new(AtomicUsize::new(0));
@@ -1065,7 +1231,7 @@ mod tests {
             .await
             .unwrap_or_else(|_| panic!("synthetic API server should start"));
         server.set_transient_failures(3);
-        let client = build_test_client(&server.kubeconfig("watch-context", "watch-cluster"))
+        let client = build_test_watch_client(&server.kubeconfig("watch-context", "watch-cluster"))
             .unwrap_or_else(|_| panic!("synthetic client should build"));
         let retained_bytes = Arc::new(AtomicUsize::new(0));
         let queued_bytes = Arc::new(AtomicUsize::new(0));
@@ -1095,6 +1261,53 @@ mod tests {
         }
         assert_eq!(retained_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
         assert_eq!(queued_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        server.stop().await;
+    }
+
+    #[tokio::test]
+    async fn cancellation_during_transient_backoff_releases_watch_state_promptly() {
+        let server = SyntheticApiserver::start()
+            .await
+            .unwrap_or_else(|_| panic!("synthetic API server should start"));
+        server.set_transient_failures(3);
+        let client = build_test_watch_client(&server.kubeconfig("watch-context", "watch-cluster"))
+            .unwrap_or_else(|_| panic!("synthetic client should build"));
+        let retained_bytes = Arc::new(AtomicUsize::new(0));
+        let queued_bytes = Arc::new(AtomicUsize::new(0));
+        let (sender, mut receiver) = mpsc::channel(WATCH_QUEUE_MESSAGES);
+        let (cancel_sender, cancellation) = tokio::sync::watch::channel(false);
+        let task = tokio::spawn(run_pod_watch(WatchRun {
+            client,
+            namespace: "workloads".to_owned(),
+            label_selector: None,
+            field_selector: None,
+            projection_bytes: Arc::clone(&retained_bytes),
+            cancellation,
+            messages: sender,
+            queue_bytes: Arc::clone(&queued_bytes),
+        }));
+
+        timeout(Duration::from_secs(1), async {
+            while server.requests().is_empty() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("the first transient watch failure should arrive"));
+        cancel_sender.send_replace(true);
+        assert_eq!(
+            timeout(Duration::from_millis(250), task)
+                .await
+                .unwrap_or_else(|_| panic!("backoff cancellation should join promptly"))
+                .unwrap_or_else(|_| panic!("watch task should not panic")),
+            PodWatchEnd::Stopped
+        );
+        while let Some(message) = receiver.recv().await {
+            drop(message);
+        }
+        assert_eq!(retained_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        assert_eq!(queued_bytes.load(std::sync::atomic::Ordering::Acquire), 0);
+        assert_eq!(server.requests().len(), 1);
         server.stop().await;
     }
 }

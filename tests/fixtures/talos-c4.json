@@ -15,7 +15,7 @@
   "kubernetes": {
     "endpoint": "https://10.79.0.1:6443",
     "expectedServerVersion": "v1.36.5",
-    "certificateAuthoritySha256": "32c04d6dc9988ad2cace8aa3bf4491dc5e70f22055dc772cb317d437a648e16a",
+    "certificateAuthoritySha256": "2b54ffa7a6297636b9bb2ea97730a6b2f1e4e48e621faf75c351edfaccb56364",
     "contextName": "admin@talos-pilot-c4-20261009",
     "namespace": "talos-pilot-list-probe",
     "serviceAccount": "list-reader",
