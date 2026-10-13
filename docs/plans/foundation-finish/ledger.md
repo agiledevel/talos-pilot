@@ -17,18 +17,18 @@ A document is `done` only when every acceptance case in it has recorded evidence
 
 ## Status board
 
-| Document                                                                        | Packet           | Status       | Last commit | Updated    | Next action                                                                                                                       |
-| ------------------------------------------------------------------------------- | ---------------- | ------------ | ----------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | in progress  | this commit | 2026-10-13 | Resume its remaining live cases after the owner-directed document 02 session completes                                            |
-| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | blocked (B6) | this commit | 2026-10-13 | Await Q4; if approved, amend the fixture preflight and restart the runbook from its baseline |
-| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started  | —           | 2026-10-12 | After 02                                                                                                                          |
-| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started  | —           | 2026-10-12 | After 03                                                                                                                          |
-| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started  | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                                                             |
-| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started  | —           | 2026-10-12 | After 05                                                                                                                          |
-| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started  | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                                                          |
-| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started  | —           | 2026-10-12 | After 07                                                                                                                          |
-| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started  | —           | 2026-10-12 | After 08                                                                                                                          |
-| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred     | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                                                            |
+| Document                                                                        | Packet           | Status       | Last commit | Updated    | Next action                                                                                |
+| ------------------------------------------------------------------------------- | ---------------- | ------------ | ----------- | ---------- | ------------------------------------------------------------------------------------------ |
+| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | in progress  | this commit | 2026-10-13 | Resume its remaining live cases after the owner-directed document 02 session completes     |
+| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | blocked (B6) | this commit | 2026-10-13 | Inspect the corrected-format commit's hosted checks; await Q4 before resuming fixture work |
+| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started  | —           | 2026-10-12 | After 02                                                                                   |
+| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started  | —           | 2026-10-12 | After 03                                                                                   |
+| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started  | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                      |
+| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started  | —           | 2026-10-12 | After 05                                                                                   |
+| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started  | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                   |
+| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started  | —           | 2026-10-12 | After 07                                                                                   |
+| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started  | —           | 2026-10-12 | After 08                                                                                   |
+| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred     | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                     |
 
 ## Standing owner decisions
 
@@ -569,6 +569,27 @@ Entries are appended below, oldest first.
 - **Assumptions confirmed or refuted:** none.
 - **Questions and blockers raised:** Q4 remains unanswered; B6 remains open.
 - **Next:** get the owner's answer to Q4. If approved, amend the runbook's version checks and restart from its baseline; if not, record the owner's alternative direction before resuming fixture work.
+
+### 2026-10-13 — document 02, correct ledger formatting
+
+- **Document:** 02, ledger formatting repair after the hosted check for the previous ledger update.
+- **Session:** GPT-6; base revision `d38d6db8b1489f239a53e240e2b038f8f18466ad`; final revision: the commit carrying this entry.
+- **Status after this session:** blocked by B6; local formatting passes, while the hosted renderer workflow for `d38d6db` failed only because the ledger table was not formatted. Security checks are partly complete and Rust CodeQL was still in progress when this entry was prepared.
+- **Acceptance cases:** unchanged; cases 11 and 12 passed, case 13 blocked, and live restricted pagination, list-specific saturation, and cancellation cleanup evidence remain unexecuted.
+- **What changed:** `docs/plans/foundation-finish/ledger.md` formatting was normalized; document 02 remains blocked (B6), and Q4 remains unanswered.
+- **Commands and results** (local host: openSUSE Tumbleweed x86_64):
+  - `pnpm format`: pass.
+  - `pnpm format:check`: pass; all 158 files formatted.
+  - `git diff --check`: pass.
+  - `gh run view 38382218650 --log-failed`: renderer failed at `pnpm format:check` because `docs/plans/foundation-finish/ledger.md` was not formatted; no application checks ran in that job.
+  - `gh run view 38382218499 --json status,conclusion,jobs`: Actions CodeQL, JavaScript/TypeScript CodeQL, and Trivy filesystem scan passed; Rust CodeQL remained in progress when this entry was prepared.
+- **Evidence class:** local documentation formatting and hosted workflow diagnostics; no native or real-cluster evidence.
+- **Fixture:** none provisioned or touched.
+- **Failed or unexecuted:** the renderer workflow for `d38d6db` failed its formatting gate; the correction passes locally. Rust CodeQL for `d38d6db` had not completed at entry time and is not reported as passed. macOS Intel remains deliberately absent from the workflow matrix.
+- **Review findings:** CI identified a formatting defect in the ledger table; `pnpm format` corrected it and the repository formatting check now passes.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** Q4 remains unanswered; B6 remains open.
+- **Next:** inspect hosted checks for the formatting correction, recording any superseded run as cancelled; await Q4 before touching the runbook or fixture.
 
 ## Entry template
 
