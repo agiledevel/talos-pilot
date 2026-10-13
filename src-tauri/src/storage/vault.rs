@@ -36,11 +36,28 @@ pub enum VaultError {
 pub trait MasterKeyVault: Send + Sync {
     /// Reads the existing application key or creates it in the native vault.
     ///
+    /// Only a user-initiated persistent write uses this path, so opening the
+    /// shell or reading a stored credential never creates a key as a side
+    /// effect.
+    ///
     /// # Errors
     ///
     /// Returns a safe category for inaccessible/locked vaults, invalid stored
     /// key data, or random source failure. No plaintext fallback is performed.
     fn load_or_create_key(&self) -> Result<EncryptionKey, VaultError>;
+
+    /// Reads the existing application key without creating one.
+    ///
+    /// Opening an already-stored credential uses this path. Creating a key here
+    /// would be unsafe: a missing vault entry means earlier ciphertext is no
+    /// longer decryptable, and a freshly generated key must never be presented
+    /// as the key for those records.
+    ///
+    /// # Errors
+    ///
+    /// Returns a safe category when the vault is inaccessible, holds no key, or
+    /// holds invalid key data.
+    fn load_key(&self) -> Result<EncryptionKey, VaultError>;
 }
 
 /// Uses the target's explicitly selected OS credential store.
@@ -75,6 +92,19 @@ impl MasterKeyVault for PlatformVault {
         let _guard = VAULT_ACCESS.lock().map_err(|_| VaultError::Unavailable)?;
         let entry = self.entry()?;
         load_or_create_entry(&entry)
+    }
+
+    fn load_key(&self) -> Result<EncryptionKey, VaultError> {
+        let _guard = VAULT_ACCESS.lock().map_err(|_| VaultError::Unavailable)?;
+        let entry = self.entry()?;
+        load_entry(&entry)
+    }
+}
+
+fn load_entry(entry: &Entry) -> Result<EncryptionKey, VaultError> {
+    match entry.get_password() {
+        Ok(encoded) => key_from_encoded(encoded),
+        Err(_) => Err(VaultError::Unavailable),
     }
 }
 

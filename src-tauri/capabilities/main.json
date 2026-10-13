@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Main-window access to safe application settings, credential import, and Talos probe commands.",
+  "description": "Main-window access to safe application settings, credential import, Kubernetes credential sessions, and Talos probe commands.",
   "windows": ["main"],
   "permissions": [
     "allow-get-helper-status",
@@ -12,6 +12,15 @@
     "allow-retry-persistent-storage",
     "allow-import-kubeconfig",
     "allow-import-talosconfig",
+    "allow-list-kubernetes-credentials",
+    "allow-open-kubernetes-session",
+    "allow-close-kubernetes-session",
+    "allow-read-kubernetes-version",
+    "allow-list-kubernetes-pods",
+    "allow-open-kubernetes-pod-watch",
+    "allow-stream-kubernetes-pod-watch",
+    "allow-acknowledge-kubernetes-pod-watch",
+    "allow-stop-kubernetes-pod-watch",
     "allow-start-talos-probe",
     "allow-stop-talos-probe",
     "allow-close-talos-session"

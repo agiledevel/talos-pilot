@@ -20,7 +20,7 @@ use super::protocol::{
     generated::{
         Envelope, HandshakeRequest, MessageKind, ProtocolError, ShutdownRequest, StatusRequest,
         StatusResponse, TalosCancelRequest, TalosProbeRequest, TalosProbeResponse,
-        TalosStatusEvent, TalosStreamEnded, envelope,
+        TalosStatusEvent, TalosStreamEnded, TalosStreamStale, envelope,
     },
     validate_envelope,
 };
@@ -375,6 +375,7 @@ impl HelperSupervisor {
             version,
             stage,
             ready,
+            ..
         })) = initial.payload
         else {
             if let Some(envelope::Payload::Error(error)) = initial.payload {
@@ -392,6 +393,8 @@ impl HelperSupervisor {
                 ready: Some(ready),
                 deleted: false,
                 sequence: "0".to_owned(),
+                generation: "1".to_owned(),
+                snapshot: true,
             },
         )
         .is_err();
@@ -400,6 +403,11 @@ impl HelperSupervisor {
         let stdout = &mut self.stdout;
         let request_counter = &mut self.request_counter;
         let mut last_sequence = 0_u64;
+        // Generation of the projection presented as current. It advances only
+        // on a valid replacement snapshot while the stream is stale, and the
+        // sequence stays continuous across generations.
+        let mut generation = 1_u64;
+        let mut stale = false;
         let mut cancel_request_id = None;
         // Once a cancel is outstanding the stream finishes only when both the
         // subscription's terminal frame and the cancel reply have arrived, in
@@ -447,12 +455,27 @@ impl HelperSupervisor {
                         return Err(SupervisorError::ResponseMismatch);
                     }
                     match response.payload {
-                        Some(envelope::Payload::TalosStatusEvent(TalosStatusEvent { stage, ready, deleted })) => {
+                        Some(envelope::Payload::TalosStatusEvent(TalosStatusEvent { stage, ready, deleted, generation: frame_generation, snapshot })) => {
                             let expected = last_sequence.checked_add(1).ok_or(SupervisorError::TalosStreamInvalid)?;
                             if response.kind != MessageKind::TalosStatusEvent as i32 || response.sequence != expected {
                                 return Err(SupervisorError::TalosStreamInvalid);
                             }
+                            // A stale projection may only be closed by a
+                            // replacement snapshot under the next generation; a
+                            // current projection may only take events of its own
+                            // generation. Any other combination is a stale or
+                            // foreign frame and fails the subscription.
+                            let valid = if stale {
+                                snapshot && generation.checked_add(1) == Some(frame_generation)
+                            } else {
+                                !snapshot && frame_generation == generation
+                            };
+                            if !valid {
+                                return Err(SupervisorError::TalosStreamInvalid);
+                            }
                             last_sequence = expected;
+                            generation = frame_generation;
+                            stale = false;
                             if !consumer_closed && emit_probe_event(on_event, TalosProbeEventDto {
                                 session_id: session_id.clone(),
                                 state: TalosProbeState::Healthy,
@@ -461,10 +484,41 @@ impl HelperSupervisor {
                                 ready: Some(ready),
                                 deleted,
                                 sequence: expected.to_string(),
+                                generation: frame_generation.to_string(),
+                                snapshot,
                             }).is_err() {
                                 consumer_closed = true;
                             }
                             if expected >= MAX_TALOS_STATUS_EVENTS {
+                                consumer_closed = true;
+                            }
+                            if consumer_closed && cancel_request_id.is_none() {
+                                cancel_request_id = Some(send_talos_cancel(stdin, request_counter, &request_id).await?);
+                                cancel_deadline = Some(Instant::now() + TALOS_CANCEL_ACK_DEADLINE);
+                            }
+                        }
+                        Some(envelope::Payload::TalosStreamStale(TalosStreamStale {})) => {
+                            // A stale marker repeats the sequence of the
+                            // projection it invalidates, consumes no sequence,
+                            // and is legal exactly once per interruption.
+                            if response.kind != MessageKind::TalosStreamStale as i32
+                                || response.sequence != last_sequence
+                                || stale
+                            {
+                                return Err(SupervisorError::TalosStreamInvalid);
+                            }
+                            stale = true;
+                            if !consumer_closed && emit_probe_event(on_event, TalosProbeEventDto {
+                                session_id: session_id.clone(),
+                                state: TalosProbeState::Stale,
+                                version: None,
+                                stage: None,
+                                ready: None,
+                                deleted: false,
+                                sequence: last_sequence.to_string(),
+                                generation: generation.to_string(),
+                                snapshot: false,
+                            }).is_err() {
                                 consumer_closed = true;
                             }
                             if consumer_closed && cancel_request_id.is_none() {
@@ -854,10 +908,13 @@ mod tests {
     }
 
     fn build_probe_fixture() -> PathBuf {
+        static BUILDS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let unique = BUILDS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let helper_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../helper");
         let binary = std::env::temp_dir().join(format!(
-            "talos-pilot-probe-fixture-test-{}{}",
+            "talos-pilot-probe-fixture-test-{}-{}{}",
             std::process::id(),
+            unique,
             std::env::consts::EXE_SUFFIX
         ));
         let result = Command::new("go")
@@ -1195,7 +1252,7 @@ mod tests {
         supervisor
             .talos_probe(
                 super::TalosProbeInput {
-                    config: Zeroizing::new(b"synthetic-private-config".to_vec()),
+                    config: Zeroizing::new(b"event 1 1 running 1 0\nwait\n".to_vec()),
                     endpoints: vec!["10.79.0.2".to_owned()],
                     node: "10.79.0.2".to_owned(),
                     session_id: "session-1".to_owned(),
@@ -1239,6 +1296,243 @@ mod tests {
             supervisor.shutdown(Duration::from_secs(5)).await,
             Err(SupervisorError::ResponseMismatch)
         ));
+        remove_helper(helper);
+    }
+
+    /// Runs one probe against the scripted fixture and collects forwarded events.
+    async fn scripted_probe(
+        supervisor: &mut HelperSupervisor,
+        script: &str,
+    ) -> (
+        Result<(), SupervisorError>,
+        Vec<crate::contracts::TalosProbeEventDto>,
+    ) {
+        let (_cancel_sender, cancel_receiver) = watch::channel(false);
+        let mut events = Vec::new();
+        let result = supervisor
+            .talos_probe(
+                super::TalosProbeInput {
+                    config: Zeroizing::new(script.as_bytes().to_vec()),
+                    endpoints: vec!["10.79.0.2".to_owned()],
+                    node: "10.79.0.2".to_owned(),
+                    session_id: "session-1".to_owned(),
+                },
+                cancel_receiver,
+                |event| {
+                    events.push(event);
+                    Ok(())
+                },
+                Duration::from_secs(5),
+            )
+            .await;
+        (result, events)
+    }
+
+    async fn scripted_supervisor() -> (HelperSupervisor, PathBuf) {
+        let helper = build_probe_fixture();
+        let supervisor = HelperSupervisor::start(&helper, "development", Duration::from_secs(5))
+            .await
+            .unwrap_or_else(|_| panic!("protocol fixture handshake must succeed"));
+        (supervisor, helper)
+    }
+
+    #[tokio::test]
+    async fn scripted_frames_accept_order_and_a_generation_resync() {
+        let (mut supervisor, helper) = scripted_supervisor().await;
+        let (result, events) = scripted_probe(
+            &mut supervisor,
+            "event 1 1 rebooting 0 0\nstale 1\nevent 2 2 running 1 1\nevent 3 2 booting 0 0\nended 4 stream_complete\n",
+        )
+        .await;
+        assert!(result.is_ok(), "scripted stream must complete: {result:?}");
+        assert_eq!(events.len(), 5, "bootstrap, event, stale, snapshot, event");
+        assert_eq!(events[0].sequence, "0");
+        assert_eq!(events[0].generation, "1");
+        assert!(
+            events[0].snapshot,
+            "the bootstrap is the generation 1 snapshot"
+        );
+        assert_eq!(events[1].sequence, "1");
+        assert_eq!(events[1].generation, "1");
+        assert!(!events[1].snapshot);
+        assert_eq!(events[2].state, crate::contracts::TalosProbeState::Stale);
+        assert_eq!(
+            events[2].sequence, "1",
+            "a stale marker repeats the identity it invalidates"
+        );
+        assert_eq!(events[2].generation, "1");
+        assert_eq!(
+            events[3].sequence, "2",
+            "the sequence stays continuous across generations"
+        );
+        assert_eq!(events[3].generation, "2");
+        assert!(
+            events[3].snapshot,
+            "only a replacement snapshot advances the generation"
+        );
+        assert_eq!(events[4].sequence, "3");
+        assert_eq!(events[4].generation, "2");
+        assert!(!events[4].snapshot);
+        supervisor
+            .shutdown(Duration::from_secs(5))
+            .await
+            .unwrap_or_else(|_| panic!("scripted fixture must exit cleanly"));
+        remove_helper(helper);
+    }
+
+    #[tokio::test]
+    async fn scripted_frames_reject_sequence_gaps_and_duplicates() {
+        for script in [
+            // A skipped sequence.
+            "event 2 1 running 1 0\n",
+            // A repeated sequence.
+            "event 1 1 running 1 0\nevent 1 1 booting 0 0\n",
+        ] {
+            let (mut supervisor, helper) = scripted_supervisor().await;
+            let (result, events) = scripted_probe(&mut supervisor, script).await;
+            assert!(
+                matches!(result, Err(SupervisorError::TalosStreamInvalid)),
+                "script {script:?} must fail: {result:?}"
+            );
+            assert!(
+                events.len() <= 2,
+                "no frames after the fault may be forwarded"
+            );
+            assert!(
+                supervisor.child.try_wait().ok().flatten().is_some(),
+                "a protocol fault must reap the helper"
+            );
+            remove_helper(helper);
+        }
+    }
+
+    #[tokio::test]
+    async fn scripted_frames_reject_stale_and_foreign_generations() {
+        for script in [
+            // A foreign generation without a replacement snapshot.
+            "event 1 2 running 1 0\n",
+            // A second stale marker before any replacement snapshot.
+            "stale 0\nstale 0\n",
+            // Data after a stale marker that is not a replacement snapshot.
+            "stale 0\nevent 1 1 running 1 0\n",
+            // A snapshot while the projection is still current.
+            "event 1 1 running 1 1\n",
+            // A replacement snapshot that does not increment the generation.
+            "stale 0\nevent 1 1 running 1 1\n",
+            // A stale marker that repeats no projection identity.
+            "stale 5\n",
+        ] {
+            let (mut supervisor, helper) = scripted_supervisor().await;
+            let (result, _events) = scripted_probe(&mut supervisor, script).await;
+            assert!(
+                matches!(result, Err(SupervisorError::TalosStreamInvalid)),
+                "script {script:?} must fail as a stale or foreign frame: {result:?}"
+            );
+            assert!(
+                supervisor.child.try_wait().ok().flatten().is_some(),
+                "a protocol fault must reap the helper"
+            );
+            remove_helper(helper);
+        }
+    }
+
+    #[tokio::test]
+    async fn scripted_frames_stop_forwarding_to_a_closed_consumer() {
+        let (mut supervisor, helper) = scripted_supervisor().await;
+        let (_cancel_sender, cancel_receiver) = watch::channel(false);
+        let mut events = Vec::new();
+        let result = supervisor
+            .talos_probe(
+                super::TalosProbeInput {
+                    config: Zeroizing::new(
+                        b"event 1 1 running 1 0\nevent 2 1 booting 0 0\nevent 3 1 running 1 0\nwait\n"
+                            .to_vec(),
+                    ),
+                    endpoints: vec!["10.79.0.2".to_owned()],
+                    node: "10.79.0.2".to_owned(),
+                    session_id: "session-1".to_owned(),
+                },
+                cancel_receiver,
+                |event| {
+                    let close = event.sequence == "1";
+                    events.push(event);
+                    if close {
+                        Err(())
+                    } else {
+                        Ok(())
+                    }
+                },
+                Duration::from_secs(5),
+            )
+            .await;
+        assert!(
+            result.is_ok(),
+            "a closed consumer cancels cleanly: {result:?}"
+        );
+        assert_eq!(
+            events.len(),
+            2,
+            "no event may be forwarded after the consumer closed"
+        );
+        supervisor
+            .shutdown(Duration::from_secs(5))
+            .await
+            .unwrap_or_else(|_| panic!("scripted fixture must exit cleanly"));
+        remove_helper(helper);
+    }
+
+    #[tokio::test]
+    async fn scripted_frames_map_exhaustion_and_non_retryable_terminals() {
+        for (script, expected) in [
+            (
+                "stale 0\nerror talos_unavailable\n",
+                SupervisorError::TalosProbeFailed(TalosProbeFailure::Unavailable),
+            ),
+            (
+                "error talos_unauthorized\n",
+                SupervisorError::TalosProbeFailed(TalosProbeFailure::Unauthorized),
+            ),
+            (
+                "error talos_certificate_invalid\n",
+                SupervisorError::TalosProbeFailed(TalosProbeFailure::CertificateInvalid),
+            ),
+        ] {
+            let (mut supervisor, helper) = scripted_supervisor().await;
+            let (result, events) = scripted_probe(&mut supervisor, script).await;
+            assert!(
+                matches!(result, Err(ref error) if std::mem::discriminant(error) == std::mem::discriminant(&expected)),
+                "script {script:?} must map to {expected:?}: {result:?}"
+            );
+            assert!(
+                supervisor.child.try_wait().ok().flatten().is_some(),
+                "a terminal outcome must reap the helper"
+            );
+            if script.starts_with("stale") {
+                assert_eq!(
+                    events.len(),
+                    2,
+                    "the stale marker precedes the terminal outcome"
+                );
+                assert_eq!(events[1].state, crate::contracts::TalosProbeState::Stale);
+            }
+            remove_helper(helper);
+        }
+    }
+
+    #[tokio::test]
+    async fn helper_exit_mid_stream_is_reported_and_reaped() {
+        let (mut supervisor, helper) = scripted_supervisor().await;
+        let (result, events) =
+            scripted_probe(&mut supervisor, "event 1 1 running 1 0\nexit\n").await;
+        assert!(
+            matches!(result, Err(SupervisorError::ChildExited)),
+            "{result:?}"
+        );
+        assert_eq!(events.len(), 2);
+        assert!(
+            supervisor.child.try_wait().ok().flatten().is_some(),
+            "a helper that exits mid-stream must be reaped"
+        );
         remove_helper(helper);
     }
 }

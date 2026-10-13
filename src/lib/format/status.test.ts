@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TalosCredentialSessionDto } from "../ipc/generated/TalosCredentialSessionDto";
 import type { TalosProbeEventDto } from "../ipc/generated/TalosProbeEventDto";
-import { credentialStorageSummary, talosContextSummary } from "./status";
+import { credentialStorageSummary, kubernetesContextSummary, talosContextSummary } from "./status";
 
 const SESSION: TalosCredentialSessionDto = {
   session_id: "talos-session-1",
@@ -20,6 +20,8 @@ function probeEvent(state: TalosProbeEventDto["state"]): TalosProbeEventDto {
     ready: true,
     deleted: false,
     sequence: "0",
+    generation: "1",
+    snapshot: true,
   };
 }
 
@@ -73,5 +75,24 @@ describe("Talos context summary", () => {
         probeEvent: probeEvent("healthy"),
       }),
     ).toBe("synthetic-demo (session-only)");
+  });
+});
+
+describe("Kubernetes context summary", () => {
+  it("reports an empty state without implying the Talos context is closed", () => {
+    expect(kubernetesContextSummary({ session: null, namespace: "default" })).toBe("no session");
+  });
+
+  it("names the Kubernetes context, session, and namespace", () => {
+    expect(
+      kubernetesContextSummary({
+        session: {
+          session_id: "kube-session-7",
+          context_label: "synthetic-kubernetes",
+          storage_mode: "session_only",
+        },
+        namespace: " workloads ",
+      }),
+    ).toBe("synthetic-kubernetes · kube-session-7 · namespace workloads");
   });
 });

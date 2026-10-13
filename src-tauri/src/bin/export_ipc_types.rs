@@ -5,7 +5,10 @@ use std::{env, fs, path::PathBuf};
 use talos_pilot::contracts::{
     AppearanceDensity, AppearanceSettingsDto, AppearanceTheme, ApplicationErrorDto,
     CredentialImportResultDto, CredentialStorageModeDto, CredentialStorageStatusDto,
-    HelperCapability, HelperState, HelperStatusDto, TalosCredentialSessionDto, TalosProbeEventDto,
+    HelperCapability, HelperState, HelperStatusDto, KubernetesCredentialSummaryDto,
+    KubernetesPodDto, KubernetesPodListDto, KubernetesPodReadinessDto, KubernetesPodWatchChangeDto,
+    KubernetesPodWatchEndDto, KubernetesPodWatchEventDto, KubernetesPodWatchSubscriptionDto,
+    KubernetesSessionDto, KubernetesVersionDto, TalosCredentialSessionDto, TalosProbeEventDto,
     TalosProbeState,
 };
 use ts_rs::{Config, TS};
@@ -36,6 +39,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         CredentialStorageModeDto::export_all(&config),
         CredentialStorageStatusDto::export_all(&config),
         CredentialImportResultDto::export_all(&config),
+        KubernetesCredentialSummaryDto::export_all(&config),
+        KubernetesSessionDto::export_all(&config),
+        KubernetesVersionDto::export_all(&config),
+        KubernetesPodReadinessDto::export_all(&config),
+        KubernetesPodDto::export_all(&config),
+        KubernetesPodListDto::export_all(&config),
+        KubernetesPodWatchChangeDto::export_all(&config),
+        KubernetesPodWatchSubscriptionDto::export_all(&config),
+        KubernetesPodWatchEventDto::export_all(&config),
+        KubernetesPodWatchEndDto::export_all(&config),
         TalosProbeState::export_all(&config),
         TalosProbeEventDto::export_all(&config),
         TalosCredentialSessionDto::export_all(&config),

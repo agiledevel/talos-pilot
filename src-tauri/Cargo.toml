@@ -9,7 +9,12 @@ default-run = "talos-pilot"
 
 [features]
 default = []
-native-test = ["dep:tauri-plugin-wdio", "dep:tauri-plugin-wdio-webdriver"]
+native-test = [
+  "dep:rcgen",
+  "dep:tauri-plugin-wdio",
+  "dep:tauri-plugin-wdio-webdriver",
+  "dep:tokio-rustls",
+]
 
 [build-dependencies]
 prost-build = "=0.14.4"
@@ -17,9 +22,23 @@ tauri-build = { version = "=2.7.1", features = [] }
 
 [dependencies]
 base64 = "=0.22.1"
+bytes = "=1.12.1"
 chacha20poly1305 = { version = "=0.11.0", features = ["zeroize"] }
 getrandom = "=0.4.3"
+futures-util = { version = "=0.3.34", default-features = false, features = ["io"] }
+http = "=1.5.0"
+http-body = "=1.1.0"
+k8s-openapi = { version = "=0.28.0", default-features = false, features = ["v1_36"] }
+kube = { version = "=4.2.0", default-features = false, features = [
+  "client",
+  "config",
+  "ring",
+  "rustls-tls",
+  "runtime",
+] }
+pem = "=3.0.6"
 prost = "=0.14.4"
+rcgen = { version = "=0.14.10", optional = true }
 rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled"] }
 secrecy = "=0.10.3"
 serde = { version = "=1.0.229", features = ["derive"] }
@@ -30,21 +49,39 @@ tauri-plugin-dialog = "=2.8.1"
 tauri-plugin-wdio = { version = "=1.5.0", optional = true }
 tauri-plugin-wdio-webdriver = { version = "=1.5.0", optional = true }
 thiserror = "=2.0.21"
+tower = { version = "=0.5.3", default-features = false }
 tokio = { version = "=1.53.2", features = [
   "io-util",
   "macros",
+  "net",
   "process",
   "rt",
   "rt-multi-thread",
   "sync",
   "time",
 ] }
+tokio-rustls = { version = "=0.26.6", default-features = false, features = [
+  "logging",
+  "ring",
+  "tls12",
+], optional = true }
 ts-rs = { version = "=12.0.1", features = ["serde-compat"] }
 url = "=2.5.8"
 zeroize = "=1.9.1"
 
 [dev-dependencies]
+rcgen = "=0.14.10"
+sha2 = "=0.10.9"
 tempfile = "=3.27.0"
+tokio-rustls = { version = "=0.26.6", default-features = false, features = [
+  "logging",
+  "ring",
+  "tls12",
+] }
+
+[[example]]
+name = "kubernetes-synthetic-apiserver"
+required-features = ["native-test"]
 
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { version = "=3.6.3", default-features = false, features = [

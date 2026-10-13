@@ -17,9 +17,13 @@ import { IpcContractError } from "../ipc/validation";
  *
  * The instance owns the imported session until {@link TalosProbePanelState.closeSession}
  * or {@link TalosProbePanelState.dispose}. Only the bounded session projection is
- * held here; the mTLS credentials stay in the backend. A stream that ends or
- * fails after a healthy event is marked stale, so its last values are never
- * presented as current. Actions report failures through
+ * held here; the mTLS credentials stay in the backend. A mid-stream failure marks
+ * the retained projection stale, and it stays stale until a valid replacement
+ * snapshot under the next generation arrives; a stream that ends or fails after a
+ * healthy event is likewise marked stale, so its last values are never presented
+ * as current. Events are checked against the previous projection's sequence and
+ * generation identity: a stale, duplicate, or foreign event stops the stream as a
+ * contract violation. Actions report failures through
  * {@link TalosProbePanelState.error} and never reject.
  */
 export class TalosProbePanelState {
@@ -35,6 +39,9 @@ export class TalosProbePanelState {
   busy = $state(false);
   /** True while a probe stream is open. */
   probing = $state(false);
+
+  #lastData: { sequence: number; generation: number } | null = null;
+  #staleMarked = false;
 
   readonly #transport: IpcTransport | undefined;
 
@@ -62,6 +69,7 @@ export class TalosProbePanelState {
         this.session = imported;
         this.node = imported.nodes[0] ?? "";
         this.probeEvent = null;
+        this.#resetProjection();
       }
     } catch (cause: unknown) {
       this.error = errorMessage(cause, "The Talos config could not be imported.");
@@ -91,7 +99,9 @@ export class TalosProbePanelState {
     }
     this.error = null;
     this.probing = true;
+    this.#resetProjection();
     let sawHealthy = false;
+    let contractViolation = false;
     this.probeEvent = {
       session_id: session.session_id,
       state: "connecting",
@@ -100,14 +110,50 @@ export class TalosProbePanelState {
       ready: null,
       deleted: false,
       sequence: "0",
+      generation: "1",
+      snapshot: false,
     };
     try {
       await startTalosProbe(transport, session.session_id, this.node, (next) => {
+        if (!this.#accepts(next)) {
+          // A stale, duplicate, or foreign frame must never reach the view.
+          contractViolation = true;
+          this.#markProbe(this.#lastData === null ? null : "stale");
+          void stopTalosProbe(transport, session.session_id).catch(() => undefined);
+          return;
+        }
+        if (next.state === "stale") {
+          // The marker carries no data: keep the retained projection visible
+          // and mark it stale under the repeated sequence and generation.
+          const retained = this.probeEvent;
+          this.#staleMarked = true;
+          this.probeEvent =
+            retained === null
+              ? next
+              : {
+                  ...retained,
+                  state: "stale",
+                  sequence: next.sequence,
+                  generation: next.generation,
+                  snapshot: next.snapshot,
+                };
+          return;
+        }
         if (next.state === "healthy") {
           sawHealthy = true;
+          this.#staleMarked = false;
+          this.#lastData = {
+            sequence: Number(next.sequence),
+            generation: Number(next.generation),
+          };
         }
         this.probeEvent = next;
       });
+      if (contractViolation) {
+        this.#markProbe(sawHealthy ? "stale" : null);
+        this.error = "The native application returned an invalid Talos probe response.";
+        return;
+      }
       // A stream that ends without a later event can no longer be current.
       this.#markProbe(sawHealthy ? "stale" : null);
     } catch (cause: unknown) {
@@ -151,6 +197,7 @@ export class TalosProbePanelState {
       this.session = null;
       this.node = "";
       this.probeEvent = null;
+      this.#resetProjection();
     } catch (cause: unknown) {
       this.error = errorMessage(cause, "The in-memory Talos session could not be closed.");
     } finally {
@@ -179,6 +226,46 @@ export class TalosProbePanelState {
     if (state !== null && this.probeEvent !== null) {
       this.probeEvent = { ...this.probeEvent, state };
     }
+  }
+
+  /** Clears the projection identity when the previous stream can no longer matter. */
+  #resetProjection(): void {
+    this.#lastData = null;
+    this.#staleMarked = false;
+  }
+
+  /**
+   * Checks one channel event against the previous projection's identity.
+   *
+   * The bootstrap snapshot opens every subscription at sequence 0, generation 1.
+   * Data projections continue the sequence by exactly one within their
+   * generation, and only a replacement snapshot may advance the generation.
+   * A stale marker repeats the identity it invalidates and is legal exactly
+   * once per interruption. Anything else is stale or foreign data and must not
+   * reach the view.
+   */
+  #accepts(next: TalosProbeEventDto): boolean {
+    const sequence = Number(next.sequence);
+    const generation = Number(next.generation);
+    const last = this.#lastData;
+    if (last === null) {
+      return next.state === "healthy" && next.snapshot && sequence === 0 && generation === 1;
+    }
+    if (next.state === "stale") {
+      return (
+        !this.#staleMarked &&
+        !next.snapshot &&
+        sequence === last.sequence &&
+        generation === last.generation
+      );
+    }
+    if (sequence !== last.sequence + 1) {
+      return false;
+    }
+    if (next.snapshot) {
+      return this.#staleMarked && generation === last.generation + 1;
+    }
+    return !this.#staleMarked && generation === last.generation;
   }
 }
 

@@ -4,7 +4,7 @@ import type { Page } from "@playwright/test";
 
 const THEME_OPTIONS = ["System", "Light", "Dark"] as const;
 const DENSITY_OPTIONS = ["Comfortable", "Compact"] as const;
-const VIEWS = ["Home", "Talos", "Settings"] as const;
+const VIEWS = ["Home", "Talos", "Workloads", "Settings"] as const;
 
 /** The design's comfortable workspace, its lower adaptation bound, and the minimum window size. */
 const WINDOW_SIZES = [
@@ -33,6 +33,7 @@ test("the browser shell stays accessible and fails closed without native transpo
   );
   await expect(statusBar).toContainText("Cluster: none connected");
   await expect(statusBar).toContainText("Talos: no context");
+  await expect(statusBar).toContainText("Kubernetes: no session");
   await expect(statusBar).toContainText("Credentials: desktop application only");
   await expectNoAccessibilityViolations(page);
 
@@ -58,6 +59,11 @@ test("the browser shell stays accessible and fails closed without native transpo
   await navigation.getByRole("button", { name: "Talos" }).click();
   await expect(page.getByRole("heading", { name: "Talos read probe" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Import Talos config" })).toBeDisabled();
+  await expectNoAccessibilityViolations(page);
+
+  await navigation.getByRole("button", { name: "Workloads" }).click();
+  await expect(page.getByRole("button", { name: "Load saved contexts" })).toBeDisabled();
+  await expect(page.getByRole("heading", { name: "Kubernetes workloads" })).toBeVisible();
   await expectNoAccessibilityViolations(page);
 
   await navigation.getByRole("button", { name: "Settings" }).click();

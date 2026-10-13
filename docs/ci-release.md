@@ -1,5 +1,22 @@
 # GitHub quality gate and preview releases
 
+## Foundation checks: triggers, scope, and caching
+
+The `Foundation checks` workflow ([check.yml](../.github/workflows/check.yml)) runs on pushes to `main`, on pull requests, on manual dispatch, and as the release workflow's QA gate. It does not run on pushes to other branches, so a branch is checked once it has a pull request. [Decision 0014](decisions/0014-ci-scope-and-caching.md) records the reasons and the owner's choices.
+
+| Event                                | Desktop runners                                              | Can skip the desktop matrix |
+| ------------------------------------ | ------------------------------------------------------------ | --------------------------- |
+| Pull request                         | `ubuntu-22.04`, `macos-15`, `windows-2022`                   | Yes, for documentation only |
+| Push to `main`, release QA, dispatch | `ubuntu-22.04`, `macos-15`, `macos-15-intel`, `windows-2022` | No                          |
+
+A newer push to a pull request cancels that pull request's running `Foundation checks` and `Security scans`. Runs for every other event are grouped by commit and are not cancelled.
+
+The `Decide desktop scope` job runs `node scripts/ci-desktop-scope.ts`. On a pull request it finds the newest ancestor commit whose desktop jobs all passed and skips the matrix only when every path that differs from it is Markdown under `docs/`, Markdown in the repository root, or under `.agents/`. Its log line states the decision and the comparison commit. If no such commit is found, or the GitHub API or history cannot be read, the matrix runs and the run shows a `Desktop scope` warning. To run all four runners on a branch regardless, use **Actions → Foundation checks → Run workflow**.
+
+Each desktop job restores compiled Rust dependencies with `actions/cache` **v6.1.0**, pinned to commit `55cc8345863c7cc4c66a329aec7e433d2d1c52a9`. The key is `cargo-v1-<runner>-<hash of rust-toolchain.toml and src-tauri/Cargo.lock>`, with no fallback key. A job that misses the cache and completes its last build, the release example compiled by `pnpm test:native`, removes the first-party artifacts and saves the entry, even if a later test step fails; a job that hits the cache saves nothing. A change to `Cargo.lock` or the toolchain therefore costs one uncached run per runner. To discard every entry, change the `cargo-v1` prefix in the workflow. The release `assets` jobs do not use this cache.
+
+`cargo audit` and `pnpm advisories:check` run in the Linux desktop job only: both read `src-tauri/Cargo.lock`, which is the same file on every runner.
+
 ## Security scans: CodeQL and Trivy
 
 The `Security scans` workflow ([security.yml](../.github/workflows/security.yml)) runs on pushes to `main`, pull requests targeting `main`, a weekly schedule, manual dispatch, and as a reusable workflow for an exact release revision. It replaced the SonarCloud gate on 2026-10-08. SonarCloud never produced an analysis for this repository: the app-check gate in run 37811900492 and the CI-scanner gate in run 37815070833 both failed, and the owner directed its removal.
@@ -17,11 +34,11 @@ Any new exception needs one finding ID, a path, a statement, and an expiry date.
 Repository setup:
 
 1. Leave GitHub's code scanning **default setup** disabled. Code scanning rejects uploads from an advanced workflow while default setup is enabled.
-2. Protect `main` with required checks for the three **CodeQL** jobs, **Trivy filesystem scan**, **renderer**, and all four **desktop** matrix jobs. The workflow files create these checks; they do not change branch-protection settings.
+2. Protect `main` with required checks for the three **CodeQL** jobs, **Trivy filesystem scan**, and **Foundation checks result**. That job fails unless the scope and renderer jobs passed and the desktop matrix either passed or was skipped by the scope decision. Do not require the individual **desktop** jobs: a pull request has no `macos-15-intel` job, and a skipped matrix reports no per-runner check, so those requirements would never be met. The workflow files create these checks; they do not change branch-protection settings.
 
 The desktop and release jobs need `protoc` because `prost-build` compiles the helper schema in `src-tauri/build.rs`, and hosted runners do not ship it. The local [`install-protoc`](../.github/actions/install-protoc/action.yml) action downloads the pinned 36.2 archive for the runner's platform, verifies its SHA-256, and adds it to `PATH`; a runner platform with no recorded digest fails the step. [`.gitattributes`](../.gitattributes) checks text out with LF on every platform, because rustfmt (`newline_style = "Unix"`) and the byte-for-byte generated-output comparisons reject the CRLF checkout that Git for Windows otherwise produces.
 
-The desktop job's limit is 75 minutes. The `macos-15-intel` runner is roughly three times slower than `macos-15` on the Rust steps: at `88983a8` one passing run took 38 minutes, and a second was cancelled by the earlier 45-minute limit after every executed step had passed, with about five minutes of work left.
+The desktop job's limit is 75 minutes, sized for a run with no cached dependencies. The `macos-15-intel` runner is roughly three times slower than `macos-15` on the Rust steps: at `88983a8` one uncached passing run took 38 minutes, at `1a4bbd0` one took 57, and an earlier one was cancelled by the previous 45-minute limit after every executed step had passed, with about five minutes of work left.
 
 No repository secret is required. Fork pull requests get a read-only token; their scans still run and gate, but their code-scanning upload can be refused.
 

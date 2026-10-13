@@ -1,0 +1,983 @@
+# Foundation finish series: ledger
+
+This is the progress record for the [foundation finish series](README.md). **Every session must update it**, including a session that only investigates, gets blocked, or changes nothing.
+
+## How to update this ledger
+
+1. **Before your first edit**, set your document's row in the status board to `in progress` and fill in the date.
+2. **Before you commit**, append one entry to the session log using the template at the end of this file. Entries are append-only: never rewrite or delete an earlier entry. To correct one, add a new entry that names the entry it corrects.
+3. **In the same change**, update the status board row: status, last commit, date, and the next action.
+4. Add any new blocker, question, deferred row, or unverified assumption to its section below. When one is resolved, mark it resolved with the date and the entry that resolved it. Do not delete it.
+5. Update the checkpoint table in the [milestone ledger](../../verification/milestone-1.md#checkpoint-status-and-acceptance-criteria) when a checkpoint's status changes, and link the entry here. Packet evidence for this series is written here, not there.
+6. Keep entries factual. Record commands as they were run and results as they were printed. A check that did not run is listed as unexecuted with its reason.
+
+Status values: `not started`, `in progress`, `blocked` (name the blocker), `done`, `deferred` (owner decision; name the missing resource).
+
+A document is `done` only when every acceptance case in it has recorded evidence, its gates pass on the committed tree, and its exit condition in the [plan](../foundation-completion-flash.md) is met. Otherwise it stays `in progress` or `blocked`.
+
+## Status board
+
+| Document                                                                        | Packet           | Status      | Last commit | Updated    | Next action                                                                                                                                     |
+| ------------------------------------------------------------------------------- | ---------------- | ----------- | ----------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | blocked     | this commit | 2026-10-13 | Blocker B7: the fixture firewall remediation (runbook step 3) was denied by the permission policy. Resume at runbook step 3 once Q5 is answered |
+| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | done        | this commit | 2026-10-13 | Document 03: F4 Kubernetes watch                                                                                                                |
+| [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | done        | this commit | 2026-10-13 | Document 04: F5 Kubernetes version fixtures                                                                                                     |
+| [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started | —           | 2026-10-12 | After 03                                                                                                                                        |
+| [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                                                                           |
+| [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | not started | —           | 2026-10-12 | After 05                                                                                                                                        |
+| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started | —           | 2026-10-12 | After 06; mind the 2026-11-30 date below                                                                                                        |
+| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | —           | 2026-10-12 | After 07                                                                                                                                        |
+| [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-12 | After 08                                                                                                                                        |
+| [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                                                                          |
+
+## Standing owner decisions
+
+Recorded on 2026-10-12 and 2026-10-13. Their full wording is in the series [README](README.md#what-the-owner-has-decided).
+
+| Date       | Decision                                                                                                                                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-10-12 | Milestone 1 may stay open. The macOS and Windows rows are deferred and do not block milestone 2                                                                                                                                             |
+| 2026-10-12 | The owner has no macOS or Windows machine                                                                                                                                                                                                   |
+| 2026-10-12 | The fixture-scoped host firewall remediation may be applied in the session, exactly as the allowlist records it                                                                                                                             |
+| 2026-10-12 | Pushing to `ft-foundation-completion` is permitted; no force-push, tags, releases, or push to `main`                                                                                                                                        |
+| 2026-10-12 | The fixture may shadow the VPN route covering `10.79.0.0/24` indefinitely (answers Q1)                                                                                                                                                      |
+| 2026-10-12 | The owner opened pull request 2 from this branch to `main` (answers Q2). Sessions never merge, close, retarget, or edit it                                                                                                                  |
+| 2026-10-12 | A node reboot that outlasts the reconnect budget ends the Talos subscription; the retry policy is unchanged (decision 0013)                                                                                                                 |
+| 2026-10-12 | F1 is closed with its live retry-exhaustion row re-scoped to F1a; F2 is accepted                                                                                                                                                            |
+| 2026-10-13 | Move the Kubernetes server-version preflight to document 02 and record it before any fixture test (answers Q3)                                                                                                                              |
+| 2026-10-13 | `talosctl` never loads the ambient host configuration in a fixture session: `version --client` for the binary, an explicit fixture `--talosconfig` for every server command, and `TALOSCONFIG` on an existing empty guard file (answers Q4) |
+| 2026-10-13 | A commit that changes only the ledger gets no follow-up commit for its hosted result; the next working session records it in its own entry                                                                                                  |
+
+Add a row when the owner decides something new. Quote the owner's words or cite where they are recorded.
+
+## Dates that matter
+
+| Date       | What happens                                                                                                                                | Owner document |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| 2026-11-30 | Both Trivy exceptions in `.trivyignore.yaml` expire. The security workflow and the release gate fail afterwards until they are re-evidenced | 07             |
+
+## Blockers
+
+| ID  | Opened     | Blocker                                                                                                                                                                                                                          | Affects                                                          | Status                                                                                                                                                                                                                                  |
+| --- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | 2026-10-12 | `git push` failed with HTTP 403 for the stored account `TIT-IT`                                                                                                                                                                  | Every hosted-CI row; F9.0 in document 08                         | Resolved 2026-10-12: the owner switched the remote to SSH and `b662b1a` was pushed                                                                                                                                                      |
+| B2  | 2026-10-12 | `gh` is not installed, and no session has yet read a hosted CI result from this host                                                                                                                                             | Recording hosted-CI results; F9.0 in document 08                 | Resolved 2026-10-12: the owner installed and configured `gh`; hosted runs were read the same day                                                                                                                                        |
+| B3  | 2026-10-12 | Hosted `desktop (windows-2022)` failed at `b662b1a` and `481421a` in `go test`: `TestProbeCancellationDuringBackoffEndsCleanly` raced its cancellation against the first reconnect attempt                                       | Hosted evidence for every commit until fixed                     | Resolved 2026-10-12: fixed in `aaedf79`, whose hosted run 38301882786 passed all five jobs                                                                                                                                              |
+| B4  | 2026-10-12 | Document 01's live cases require runbook step 5's Kubernetes server-version preflight; the owner directed that preflight to document 02, so document 01 remains incomplete until document 02 records it                          | Document 01 live harness                                         | Resolved 2026-10-13: document 02 recorded Kubernetes v1.36.5 in the 2026-10-13 session entry                                                                                                                                            |
+| B5  | 2026-10-13 | The command permission filter rejected starting the native test because its invocation included `rm -rf` cleanup for the private XDG directory; the Tauri/WebDriver run did not start                                            | Document 02 Part B step 8 native IPC and capability verification | Resolved 2026-10-13: a fresh private XDG directory with no explicit shell cleanup ran the native Tauri suite successfully (this entry)                                                                                                  |
+| B6  | 2026-10-13 | The fixture runbook's `talosctl version` preflight used the host's ambient Talos configuration and returned server `10.0.10.79`, outside the fixture allowlist. Fixture work stopped before provisioning or Kubernetes requests. | Document 02 Part D live fixture                                  | Resolved 2026-10-13: the owner answered Q4; the runbook and allowlist now require a client-only binary check, explicit fixture configurations, and an existing empty `TALOSCONFIG` guard (entry "owner answers Q4 and the ledger rule") |
+
+| B7 | 2026-10-13 | The session's permission policy denied the fixture firewall remediation (runbook step 3, `sudo -n firewall-cmd --permanent --new-zone=talos-pilot-c4`) and then a read-only host check (`firewall-cmd --get-zones`). The denied command chain did not run, so no host state was changed. The owner's decision 3 permits the remediation, but the policy did not | Document 01 Part B; every fixture document (02 to 04) | Open 2026-10-13. Needs Q5 |
+
+## Questions for the owner
+
+| ID  | Asked      | Question                                                                                                                                                                                                                                                                                                                                                                                                             | Needed by                                             | Answer                                                                                                                                                                     |
+| --- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | 2026-10-12 | The fixture network `10.79.0.0/24` sits inside a VPN route on the host. The owner accepted shadowing it for the 2026-10-12 run only. Is that accepted from now on?                                                                                                                                                                                                                                                   | The first fixture session, document 01                | Answered 2026-10-12: allowed indefinitely                                                                                                                                  |
+| Q2  | 2026-10-12 | The security workflow (CodeQL and Trivy) runs only for pushes and pull requests to `main`. Exact-commit scan results for this branch need a pull request to `main`. May a session open one, as a draft, when document 07 needs the results?                                                                                                                                                                          | Document 07                                           | Answered 2026-10-12: the owner opened pull request 2 to `main`; the security scans now run for each push                                                                   |
+| Q3  | 2026-10-12 | Runbook step 5 requires the live Kubernetes server version before any fixture test, while its rule says Kubernetes actions are authorized only once the allowlist names them and document 02 adds those actions. May document 01 add a single read-only version request to the fixture API, or should that preflight move to document 02?                                                                            | Document 01, before the next fixture test             | Answered 2026-10-13: move the preflight to document 02; record the version there before any fixture test                                                                   |
+| Q4  | 2026-10-13 | The fixture runbook says to confirm the pinned `talosctl` version with `talosctl version`, but that command loads the host's ambient config and contacted server `10.0.10.79`. May the runbook be amended to use `talosctl version --client` for the binary and, after provisioning, `talosctl --talosconfig /tmp/tpc4/talosconfig version` for the fixture server?                                                  | Before resuming Document 02 Part D                    | Answered 2026-10-13: approved, with a `TALOSCONFIG` guard added. The guard must name an existing empty file, because a missing one falls back to the ambient configuration |
+| Q5  | 2026-10-13 | Decision 3 permits the fixture firewall remediation in the session, but the session's permission policy denied the first `sudo -n firewall-cmd` command of runbook step 3, and then denied a read-only `firewall-cmd` check. May the owner add a permission rule for exactly the runbook's step 3 and step 7 `firewall-cmd` and `iptables` commands, so the session can run document 01? Or should document 01 wait? | Document 01 Part B, before any fixture is provisioned | Open                                                                                                                                                                       |
+
+## Deferred and carried rows
+
+Rows that no current document closes, or that a named document must pick up. A row leaves this table only by being executed, with a link to the entry that did it.
+
+| Row                                                                                                | Owner                         | Why it is open                                                                                                                                         |
+| -------------------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| macOS 13.3 and current, Apple Silicon and Intel: clean install, Keychain, helper, CSP              | Document 10                   | Deferred by the owner; no macOS machine                                                                                                                |
+| Windows 11: NSIS and WebView2 install, Credential Manager, helper lifecycle                        | Document 10                   | Deferred by the owner; no Windows machine                                                                                                              |
+| Mutual-TLS client handshake against a real API server                                              | Document 02                   | Resolved 2026-10-13: the allowlisted fixture kubeconfig uses inline client certificate/key and its admin `/version` read succeeded; this session entry |
+| Basic-auth client handshake                                                                        | Unassigned                    | Selection and rejection tests only; no live endpoint is planned                                                                                        |
+| Live cancellation during an in-flight reconnect attempt or backoff                                 | Unassigned                    | Deterministic evidence only; the 2026-10-12 live cancellation landed on an established stream                                                          |
+| Real OS-vault restart of a Kubernetes credential on Linux                                          | Document 08                   | Unit tests use injected keys; the packaged run can exercise the Secret Service                                                                         |
+| Packaged-installer helper startup                                                                  | Document 08, then document 10 | Belongs to F9                                                                                                                                          |
+| R3: helper status and probe serialization                                                          | Deferred                      | No feature polls helper status during a probe; deliver its contract first if one does                                                                  |
+| Legacy Kubernetes 1.33 and 1.34 browsing and migration                                             | Later milestone               | Outside milestone 1                                                                                                                                    |
+| Remove the unused synthetic server and its request-count assertions from the fixture identity test | Document 03                   | The assertions cannot fail; found by the 2026-10-13 verification entry                                                                                 |
+| Deterministic test that the Kubernetes harness stops when the server reports an unexpected version | Document 04                   | Only the manifest's expected version is tested; found by the 2026-10-13 verification entry                                                             |
+
+## Unverified assumptions
+
+Statements the code or a decision record relies on that only a live run can confirm. The owner document must confirm or refute each one and record which.
+
+| Assumption                                                                                                                         | Source        | To be checked by                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------------- | -------------------------------------------------- |
+| A frozen worker makes the liveness read wait for its 15-second deadline; stale within 45 s, `TALOS_UNAVAILABLE` within about 92 s  | Decision 0013 | Document 01                                        |
+| An idle healthy stream stays current for longer than the 30-second window                                                          | Decision 0013 | Document 01                                        |
+| A suspend released at the stale marker recovers under the next generation                                                          | Decision 0013 | Document 01                                        |
+| The official client's watch retry keeps a broken connection silent to the helper, and a rebooted node rejects the earlier bookmark | Decision 0013 | Document 01                                        |
+| A reboot that outlasts the stale bound plus the budget ends `TALOS_UNAVAILABLE`                                                    | Decision 0013 | Document 01                                        |
+| Power loss and partition behave like a freeze                                                                                      | Decision 0013 | Unassigned; no fixture action is designed for them |
+
+## Session log
+
+Entries are appended below, oldest first.
+
+### 2026-10-12 — series created
+
+- **Document:** none (planning).
+- **Session:** owner-directed review and planning; base and final revision: the commit that adds this series.
+- **What changed:** the series documents, this ledger, and pointers from the foundation plan, the milestone 2 plan, the milestone ledger, and the repository README.
+- **Why:** the owner asked for per-packet implementation documents with a shared ledger, and decided that milestone 1 may stay open for the macOS and Windows rows without blocking further work.
+- **Evidence:** documentation only. `pnpm format:check`, `git diff --check`, and a local link and anchor check of the changed Markdown files.
+- **Unexecuted:** every packet in the status board.
+- **Next:** document 01.
+
+### 2026-10-12 — hosted CI access, and a flaky helper test
+
+- **Document:** none (series maintenance, before document 01).
+- **Session:** Claude Opus 5.5; base revision `481421a`; final revision: the commit carrying this entry.
+- **Status after this session:** no document status changed. Blockers B1 and B2 are resolved; B3 is fixed locally and awaits its hosted confirmation.
+- **Acceptance cases:** none.
+- **What changed:**
+  - `helper/cmd/talos-pilot-helper/main_test.go`: `TestProbeCancellationDuringBackoffEndsCleanly` now uses the injected fake clock and waits for the pending 30-second backoff before it cancels. No production code changed.
+  - Series README and documents 04, 07, and 08: `gh` is available; the conditional wording about unreadable hosted results no longer names B2.
+- **Commands and results** (openSUSE Tumbleweed x86_64, Go 1.27.2):
+  - `gh auth status`: signed in as `agiledevel`. `gh run list --branch ft-foundation-completion`: runs 38299801331 (`b662b1a`) and 38300140517 (`481421a`).
+  - Both runs, read while still in progress: `renderer` success; `desktop (windows-2022)` failure in the step "Verify Go helper source and modules", `--- FAIL: TestProbeCancellationDuringBackoffEndsCleanly`, "unexpected frame after cancellation" with an error frame; `desktop (ubuntu-22.04)`, `desktop (macos-15)`, and `desktop (macos-15-intel)` still in progress when read.
+  - Before the fix, `go test -run 'TestProbeCancellationDuringBackoffEndsCleanly$' -count=3000 ./cmd/talos-pilot-helper/`: 51 failures, so the race is not specific to Windows.
+  - After the fix: the same command with `-count=5000` passes; `-count=2000 -cpu=1,4` passes; `-race -count=300` passes; the whole package with `-count=300` passes; the whole package with `-race -count=40` passes.
+  - `gofmt -l .` prints nothing; `go vet ./...`, `go build ./...`, `go test -count=1 ./...`, and `go test -race -count=1 ./...` pass.
+  - `pnpm format:check`, `git diff --check`, and the local link and anchor check pass.
+- **Evidence class:** deterministic tests and hosted CI results only. No native run and no real cluster.
+- **Fixture:** none.
+- **Failed or unexecuted:**
+  - The hosted Ubuntu and macOS desktop jobs of both runs were not read to completion. They are in progress, not passed.
+  - The hosted run for this entry's commit has not been read. Until it is, the Windows fix is confirmed locally only.
+- **Review findings:**
+  - The test cancelled as soon as it read the stale marker. The stale marker is sent before the first reconnect attempt, so the cancellation could cross that attempt's failure. The helper then reports the failure instead of a clean cancelled end, which is its documented disposition for a terminal outcome that races a cancellation. The test was wrong, not the helper.
+  - The test dates from commit `f9d56a8`. No hosted run had executed it, because pushes had failed since `c310fbd`. The F1a handoff's stress runs covered only the `TestStall` tests.
+  - The carried row "Live cancellation during an in-flight reconnect attempt or backoff" is related: a cancellation that lands during an attempt can end with that attempt's failure. That is existing behavior and is unchanged here.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** B3.
+- **Next:** read the hosted result for this entry's commit, all five jobs, and record it in the next entry. If the Windows job still fails, fix that before document 01.
+
+### 2026-10-12 — hosted results for `b662b1a`, `481421a`, and `aaedf79`
+
+- **Document:** none (series maintenance, before document 01).
+- **Session:** Claude Opus 5.5; base revision `aaedf79`; final revision: the commit carrying this entry.
+- **Status after this session:** no document status changed. Blocker B3 is resolved. No blocker is open.
+- **Acceptance cases:** none.
+- **What changed:** this ledger only.
+- **Commands and results:** `gh run view` on each run, read after it completed.
+
+  | Commit    | Run         | renderer | ubuntu-22.04 | windows-2022 | macos-15 | macos-15-intel | Run result |
+  | --------- | ----------- | -------- | ------------ | ------------ | -------- | -------------- | ---------- |
+  | `b662b1a` | 38299801331 | success  | success      | failure      | success  | success        | failure    |
+  | `481421a` | 38300140517 | success  | success      | failure      | success  | success        | failure    |
+  | `aaedf79` | 38301882786 | success  | success      | success      | success  | success        | success    |
+
+  Both Windows failures were in the step "Verify Go helper source and modules", in `TestProbeCancellationDuringBackoffEndsCleanly`, the test `aaedf79` corrects.
+
+- **Evidence class:** hosted CI. The desktop jobs include the native Tauri tests on each runner. No real cluster.
+- **Fixture:** none.
+- **Failed or unexecuted:**
+  - The hosted run for this entry's commit has not been read. It changes documentation only.
+  - No security workflow run exists for this branch. That workflow runs only for pushes and pull requests to `main` and on a weekly schedule, so the CodeQL and Trivy results for these commits are unexecuted. See question Q2.
+  - These are hosted macOS 15 and Windows Server 2022 runners. They are not macOS 13.3 or Windows 11 qualification, and no installer was built.
+- **Review findings:** the stall detection of `b662b1a` passed on every runner except for the unrelated flaky test, and passes on all five at `aaedf79`.
+- **Assumptions confirmed or refuted:** none; those need the live fixture.
+- **Questions and blockers raised:** Q2.
+- **Next:** document 01.
+
+### 2026-10-12 — pull request 2 opened by the owner
+
+- **Document:** none (series maintenance, before document 01).
+- **Session:** Claude Opus 5.5; base revision `f2c09b6`; final revision: the commit carrying this entry.
+- **Status after this session:** no document status changed. Question Q2 is answered.
+- **Acceptance cases:** none.
+- **What changed:** this ledger, the series README, and document 07, to reflect the pull request and how to read its checks.
+- **Commands and results:** `gh pr list --head ft-foundation-completion`: pull request 2, "Foundation Next", base `main`, not a draft, head `f2c09b6`. `gh run list`: for `f2c09b6`, foundation checks 38308644370 (push) and 38309157781 (pull request) and security scans 38309157790 (pull request), all in progress when read.
+- **Evidence class:** none; no result was read to completion.
+- **Fixture:** none.
+- **Failed or unexecuted:** the three runs for `f2c09b6` and the runs for this entry's commit are in progress or not started. None is a pass yet.
+- **Review findings:** neither workflow sets a concurrency group, so a later push does not cancel an earlier run. Results for an older commit stay readable.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** none.
+- **Next:** document 01. Its session first reads and records the results of the runs named above, including the first CodeQL and Trivy results for this branch. A failing scan is a finding for document 07; record it and carry on with document 01 unless it shows a defect in code that document 01 touches.
+
+### 2026-10-12 — document 01, harness changes and fixture preflight
+
+- **Document:** 01, F1a step 4, Part A and the start of Part B.
+- **Session:** GPT-6; base revision `1a4bbd0`; final revision: this commit.
+- **Status after this session:** blocked by Q3. The harness changes compile and the host is restored; live acceptance evidence is still unexecuted.
+- **Acceptance cases:** (1) unexecuted, no harness run; (2) unexecuted, no harness run; (3) unexecuted, no harness run; (4) unexecuted, no harness run; (5) unexecuted, no harness run; (6) unexecuted as a live case, though the suspend guard resumes its exact worker PID on drop; (7) unexecuted, the six earlier live rows were not run; (8) passed, the host matches its captured baseline.
+- **What changed:** `src-tauri/tests/talos_fixture.rs` restores fixture-scoped QEMU suspend/resume helpers, moves `talosctl reboot` to `spawn_blocking`, adds the three F1a live cases, and measures the reboot outage before asserting its corresponding outcome. The fixture allowlist status records this preflight. This ledger records the hosted evidence, Q3, and the handoff.
+- **Commands and results** (openSUSE Tumbleweed x86_64, Node 26.11.1, pnpm 12.10.1, Rust 1.99.0, Go 1.27.2, protoc 36.2):
+  - Node 26.11.1 was downloaded to `/tmp/talos-f1a-tools` and verified against Node's `SHASUMS256.txt`; pnpm 12.10.1 was installed into that private Node prefix. Rust 1.99.0 came from the pinned rustup toolchain with `~/.cargo/bin` first on `PATH`; Go 1.27.2 came from the recorded module cache; protoc 36.2 matched `.github/actions/install-protoc/action.yml` SHA-256 `121f6c7afe1d4d0e3ea6aab9432038599250134cbf4474cb1167d2c7decd4278`.
+  - `src-tauri/.local-tools/talosctl version --client`: v1.14.2. Its SHA-256 `c6c9552b0e5f767352c595fa1c0af4f186f697488646872955057d23990a66c4` matched the v1.14.2 release `sha256sum.txt` entry.
+  - `pnpm format`, `pnpm format:check`, `pnpm format:rust:check`, and `git diff --check`: pass.
+  - `cargo test --manifest-path src-tauri/Cargo.toml --locked --test talos_fixture --no-run`: pass; the nine ignored live tests compile.
+  - `cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings` and the same command with `--features native-test`: pass.
+  - `cargo test --manifest-path src-tauri/Cargo.toml --locked --all-targets` and the same command with `--features native-test`: pass, 95 passed and one unrelated native-vault test ignored in each configuration; the nine Talos fixture tests are ignored by default.
+  - `cargo test --manifest-path src-tauri/Cargo.toml --locked --doc`: pass, zero doctests.
+  - `RUSTDOCFLAGS="-D warnings" cargo doc --manifest-path src-tauri/Cargo.toml --locked --no-deps`: pass.
+  - `cargo build --manifest-path src-tauri/Cargo.toml --locked`: pass.
+  - `gh pr checks 2`: security run 38309345000 for the pre-change revision `1a4bbd0` passes all four jobs (CodeQL actions, JavaScript/TypeScript, Rust, Trivy filesystem). Foundation push run 38309345023 and PR run 38309339162 are still running; each had renderer and Ubuntu pass, with the remaining platform jobs pending when read. For parent revision `f2c09b6`, push run 38308644370 and PR run 38309157781 were still running when read. PR job `desktop (windows-2022)` failed in `helper::supervisor::tests::reaps_child_when_request_id_space_is_exhausted`, panicking that the temporary helper binary must be removable; other PR platform jobs and push macOS 15 Intel had not completed. Security run 38309157790 passes all four jobs. The Windows failure is outside this document's changes. Hosted runs for the commit carrying this entry have not started yet.
+  - Fixture baseline: default zone `public`; zones `block dmz docker drop external home internal libvirt libvirt-routed nm-shared public trusted work`; active zones were Docker, libvirt (`virbr0`), and public (`enp13s0`, `tun0`); the original FORWARD and POSTROUTING rules had no `10.79.0` match; route was `10.79.0.2 dev tun0 src 172.23.11.5`; no QEMU process, fixture bridge, fixture address, or `/tmp/tpc4` state existed.
+  - Provisioned `talos-pilot-c4-20261009` with the runbook command: Talos v1.14.2, requested Kubernetes v1.36.5, three control planes and one worker; no bootstrap fallback. Bound only `talosb8c871e1` and its four attached veths to `talos-pilot-c4`, and applied the five exact allowlisted iptables rules. `talosctl version` returned v1.14.2 on control plane `10.79.0.2` and worker `10.79.0.5`; the worker's MachineStatus reported `running`. The provisioner reported endpoint `https://10.79.0.1:6443` and nodes `10.79.0.2`–`10.79.0.5`. The Kubernetes server version, three Talos node versions, context identities, and role-scoped client configurations were not verified because of Q3; no Kubernetes API request or fixture harness command ran.
+  - Runbook step 7: destroyed the fixture with the exact fixture ID and state path; removed the five corresponding iptables rules, deleted the temporary firewalld zone, and removed `/tmp/tpc4` and `/tmp/talos-pilot-c4-20261009`. Restoration matches the baseline: both `10.79.0` rule counts are `0`, zone/default/active-zone lists match, no QEMU process or fixture interface/address remains, and `10.79.0.2` routes through `tun0` again. Provision output is retained outside the repository at `/tmp/talos-f1a-tools/provision.log`.
+- **Evidence class:** deterministic Rust tests and build checks only. No native Tauri run and no real-cluster harness run.
+- **Fixture:** `talos-pilot-c4-20261009`, Talos v1.14.2, provisioned with requested Kubernetes v1.36.5, 3 control planes + 1 worker. Host baseline and restoration are above. No identities beyond the admin config were created; the F1a harness was not run.
+- **Failed or unexecuted:** F1a live harness and its seven live cases are unexecuted because runbook step 5 requires a Kubernetes server-version request that the current allowlist rules reserve for document 02; Q3 is open. Foundation runs 38309345023 and 38309339162 are in progress; no job for the commit carrying this entry has started yet. Prior PR run 38309157781 has a Windows test failure described above. macOS/Windows qualification is not established by this Linux session.
+- **Review findings:** found and corrected a stale source comment that said no test suspends the worker; the reboot row now logs stale timing relative to reboot start and measures freshness with a probe explicitly targeting the worker. The live tests assert their recovery/exhaustion contracts without changing production code or policy. Host restoration was checked separately against the saved baseline.
+- **Assumptions confirmed or refuted:** none. The live assumptions in decision 0013 remain unverified because the harness did not run.
+- **Questions and blockers raised:** Q3.
+- **Next:** first read the hosted runs for this commit to completion, including `gh pr checks 2`, both foundation runs, and security scans. Then resolve Q3 before any Kubernetes API request; if the allowlist is not amended for the version preflight, do not run the document 01 fixture tests.
+
+### 2026-10-12 — document 01, hosted run handoff
+
+- **Document:** 01, F1a step 4; hosted run recording only.
+- **Session:** GPT-6; base revision `b49ca11`; final revision: this commit.
+- **Status after this session:** blocked by Q3; no fixture behavior changed and live acceptance evidence remains unexecuted.
+- **Acceptance cases:** (1)–(7) unexecuted, blocked by Q3 as recorded above; (8) passed in the prior entry.
+- **What changed:** Updated the status board's first action and recorded the newly started hosted runs for `b49ca11`.
+- **Commands and results** (openSUSE Tumbleweed x86_64):
+  - `gh pr checks 2`: PR foundation run 38311908416 has renderer and all four desktop jobs pending.
+  - `gh run list --branch ft-foundation-completion --limit 8 --json databaseId,headSha,name,status,conclusion,createdAt`: push foundation run 38311912771 queued; security scan 38311912809 in progress. Both target `b49ca11e74afda6f13db6d5da361427191080d65`.
+- **Evidence class:** hosted run states only; no completed result is claimed for this commit.
+- **Fixture:** none touched in this recording-only session; fixture `talos-pilot-c4-20261009` was destroyed and the host restored in the preceding entry.
+- **Failed or unexecuted:** all three runs for `b49ca11` are queued or in progress. Their results must be read to completion in the next session.
+- **Review findings:** none; the entry records statuses returned by the GitHub CLI.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** Q3 remains open.
+- **Next:** first run `gh pr checks 2` and inspect runs 38311908416, 38311912771, and 38311912809 to completion. Then resolve Q3 before any Kubernetes API request; if the allowlist is not amended for the version preflight, do not run the document 01 fixture tests.
+
+### 2026-10-12 — document 01, latest ledger commit run states
+
+- **Document:** 01, F1a step 4; hosted run recording only.
+- **Session:** GPT-6; base revision `6acd9b0`; final revision: this commit.
+- **Status after this session:** blocked by Q3; live acceptance evidence remains unexecuted.
+- **Acceptance cases:** (1)–(7) unexecuted, blocked by Q3 as recorded above; (8) passed in the fixture session.
+- **What changed:** Recorded the queued hosted runs created by the prior ledger update commit.
+- **Commands and results** (openSUSE Tumbleweed x86_64):
+  - `gh pr checks 2`: PR foundation run 38311982305 queued with all five jobs pending.
+  - `gh run list --branch ft-foundation-completion --limit 8 --json databaseId,headSha,name,status,conclusion,createdAt`: push foundation run 38311987009 queued and security scan 38311987259 queued. Both and the PR run target `6acd9b081b3cbf76e7291c00a27f5c8c3534df68`.
+- **Evidence class:** hosted run states only; none of these runs has completed.
+- **Fixture:** none touched; the disposable fixture remains destroyed and the host restored as recorded in the fixture session entry.
+- **Failed or unexecuted:** runs 38311982305, 38311987009, and 38311987259 are queued; they must be read to completion next session.
+- **Review findings:** none; statuses match the GitHub CLI output.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** Q3 remains open.
+- **Next:** first read runs 38311982305, 38311987009, and 38311987259 to completion with `gh pr checks 2` and `gh run view`; then resolve Q3 before any Kubernetes API request or live fixture tests.
+
+### 2026-10-13 — document 02, allowlisted version preflight
+
+- **Document:** 02, F3 Part A steps 1–2 and Part D step 14 preflight only.
+- **Session:** GPT-6; base revision `38c5d29`; final revision: the commit carrying this entry.
+- **Status after this session:** in progress. The checked harness, exact F3 fixture scope, and live server-version preflight are recorded; the list implementation and remaining acceptance cases are not complete.
+- **Acceptance cases:** (1)–(9) unexecuted; (10) partially covered by manifest rejection unit cases, but wrong credential, endpoint, and live server-version rejection cases remain unexecuted; (11)–(12) unexecuted; (13) the version preflight passed, but a real Pod list remains unexecuted.
+- **What changed:**
+  - `scripts/kubernetes-fixture.ts` and `scripts/lib/kubernetes-fixture.ts`: add an explicit-file-only runner and validate the fixed fixture ID, endpoint, Kubernetes version, CA fingerprint, selected context, namespace, and exact setup/cleanup action lists before launching Rust.
+  - `scripts/lib/kubernetes-fixture.test.ts`: cover valid scope, changed identity/scope, and rejection of ambient or in-repository credentials.
+  - `src-tauri/tests/kubernetes_fixture.rs`: add an ignored live preflight using the production kubeconfig validator, credential store, session store, and version read; check endpoint and CA before opening a session.
+  - `tests/fixtures/talos-c4.json`, `docs/verification/fixtures/talos-c4-disposable.md`, and `package.json`: record the observed Kubernetes identity and CA hash, authorize only the exact namespaced setup/read/cleanup scope plus the preflight, and expose `pnpm kubernetes:fixture`.
+  - `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `docs/dependencies.md`, and the generated dependency inventory: pin dev-only `sha2` 0.10.9 for the CA fingerprint.
+  - This ledger: answer Q3, resolve B4, and record the preflight as the next session's prerequisite evidence for document 01.
+- **Commands and results** (openSUSE Tumbleweed x86_64; Node 26.11.1, pnpm 12.10.1, Rust/Cargo 1.99.0, Go 1.27.2, protoc 36.2):
+  - Verified the pinned Node archive against `SHASUMS256.txt`, protoc against `.github/actions/install-protoc/action.yml`, and `src-tauri/.local-tools/talosctl` against the v1.14.2 release checksum; the talosctl digest matched `c6c9552b0e5f767352c595fa1c0af4f186f697488646872955057d23990a66c4`.
+  - `pnpm format`, `pnpm check`: pass; renderer tests report 125 passed across 15 files, Svelte diagnostics report zero errors/warnings, and the production Vite build passes.
+  - `pnpm inventory:generate`, `pnpm inventory:check`: pass; inventory is current at 529 npm, 601 Cargo, and 143 Go modules.
+  - `pnpm install --frozen-lockfile`, `pnpm audit --audit-level=low`, `cargo audit --file src-tauri/Cargo.lock`, `pnpm audit:go`, and `pnpm advisories:check`: pass. npm and Go reported no called-code vulnerabilities; Rust retained the two documented GTK3 warnings, and the advisory baseline matched the scanner, dependency paths, and linked executable.
+  - `pnpm helper:build`: pass. `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, clippy with and without `native-test`, default and `native-test` `cargo test --all-targets`, `cargo test --doc`, `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`, and `cargo build --locked`: pass. The first default Rust test invocation failed because the generated Go helper did not exist; after `pnpm helper:build`, the same suite passed. The first native-feature invocation lacked the pinned protoc directory on `PATH`; rerunning with the pinned toolchain path passed.
+  - `pnpm kubernetes:fixture -- --manifest tests/fixtures/talos-c4.json --admin-kubeconfig /tmp/tpc4/kubeconfig`: first attempt failed before an API request because the harness assumed the Talos context name; the observed Kubernetes context was `admin@talos-pilot-c4-20261009`, which is now checked in the manifest and harness. The next invocation passed and printed `fixture preflight passed: Kubernetes v1.36.5 at the allowlisted endpoint`.
+  - `kubectl --kubeconfig /tmp/tpc4/kubeconfig version --output=json`: server `v1.36.5`, major 1, minor 36. The endpoint was `https://10.79.0.1:6443`. The live Kubernetes preflight and Talos API calls ran only against the allowlisted fixture.
+  - `gh pr checks 2`: for PR run 38312039901, renderer, Ubuntu, and Windows passed; macOS 15 and macOS 15 Intel remained pending. Push run 38312046110 had renderer, Ubuntu, and Windows pass, with both macOS jobs pending. Security run 38312045962 passed CodeQL actions, JavaScript/TypeScript, Rust, and Trivy. The runs for this entry's commit have not started yet.
+  - `git diff --check` passes. `pnpm format:check` was rerun after formatting the ledger entry and passes.
+- **Evidence class:** deterministic renderer and Rust checks passed; one live Kubernetes version read passed through the production Rust session store. No native Tauri window/capability run; this part adds no command or capability. No live Pod list yet.
+- **Fixture:** `talos-pilot-c4-20261009`, Talos v1.14.2 and Kubernetes v1.36.5, 3 control planes and 1 worker. Baseline saved at `/tmp/talos-f1a-tools/f3-baseline.txt`: default zone `public`; zones `block dmz docker drop external home internal libvirt libvirt-routed nm-shared public trusted work`; active Docker, libvirt, and public zones; no `10.79.0` iptables rules, QEMU process, fixture bridge/address, or `/tmp/tpc4`; `10.79.0.2` routed through `tun0`. All four nodes reported Talos v1.14.2. Endpoint and Kubernetes context were verified; cluster CA SHA-256 is recorded in the manifest. No bootstrap fallback was needed. No Kubernetes namespace or Pod was created. Runbook step 7 destroyed the fixture and removed the exact five forwarding/NAT rules and temporary firewalld zone. Both `10.79.0` rule counts are zero; zone/default/active-zone state, links/addresses, and route match the baseline exactly. Restoration snapshot: `/tmp/talos-f1a-tools/f3-restoration.txt`.
+- **Failed or unexecuted:** initial Node runner invocation failed because native Node TypeScript requires explicit `.ts` import extensions; fixed before the passing run. A fixture-unit assertion initially expected a generic error string; corrected to assert manifest rejection, then all 125 renderer tests passed. Full F3 list, restricted ServiceAccount read, namespace setup/UID cleanup, E2E, native window, audit, and list-related release gates are unexecuted because those implementation steps are still ahead. The fixture's client-certificate authentication type was not inspected before teardown; the carried mutual-TLS row remains open. macOS hosted jobs are pending, not passed. The version warning from kubectl describes its 1.34 client against the 1.36 server; the server result itself matches the fixture.
+- **Review findings:** validation rejects any nonempty ambient `KUBECONFIG`, requires the single checked manifest and an external bounded regular credential file, and checks the selected context, endpoint, and CA fingerprint before session creation or network access. The live first run caught the context-name assumption and the harness now pins the observed context. A separate review also caught a metadata/read race in the credential-size check; the Rust reader now stops at the maximum plus one byte, and its native-feature test target and clippy pass. Only the named version endpoint was contacted; no resource mutation occurred. Host state was restored and compared byte-for-byte at the saved command-output level.
+- **Assumptions confirmed or refuted:** the fixture endpoint is `https://10.79.0.1:6443` and its server reports Kubernetes v1.36.5. The current kubeconfig's CA fingerprint and selected context were confirmed and pinned. The carried mutual-TLS authentication assumption remains unverified.
+- **Questions and blockers raised:** none. Q3 answered and B4 resolved above.
+- **Next:** continue document 02 at Part A step 3: implement admin setup, the namespace-scoped restricted reader, and cleanup that first matches the recorded namespace UID. Re-provision via the runbook, refresh the manifest CA fingerprint before any API request, and inspect whether the kubeconfig uses a client certificate before teardown.
+
+### 2026-10-13 — document 02, hosted run handoff
+
+- **Document:** 02, hosted checks for the Part A preflight commit.
+- **Session:** GPT-6; base revision `2209863`; final revision: the commit carrying this entry.
+- **Status after this session:** in progress; the preflight is committed and pushed, and the hosted runs are not complete.
+- **Acceptance cases:** no new F3 case changed; document 02 remains as recorded in the preceding entry.
+- **What changed:** recorded the hosted run states for `2209863` and made reading those runs the next action.
+- **Commands and results** (openSUSE Tumbleweed x86_64):
+  - `gh run view 38315891463`: Foundation checks for `2209863`, status queued; renderer and Windows jobs were in progress, Ubuntu and both macOS jobs queued at inspection.
+  - `gh run view 38315903164`: second Foundation checks run for the same SHA, status queued; renderer and Ubuntu were in progress, Windows and both macOS jobs queued.
+  - `gh run view 38315897393`: Security scans for the same SHA, status queued; CodeQL jobs were in progress and Trivy was queued.
+  - `gh pr checks 2`: listed the above foundation and security jobs as pending; no completed result for `2209863` was available.
+- **Evidence class:** hosted run state only; no hosted check is recorded as passed.
+- **Fixture:** none; the fixture was already destroyed and the host restored as recorded in the preceding entry.
+- **Failed or unexecuted:** every hosted job for `2209863` remains in progress or queued. Read all three runs to completion; these statuses are not passes.
+- **Review findings:** none; states were read from the GitHub CLI and API.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** none.
+- **Next:** first read hosted runs 38315891463, 38315903164, and 38315897393 to completion with `gh pr checks 2` and `gh run view`. Then continue document 02 Part A step 3, implementing admin setup, the namespace-scoped restricted reader, and UID-anchored cleanup; re-provision only through the fixture runbook and refresh the CA fingerprint before any Kubernetes request.
+
+### 2026-10-13 — document 02, ledger handoff checks
+
+- **Document:** 02, hosted checks for the hosted-run handoff commit.
+- **Session:** GPT-6; base revision `f042e8a`; final revision: the commit carrying this entry.
+- **Status after this session:** in progress; all recorded runs are still pending or in progress.
+- **Acceptance cases:** no F3 acceptance case changed; see the preflight entry above.
+- **What changed:** recorded the current hosted states for `f042e8a`; the board now directs the next session to inspect the latest branch head so it also catches the workflow run triggered by this entry.
+- **Commands and results** (openSUSE Tumbleweed x86_64):
+  - `gh run view 38316055211`: Foundation checks, queued; Ubuntu was in progress and Windows, renderer, and both macOS jobs were queued at inspection.
+  - `gh run view 38316060975`: Foundation checks, queued; renderer and Windows were in progress and Ubuntu and both macOS jobs were queued.
+  - `gh run view 38316060918`: Security scans, in progress; all three CodeQL jobs and Trivy were in progress.
+  - `gh pr checks 2`: Trivy passed; all listed foundation and CodeQL jobs remained pending.
+- **Evidence class:** hosted status only; incomplete jobs are not passes.
+- **Fixture:** none; the fixture is destroyed and the host restored.
+- **Failed or unexecuted:** no result for the above foundation or security runs was complete. The follow-up workflow run for this entry's commit has not started yet.
+- **Review findings:** none.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** none.
+- **Next:** first inspect hosted checks for the latest `ft-foundation-completion` head with `gh pr checks 2`, `gh run list`, and `gh run view`; read every run to completion. Then continue document 02 Part A step 3: implement admin setup, the namespace-scoped restricted reader, and UID-anchored cleanup. Re-provision only through the runbook, refresh the CA fingerprint before Kubernetes requests, and inspect the kubeconfig authentication type before teardown.
+
+### 2026-10-13 — document 02, admin namespace setup and UID cleanup
+
+- **Document:** 02, F3 Part A steps 3–4 (admin-only namespace setup and UID-anchored cleanup; restricted reader setup remains unfinished).
+- **Session:** GPT-6; base revision `45c8a57`; final revision: the commit carrying this entry.
+- **Status after this session:** in progress; the live admin preflight and namespace create/delete passed, but ServiceAccount, Role, RoleBinding, Pod, token, and restricted-reader setup is still ahead.
+- **Acceptance cases:** (1)–(9) unexecuted; (10) manifest rejection unit coverage remains from the previous entry, while the live version gate passed; (11)–(12) unexecuted; (13) no real Pod list yet.
+- **What changed:**
+  - `src-tauri/src/kubernetes/session.rs`: expose a client clone only under `native-test` for the ignored disposable-fixture harness; production builds retain no generic client accessor.
+  - `src-tauri/tests/kubernetes_fixture.rs`: use the validated admin session to reject an existing namespace, create the allowlisted namespace, capture its UID, and delete with the UID as a server-side precondition; verify disappearance within a bounded 15 seconds.
+  - `tests/fixtures/talos-c4.json`: refresh the fixture CA fingerprint after reprovisioning and before the first Kubernetes API request.
+  - `docs/verification/fixtures/talos-c4-disposable.md`: record this run's endpoint, version, CA, client-certificate authentication, successful mTLS preflight, and namespace lifecycle result.
+- **Commands and results** (openSUSE Tumbleweed x86_64; Node 26.11.1, pnpm 12.10.1, Rust/Cargo 1.99.0, Go 1.27.2, protoc 36.2, talosctl v1.14.2):
+  - Verified Node, protoc, and talosctl SHA-256 against `/tmp/talos-f1a-tools/SHASUMS256.txt`, `.github/actions/install-protoc/action.yml`, and the downloaded Talos v1.14.2 `sha256sum.txt`; all matched. The unqualified system defaults were Node 24.21.0, Go 1.27.1, and no `protoc`; fixture commands used the pinned scratch paths.
+  - Captured the pre-provision host state in `/tmp/talos-f1a-tools/f3-session-2026-10-13-baseline.txt`. Applied only the allowlisted firewalld zone/interface and five iptables rules.
+  - `pnpm format:rust:check`, native-test `cargo clippy --all-targets -- -D warnings`, native-test `cargo test --all-targets`, and `cargo test --test kubernetes_fixture --no-run`: pass. Native-test suite: 95 passed, 1 ignored in the library; 5 Kubernetes session integration tests passed; fixture tests remained ignored in the all-targets run.
+  - `pnpm kubernetes:fixture -- --manifest tests/fixtures/talos-c4.json --admin-kubeconfig /tmp/tpc4/kubeconfig`: first attempt failed because Kubernetes kept the newly deleted namespace in `Terminating` after the API accepted deletion. Added a 15-second bounded disappearance check; the second live run passed and verified the namespace absent.
+  - `kubectl --kubeconfig /tmp/tpc4/kubeconfig version --output=json`: server `v1.36.5`, endpoint `https://10.79.0.1:6443`; selected context `admin@talos-pilot-c4-20261009`. The selected kubeconfig contains inline client certificate and key, with no token/basic credentials. The successful version call and harness `/version` read are real mTLS reads.
+  - All four Talos nodes reported v1.14.2 and members `10.79.0.2`–`10.79.0.5` were running. No bootstrap fallback was needed.
+  - Hosted runs targeting `45c8a57`: `gh pr checks 2` showed both renderer checks and CodeQL actions/JavaScript plus Trivy passed; CodeQL Rust was in progress and all desktop jobs were pending. Push Foundation run `38316124723` and PR Foundation run `38316129911` were queued; security run `38316129913` was in progress. None was read to completion.
+- **Evidence class:** Rust deterministic tests/build checks passed; a real Kubernetes `/version` read and namespace create/delete passed through the production Rust session client. No actual Tauri window/capability run and no Pod list.
+- **Fixture:** `talos-pilot-c4-20261009`, Talos v1.14.2 / Kubernetes v1.36.5, 3 control planes + 1 worker. Baseline is `/tmp/talos-f1a-tools/f3-session-2026-10-13-baseline.txt`. Runbook step 7 destroyed the fixture, removed the exact five iptables rules (both `10.79.0` counts were 0), deleted the temporary zone, removed `/tmp/tpc4` and state, and restored the default/active zones, zone list, links/addresses, and route (`10.79.0.2` again through `tun0`). No QEMU process or fixture interface/address remained.
+- **Failed or unexecuted:** the first namespace absence check failed due to asynchronous deletion; the bounded verification fixed it and the second live run passed. Restricted ServiceAccount/Role/RoleBinding, 201 Pods, token request, restricted identity read, all list behavior, native Tauri, browser E2E, and remaining F3 gates are unexecuted because the implementation is unfinished. Hosted checks for `45c8a57` are incomplete, not passes.
+- **Review findings:** the first live run exposed an immediate-read-after-delete race. Cleanup now supplies the namespace UID as a Kubernetes delete precondition, then polls only the named namespace under a 15-second deadline before claiming removal.
+- **Assumptions confirmed or refuted:** resolved the carried “Mutual-TLS client handshake against a real API server” row: client certificate/key authentication was present and the admin version request succeeded. Endpoint and version matched the manifest; refreshed the observed CA fingerprint before the request.
+- **Questions and blockers raised:** none.
+- **Next:** first read hosted runs for the latest branch head to completion with `gh pr checks 2`, `gh run list`, and `gh run view`. Then continue document 02 Part A step 3 by creating the restricted ServiceAccount, namespace-only Pod Role/RoleBinding, synthetic Pods, and short-lived ServiceAccount token under admin authority; ensure the restricted identity is used for probe reads. Re-provision only through the runbook and complete teardown/restoration.
+
+### 2026-10-13 — document 02, restricted reader fixture setup
+
+- **Document:** 02, F3 Part A steps 3–4, completing admin/setup separation and UID-anchored cleanup.
+- **Session:** GPT-6; base revision `f4e10e2`; final revision: the commit carrying this entry.
+- **Status after this session:** in progress; Part A setup and a restricted Pod read are complete. Bounded list implementation, IPC, view, and the remaining F3 acceptance cases are still ahead.
+- **Acceptance cases:** (1)–(9) unexecuted; (10) manifest rejection unit coverage and the live identity/version preflight are partial evidence, but the complete rejection matrix is not run; (11)–(12) unexecuted; (13) unexecuted because the real read was a named Pod GET, not the production paginated list.
+- **What changed:**
+  - `src-tauri/tests/kubernetes_fixture.rs`: create the allowlisted namespace, ServiceAccount, Pod-only Role and RoleBinding, exactly 201 inert Pods, and a 600-second token; serialize a minimal reader-only kubeconfig outside the repository, validate/import it through the normal Rust path, and use the restricted session to read one named Pod. Cleanup deletes the exact Pod names and named RBAC/ServiceAccount objects, then deletes the namespace with the recorded UID as a server-side precondition and verifies absence.
+  - `tests/fixtures/talos-c4.json`: refresh the second provisioning cycle's CA fingerprint before any API request.
+  - `docs/verification/fixtures/talos-c4-disposable.md`: record the complete setup, mTLS identity, restricted read, partial-failure cleanup, and host restoration.
+- **Commands and results** (openSUSE Tumbleweed x86_64; Node 26.11.1, pnpm 12.10.1, Rust/Cargo 1.99.0, Go 1.27.2, protoc 36.2, talosctl v1.14.2):
+  - `pnpm format:rust:check`, `cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --features native-test -- -D warnings`, and `cargo test --manifest-path src-tauri/Cargo.toml --locked --all-targets --features native-test`: pass. The suite reported 95 library tests passed, 1 ignored, and all 5 Kubernetes session integration tests passed; fixture-specific tests remained ignored in the broad suite.
+  - `pnpm kubernetes:fixture -- --manifest tests/fixtures/talos-c4.json --admin-kubeconfig /tmp/tpc4/kubeconfig`: first attempt rejected the generated reader kubeconfig because it used the admin context label as the cluster name. The second attempt rejected it because `kind: Config` and `apiVersion: v1` were missing. Both happened after setup; after each failure, the exact 201 Pod names and named RoleBinding, Role, and ServiceAccount were deleted, then the namespace was deleted with its UID precondition and verified absent. The corrected third invocation passed: admin version preflight, setup, reader credential validation/import/session open, GET of `list-probe-000` under the restricted identity, exact cleanup, and namespace absence.
+  - The second provisioning cycle reported endpoint `https://10.79.0.1:6443`, selected context `admin@talos-pilot-c4-20261009`, Kubernetes `v1.36.5`, and Talos `v1.14.2` on all four nodes. CA SHA-256 `f33619f91a6e1d2e4705576f500b7d798b2598ae465ba2d4c10406cbf3b45526` was checked into the manifest before the first API request. The admin kubeconfig had inline client certificate/key and no token/basic fields; `/version` succeeded over that mTLS identity.
+  - `gh pr checks 2`: for `f4e10e2`, both renderer jobs passed, CodeQL actions and JavaScript/TypeScript passed, and Trivy passed. Push Foundation run `38317325326` and PR Foundation run `38317331114` remained queued, with Windows and Ubuntu jobs in progress and both macOS jobs queued. Security run `38317331067` remained in progress: CodeQL actions/JavaScript and Trivy filesystem scan passed; CodeQL Rust was in progress. None of the three runs was read to completion.
+- **Evidence class:** deterministic Rust feature tests/build checks passed; a real `/version` read and one real namespaced Pod GET passed through production Rust session/client validation. The fixture setup mutations used the native-test harness. No actual Tauri window/capability run and no paginated Pod list.
+- **Fixture:** `talos-pilot-c4-20261009`, Talos v1.14.2 / Kubernetes v1.36.5, 3 control planes + 1 worker. Baseline `/tmp/talos-f1a-tools/f3-session-2026-10-13-second-baseline.txt`. No bootstrap fallback. Runbook step 7 destroyed the fixture, removed the exact five iptables rules (both `10.79.0` counts were 0), deleted the temporary firewalld zone, removed `/tmp/tpc4` and state, and restored zones, active interfaces, links/addresses, and route (`10.79.0.2` again via `tun0`). No QEMU process or fixture interface/address remained.
+- **Failed or unexecuted:** two reader-kubeconfig setup attempts failed as described above; both partial fixture setups were cleaned by exact resource names and UID-preconditioned namespace deletion, then verified absent. The third live setup/read/cleanup passed. The full F3 list behavior, pagination bounds, error states, native Tauri capability checks, browser E2E, and remaining list-related gates are unexecuted because Parts B–D are unfinished. Hosted checks for `f4e10e2` remain incomplete.
+- **Review findings:** the reader kubeconfig now contains only the fixture endpoint, CA, namespace, reader context, and ServiceAccount token; it excludes admin client certificate/key material. Pod image pulls are disabled. Namespace cleanup checks the UID and includes it as a server-side delete precondition, preventing a delete race from targeting a replacement namespace.
+- **Assumptions confirmed or refuted:** the second cycle reconfirmed the fixture's endpoint, Kubernetes version, and mTLS client-certificate authentication. The restricted ServiceAccount successfully read a Pod in its own namespace through the normal Rust credential/session path.
+- **Questions and blockers raised:** none.
+- **Next:** first read hosted runs for the latest branch head to completion using `gh pr checks 2`, `gh run list`, and `gh run view`. Then continue document 02 Part B step 5: implement backend-owned server-side pagination, namespace/selector validation, byte/field bounds, aggregate caps, and resource-version preservation.
+
+### 2026-10-13 — document 02, bounded Pod pagination foundation
+
+- **Document:** 02, F3 Part B step 5, initial bounded server-side Pod collection.
+- **Session:** GPT-6; base revision `c3ae5ef`; final revision: the commit carrying this entry.
+- **Status after this session:** in progress; pagination, caps, retry logic, and initial synthetic evidence are implemented. Hosted default-feature testing has one Ubuntu failure under investigation; step 6 still needs distinct unsupported-API and expired-continuation outcomes.
+- **Acceptance cases:** (1) partial — two-page deterministic synthetic TLS list passes, while restricted-identity real pagination remains unexecuted; (2) unexecuted for list requests; (3) unexecuted; (4) unexecuted; (5) partial — malformed namespace, selector syntax, exact 1 KiB selector limit, and no-dispatch behavior are covered, while broader Kubernetes grammar cases remain; (6) partial — exact/one-over 2 MiB body, all projected-field limits, the 10,000-object incomplete result, and session budget cap/release are covered; (7) unexecuted; (8) partial — prior session admission tests pass, but list-specific saturation is unexecuted; (9) partial — budget release and transient retry exhaustion are covered, while cancellation cleanup is unexecuted; (10) partial — harness identity/version evidence is in the preceding entry; (11)–(12) unexecuted; (13) unexecuted — no real paginated list has run.
+- **What changed:**
+  - `src-tauri/src/kubernetes/list.rs`: namespace and selector validation, 200-item server-side pagination with backend-owned continuation, pre-decode 2 MiB response bounds, bounded projected fields and continuation tokens, collection resource-version consistency, 10,000-item/51-page caps with explicit incomplete snapshots, 16 MiB per-session retained-projection accounting, a 60-second snapshot deadline, and three attempts for transient failures with 0.5/1-second backoffs.
+  - `src-tauri/src/kubernetes/session.rs`, `error.rs`, `mod.rs`, and `lib.rs`: admitted list reads, session-bound projection accounting, snapshot types, and a redacted invalid-query error mapping.
+  - `src-tauri/src/kubernetes/synthetic.rs`: multi-page, retry, retry-exhaustion, aggregate-cap, response-byte, selector, and projection tests over production client/request paths.
+  - `src-tauri/Cargo.toml` and `Cargo.lock`: exact `futures-util` 0.3.34 pin with only I/O support for bounded response streaming.
+- **Commands and results** (openSUSE Tumbleweed x86_64; Rust/Cargo 1.99.0, Go 1.27.2, protoc 36.2):
+  - `pnpm format`, `pnpm format:check`, `pnpm format:rust:check`, and `git diff --check`: pass.
+  - Native-test `cargo clippy --all-targets --features native-test -- -D warnings`: pass.
+  - Native-test `cargo test --all-targets --features native-test`: pass after the latest code changes; 104 library tests passed and 1 was ignored, with all 5 Kubernetes session integration tests passing. Live fixture suites were ignored.
+  - Default-feature `cargo test --all-targets`: pass locally after the hosted failure; 104 library tests passed and 1 was ignored. `cargo test --doc`: pass (0 doctests). `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`: pass.
+  - Hosted runs for `c3ae5ef`: Security run `38318040880` completed with CodeQL Rust, Actions, JavaScript/TypeScript, Trivy filesystem, and Trivy checks passing. Push Foundation run `38318036536` and PR Foundation run `38318040985` had renderer passing; Ubuntu failed in the PR run's default-feature `cargo test --all-targets` step; other desktop matrix jobs were pending at the last read. The failed job log was not yet available before this commit because the overall workflow was still running. Earlier Foundation runs for `f4e10e2` also had matrix jobs pending when last read; its Security run `38317331067` completed successfully.
+- **Evidence class:** deterministic Rust tests using a synthetic HTTPS Kubernetes API server and the production client. No native Tauri run, browser flow, or real paginated fixture read was performed.
+- **Fixture:** none used in this session; fixture identity and restoration evidence remain recorded in the preceding entry.
+- **Failed or unexecuted:** the first native-test all-targets invocation failed in 16 helper fixture builds, then the same command passed after an individual helper test and cache warm-up. The hosted c3ae5ef Ubuntu default test job failed, while the matching local default-feature all-targets command passed; retrieve its hosted log after the workflow completes to identify the difference. Expired-token and unsupported-API states, cancellation, Tauri IPC, browser E2E, and real paginated list remain unexecuted.
+- **Review findings:** HTTP response data is read through the bounded stream API before JSON decoding; projected outputs omit specs, annotations, addresses, and raw status data. A session-owned atomic lease counts all retained snapshot projections and releases capacity when a snapshot is dropped. Repeated continuation tokens and page overflow return incomplete output instead of looping indefinitely.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** none.
+- **Next:** first retrieve and inspect the failed Ubuntu job log from run `38318040985` once available, then check the latest hosted runs to completion. Continue document 02 Part B step 5 verification and step 6 error-state distinctions only after resolving the hosted discrepancy.
+
+### 2026-10-13 — document 02, list outcomes and limited API discovery
+
+- **Document:** 02, F3 Part B steps 6–7, distinct list terminal outcomes and core Pod API discovery.
+- **Session:** GPT-6; base revision `a4f413d`; final revision: the commit carrying this entry.
+- **Status after this session:** in progress; the Rust list has bounded core discovery and distinct API, namespace, authorization, empty-result, and expired-continuation outcomes. IPC, view, native capability, and live-cluster acceptance work remain.
+- **Acceptance cases:** (1) partial — deterministic two-page synthetic TLS pagination passes; restricted identity and real fixture pagination remain unexecuted; (2) passed synthetically — 401 and 403 are distinct and neither retries; (3) partial — unsupported API, TLS failure, empty list, and missing namespace each have distinct outcomes; (4) passed synthetically — HTTP 410 on a later page returns no mixed snapshot and releases its projection budget; (5) partial — malformed namespaces/selectors and selector bounds reject before requests; (6) partial — exact/over page bytes, projected-field limits, aggregate-object cap, and projection-budget release are covered; (7)–(8) unexecuted for UI replacement and list-specific saturation; (9) partial — retry exhaustion, expiry cleanup, and budget release pass, but cancellation cleanup remains untested; (10) partial — fixture identity/version preflight evidence is recorded above, but every wrong-identity case remains unexecuted; (11)–(12) unexecuted; (13) unexecuted — no real Pod list has run.
+- **What changed:**
+  - `src-tauri/src/kubernetes/list.rs`: GET only `/api/v1`, require a namespaced `Pod` resource with `get` and `list` verbs, and apply the same response byte cap, request deadline, snapshot deadline, and transient retry policy as list pages.
+  - `src-tauri/src/kubernetes/error.rs` and `src-tauri/src/lib.rs`: distinguish unsupported core Pod API, absent namespace, expired continuation, 401, 403, and TLS errors with separate redacted application codes; add classification coverage.
+  - `src-tauri/src/kubernetes/synthetic.rs`: exercise discovery, missing namespace, forbidden, unauthorized, TLS mismatch, empty list, expired second page, and pagination/retry request counts through the production client.
+  - `docs/verification/dependency-inventory.json`: regenerate the committed inventory after the exact `futures-util` dependency added in the prior step.
+  - This ledger: records this step and the completed/failed/pending hosted states.
+- **Commands and results** (openSUSE Tumbleweed x86_64; Node 26.11.1, pnpm 12.10.1, Rust/Cargo 1.99.0, Go 1.27.2, protoc 36.2):
+  - `pnpm format`, `pnpm format:check`, `pnpm format:rust:check`, `pnpm inventory:check`, and `git diff --check`: pass. `pnpm inventory:generate` refreshed the inventory to 529 npm, 601 Cargo, and 143 Go modules; its subsequent check passed.
+  - `cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings` and the same command with `--features native-test`: pass.
+  - `cargo test --manifest-path src-tauri/Cargo.toml --locked --all-targets` and the same command with `--features native-test`: pass; each library suite reports 107 passed, 0 failed, and 1 ignored. The native-feature run also reports all 5 Kubernetes session integration tests passed; live fixture tests are ignored.
+  - Focused list/discovery classifier, outcome, and application-code tests: pass.
+  - `cargo test --manifest-path src-tauri/Cargo.toml --locked --doc`: pass (0 doctests); `RUSTDOCFLAGS="-D warnings" cargo doc --manifest-path src-tauri/Cargo.toml --locked --no-deps`: pass; `cargo build --manifest-path src-tauri/Cargo.toml --locked`: pass.
+  - `gh pr checks 2`: for `a4f413d`, push run `38319121267` and PR run `38319125901` each failed at Ubuntu `Verify the generated dependency inventory`; its log says the inventory is stale, which this session fixed and verified locally. Their renderer jobs pass; Windows is running and macOS jobs are queued. Security run `38319125830` has Actions, JavaScript/TypeScript, Trivy, and Trivy filesystem scan passed; CodeQL Rust is still in progress. These runs were not complete when recorded.
+  - `gh api --allow-escape-sequences repos/agiledevel/talos-pilot/actions/jobs/115039274573/logs`: the earlier `c3ae5ef` Ubuntu default Rust test failed in `storage::database::tests::concurrent_initialization_serializes_the_first_migration` with SQLite `DatabaseBusy` / “database is locked”. The matching local suite passed; hosted Windows is still running and macOS jobs remain queued, so that overall workflow is still in progress.
+- **Evidence class:** deterministic Rust tests over a synthetic HTTPS endpoint using the production Kubernetes client and request-stream path. No native Tauri command run and no live-cluster Pod list run.
+- **Fixture:** none touched in this session; the fixture remains destroyed and host restoration is recorded in the earlier fixture entries.
+- **Failed or unexecuted:** the two `a4f413d` Ubuntu hosted jobs failed because the generated dependency inventory was stale; it was regenerated and `pnpm inventory:check` passes locally, but a hosted verification of that fix awaits this commit's runs. The earlier `c3ae5ef` hosted default Rust suite had the unrelated SQLite concurrency failure above. E2E, native Tauri capability checks, list cancellation/admission saturation, and real restricted-identity pagination remain unexecuted because IPC/view work and the live read are later packet steps. Current hosted matrix jobs are pending or in progress, not passes.
+- **Review findings:** the discovery request is limited to core `/api/v1` and is bounded by the list snapshot's shared deadline and response cap. A discovery 404 maps to unsupported API; a namespaced list 404 maps to missing namespace; a 410 maps only to expired continuation. Error mappings expose no SDK message or raw cluster response. The generated dependency inventory was stale and is now corrected.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** none.
+- **Next:** first reread `gh pr checks 2` and the runs for this commit to completion, including any failed logs and the remaining platform jobs. Then continue document 02 at Part B step 8: add the Pod-list command, DTOs, permissions, renderer parser/transport/mock, protocol documentation, and native capability tests.
+
+### 2026-10-13 — document 02, Pod-list IPC and native gate blocker
+
+- **Document:** 02, F3 Part B step 8, Pod-list command, DTOs, generated types, capability, renderer adapter, mock coverage, and protocol contract.
+- **Session:** GPT-6; base revision `3257e78`; final revision: the commit carrying this entry.
+- **Status after this session:** blocked by B5. Step 8's implementation and deterministic checks are complete; the required actual Tauri command and ACL run could not start after the command permission filter rejected its cleanup invocation.
+- **Acceptance cases:** (1) partial — the native command targets the same session and namespace across the adapter's two server-side pages, and browser transport parsing is covered; the real restricted-identity fixture list remains unexecuted; (2) passed synthetically in the preceding entry; (3) partial — deterministic error distinctions are covered, but user-visible states wait for Part C; (4) passed synthetically in the preceding entry; (5) partial — Rust rejects malformed query input before request and renderer parsing rejects malformed responses; broader grammar remains; (6) partial — backend byte/field/object/session caps and renderer list length/field validation are covered; (7)–(8) unexecuted for UI identity replacement and list-specific request saturation; (9) partial — retry, expiry cleanup, and budget release are covered, while cancellation cleanup remains; (10) partial — fixture preflight evidence is recorded in earlier entries; (11) blocked by B5 — the native main-window and unauthorized-window capability checks were added but could not run; (12) unexecuted — the Workloads view belongs to Part C; (13) unexecuted — no real Pod list has run.
+- **What changed:**
+  - `src-tauri/src/contracts.rs`, `src-tauri/src/bin/export_ipc_types.rs`, and generated `src/lib/ipc/generated/KubernetesPod*.ts`: add the bounded Pod-list and readiness DTOs with generated TypeScript declarations.
+  - `src-tauri/src/lib.rs`, `src-tauri/build.rs`, and `src-tauri/capabilities/main.json`: register `list_kubernetes_pods` for the main window, map the bounded adapter projection, and grant only its generated command permission to that window.
+  - `src/lib/ipc/validation.ts`, `transport.ts`, and `transport.test.ts`: validate session, namespace, byte-bounded fields, readiness state, item count, and namespace consistency; add the typed transport function and explicit browser-mock and malformed-response coverage.
+  - `tests/native/kubernetes-session.spec.ts`: exercise the command's two-page projection and add it to the unauthorized-window denial checks.
+  - `docs/protocol/application-ipc.md`: document arguments, bounds, partial results, and projected fields.
+  - This ledger: record B5 and the stopped native gate.
+- **Commands and results** (openSUSE Tumbleweed x86_64; Node 26.11.1, pnpm 12.10.1, Rust/Cargo 1.99.0, Go 1.27.2, protoc 36.2):
+  - `pnpm format`, `pnpm check`: pass on the final code; `pnpm check` reports Oxfmt, Oxlint/type diagnostics, Svelte diagnostics (0 warnings/errors), 127 renderer tests across 15 files, and the production Vite build passing.
+  - `pnpm contracts:generate`, `pnpm contracts:check`: pass; Rust producer and checked-in TypeScript outputs match.
+  - `pnpm test:e2e`: pass, 7 tests.
+  - `pnpm format:rust:check`; Clippy with and without `native-test`; default and `native-test` `cargo test --all-targets`; `cargo test --doc`; `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`; and locked `cargo build`: pass. Each all-target library suite reports 108 passed, 0 failed, and 1 ignored; the native-feature run also passes all 5 Kubernetes session integration tests. Live fixture tests are ignored.
+  - An initial full Rust test run failed because the command omitted the pinned Go 1.27.2 module-cache binary from `PATH`, so helper fixture builds failed. Rerunning the same gates with the pinned Go path passed.
+  - `pnpm test:native` was rejected before process launch by the command permission filter because the attempted invocation included `rm -rf` to clean its private XDG directory. No native test process or Tauri window started. `pnpm desktop:build` and `pnpm production:check` were not run because the packet's required native test could not be run and the prescribed release-build-after-native sequence was therefore not reached.
+  - `gh pr checks 2`: for `3257e78`, push Foundation `38319659325` and PR Foundation `38319666302` both have renderer passed, Ubuntu/Windows in progress, and macOS jobs queued; Security `38319666333` has CodeQL Actions, CodeQL JavaScript/TypeScript, Trivy, and filesystem scan passed, with CodeQL Rust in progress. These hosted runs remain incomplete.
+  - Earlier runs: `a4f413d` Security run `38319125830` is now complete and passed; both Foundation runs `38319121267` and `38319125901` failed at the stale inventory check fixed in this series, with other platform jobs still incomplete. For `c3ae5ef`, the failed Ubuntu default test log identified `DatabaseBusy` in `storage::database::tests::concurrent_initialization_serializes_the_first_migration`; Windows remains in progress and macOS jobs queued.
+  - `pnpm format:check`, `pnpm contracts:check`, and `git diff --check` are rerun after the ledger update before commit. The first post-ledger `pnpm contracts:check` invocation omitted the pinned protoc directory and failed to start `protoc`; rerunning with the documented pinned Node, Go, Cargo, and protoc paths passed.
+- **Evidence class:** deterministic Rust, TypeScript, and browser E2E checks; generated producer/consumer contract checks. No native Tauri run and no real-cluster Pod-list run.
+- **Fixture:** none touched; the fixture is destroyed and the host restoration is documented in earlier entries.
+- **Failed or unexecuted:** the native command/permission test is blocked by B5. Desktop build and production artifact exclusion checks are unexecuted because the required native run did not occur. The hosted jobs for `3257e78` remain pending/in progress. The real restricted-reader list and Part C UI cases remain unexecuted.
+- **Review findings:** the Rust command returns only the allowlisted projection and preserves the request's session and namespace in its result. The runtime parser enforces per-field UTF-8 bounds and rejects any row whose namespace differs from the query. The main capability contains the command while the unauthorized test window has no grant. The actual ACL behavior awaits the blocked native run.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** B5.
+- **Next:** first read the hosted results for this commit to completion. Then resolve B5 before attempting the native test; when permitted, run `pnpm test:native` on a private Xvfb display with X11 and isolated XDG directories, rebuild with `pnpm desktop:build`, and run `pnpm production:check` before continuing document 02 Part C.
+
+### 2026-10-13 — document 02, hosted checks for the Pod-list IPC push
+
+- **Document:** 02, F3 Part B step 8, hosted-run handoff for the IPC commit.
+- **Session:** GPT-6; base revision `06135e7`; final revision: the commit carrying this entry.
+- **Status after this session:** blocked by B5; the implementation is pushed and deterministic checks pass, while actual Tauri/ACL verification remains unexecuted.
+- **Acceptance cases:** no acceptance status changed; see the preceding step 8 entry. Native acceptance case (11) remains blocked by B5, and real Pod-list case (13) remains unexecuted.
+- **What changed:** this ledger records the hosted jobs started for `06135e7`; the status board carries B5 and directs the next session to finish hosted inspection before a native rerun.
+- **Commands and results** (openSUSE Tumbleweed x86_64):
+  - `gh pr checks 2`: PR Foundation run `38320088624` has renderer and Ubuntu/Windows in progress, with both macOS jobs queued.
+  - `gh run list --branch ft-foundation-completion --limit 12 --json databaseId,headSha,name,status,conclusion,createdAt`: push Foundation run `38320095237` and Security run `38320095247` are queued; all three runs target `06135e7`.
+  - `gh run view 38320088624 --json status,conclusion,jobs`: PR Foundation is queued overall; renderer, Ubuntu, and Windows are in progress; macOS 15 and macOS 15 Intel are queued.
+- **Evidence class:** hosted states only; no run was read to completion in this handoff.
+- **Fixture:** none; fixture remains destroyed and host restoration is recorded in the earlier fixture entries.
+- **Failed or unexecuted:** all three hosted workflows for `06135e7` are queued or in progress. The prior B5 native-run permission denial remains unresolved; this entry does not retry it.
+- **Review findings:** none; this entry records the exact statuses returned by the GitHub CLI.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** B5 remains open.
+- **Next:** first read `gh pr checks 2` and runs `38320088624`, `38320095237`, and `38320095247` to completion, including failed logs. Resolve B5 before attempting `pnpm test:native`; then rebuild and run the production check before continuing document 02.
+
+### 2026-10-13 — document 02, latest hosted queue state
+
+- **Document:** 02, F3 Part B step 8, hosted-run status recording.
+- **Session:** GPT-6; base revision `560c4e7`; final revision: the commit carrying this entry.
+- **Status after this session:** blocked by B5; no native test was attempted, and the hosted runs for the code and ledger commits have not completed.
+- **Acceptance cases:** unchanged from the step 8 entry; native permission verification (11) is blocked by B5 and real Pod-list case (13) is unexecuted.
+- **What changed:** this ledger records hosted queue states for `560c4e7` and changes the next action to inspect the latest pushed runs before resuming.
+- **Commands and results** (openSUSE Tumbleweed x86_64):
+  - `gh pr checks 2`: PR Foundation run `38320126408` and Security run `38320129833` have all jobs pending.
+  - `gh run list --limit 20 --json databaseId,headSha,name,status,conclusion,createdAt`: push Foundation run `38320129862`, PR Foundation run `38320126408`, and Security run `38320129833` all target `560c4e7` and are queued.
+  - `gh run view 38320126408 --json status,conclusion,jobs`: overall queued; renderer and all four desktop jobs are queued.
+- **Evidence class:** hosted states only; no completion or pass is claimed.
+- **Fixture:** none; fixture remains destroyed and restoration is documented in earlier entries.
+- **Failed or unexecuted:** the three `560c4e7` hosted workflows are queued. The three `06135e7` workflows also remain queued or in progress at the latest branch listing. B5 still prevents the native Tauri run.
+- **Review findings:** none; the states match the GitHub CLI output.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** B5 remains open.
+- **Next:** first reread `gh pr checks 2` and finish the hosted runs for the latest branch commit, including failed logs. Then resolve B5 before attempting native Tauri verification; do not resume Part C until the native and production checks pass.
+
+### 2026-10-13 — document 02, Workloads view and blocked fixture preflight
+
+- **Document:** 02, F3 Part C steps 9–13 and the Part D fixture preflight.
+- **Session:** GPT-6; base revision `112b012`; final revision: the commit carrying this entry.
+- **Status after this session:** blocked by B6. The Workloads view and local gates are complete, but no live restricted paginated list was run because the runbook's `talosctl version` command resolved the host's ambient Talos configuration and contacted a server outside the fixture allowlist.
+- **Acceptance cases:** (1) partial—synthetic two-page list coverage exists; the restricted-identity fixture pagination is unexecuted; (2) passed synthetically—401 and 403 are separate and non-retryable; (3) passed—unsupported API, TLS, empty, and namespace outcomes are distinct in deterministic coverage, and empty/unsupported are separately rendered; (4) passed synthetically—expired continuation returns no mixed snapshot; (5) passed—Rust rejects malformed input before requests, renderer selectors are passed unchanged, and IPC validates responses; (6) partial—backend byte, field, item, and retained-projection bounds have deterministic coverage, while the live aggregate-cap behavior is unexecuted; (7) passed—renderer tests discard late namespace and replaced-session results; (8) partial—general admission saturation is covered, but list-specific saturation remains unexecuted; (9) partial—error/expiry cleanup and budget release are covered, but list cancellation cleanup remains unexecuted; (10) partial—manifest identity/version rejection evidence exists, but the full wrong-identity/version/manifest live matrix is unexecuted; (11) passed—native Tauri permits the list command in the main window and denies it to a window without the capability; (12) passed—browser accessibility and shell behavior at 1280×800, 1024×700, and 720×480; (13) blocked—no new real Pod list was run.
+- **What changed:**
+  - `src/features/kubernetes/WorkloadsView.svelte`, `src/lib/state/kubernetesWorkloads.svelte.ts`, and `src/components/PilotApp.svelte`: add a shell-owned Kubernetes session and a read-only Workloads view backed by TanStack Svelte Query. Query identity includes session, namespace, resource, selectors, complete-snapshot page identity, and a request generation; changing query/session hides prior data.
+  - `src/lib/format/status.ts` and its tests: add the independent Kubernetes context summary to the persistent status bar.
+  - `tests/e2e/workloads.spec.ts`, `tests/e2e/shell.spec.ts`, and `src/components/PilotApp.test.ts`: cover scoped requests, distinct states, late responses, native-disabled browser mode, responsive layout, and accessibility.
+  - `package.json`, `pnpm-lock.yaml`, `docs/dependencies.md`, and `docs/verification/dependency-inventory.json`: pin TanStack Svelte Query 6.3.1 and record its Svelte `^5.25.0` peer compatibility with Svelte 5.57.2.
+  - `docs/workflows/kubernetes-workloads.md`: document importing a context, opening a session, listing Pods, and closing the session.
+  - `docs/plans/foundation-finish/ledger.md`: resolve B5 with the successful native run, add B6 and Q4, and mark document 02 blocked pending owner direction on the fixture-only version check.
+- **Commands and results** (openSUSE Tumbleweed x86_64; Node 26.11.1, pnpm 12.10.1, Rust/Cargo 1.99.0, Go 1.27.2, protoc 36.2):
+  - `pnpm install --frozen-lockfile`: pass.
+  - `pnpm inventory:generate`, `pnpm inventory:check`: pass; inventory contains 531 npm, 601 Cargo, and 143 Go modules.
+  - `pnpm audit --audit-level=low`: no known vulnerabilities. `pnpm audit:go`: 0 vulnerabilities in called symbols; 1 required-module advisory is not called. `pnpm advisories:check`: the two recorded GTK/glib advisories still match the dependency path and linked executable.
+  - `pnpm format`, `pnpm check`: pass; Oxlint and Svelte diagnostics are clean, 142 renderer tests pass, and the Vite production build passes.
+  - `pnpm test:e2e`: pass, 8 tests. The first browser run exposed document overflow at 720×480; the shell now bounds content in the main scroll region, and the final run verifies the shell and status bar remain in the viewport at all three sizes with no horizontal overflow and no axe violations.
+  - `pnpm contracts:check`: pass with pinned `protoc`; Rust, Go, and TypeScript contracts are current. `git diff --check` passes. Changed Markdown links resolve.
+  - `pnpm test:native`, on a private Xvfb display with fresh XDG paths: pass, 2 spec files and 16 tests on WebKitGTK 605.1.15. This resolves B5. The main-window list and unauthorized-window denial checks both pass; the script confirmed no helper process or synthetic endpoint remained.
+  - `pnpm desktop:build`, then `pnpm production:check`: pass; production artifacts exclude WebDriver and expose no driver listener.
+  - `talosctl version --help`: pass and shows the `--client` option. The preceding `talosctl version` invocation returned client v1.14.2 and server node `10.0.10.79`; it had resolved the ambient host Talos configuration, so this session stopped fixture work immediately. No fixture was provisioned and no host firewall or route mutation was issued.
+  - The latest fully read hosted runs for base `112b012` were Foundation `38364248109` and Security `38364248050`; all included jobs passed. The Mac Intel runner was deliberately absent from that workflow matrix and is not claimed as executed.
+- **Evidence class:** deterministic Rust/renderer tests, browser E2E, and a native Tauri run passed. No live Kubernetes Pod-list evidence was produced in this session.
+- **Fixture:** none provisioned. The initial host-baseline command did not yield a captured baseline after the ambient Talos preflight. No fixture remediation or setup mutation was performed. Do not reuse this as a completed runbook session.
+- **Failed or unexecuted:** an initial `pnpm inventory:generate` used system Go 1.27.1 and failed the repository's 1.27.2 floor; rerunning with the pinned Go path passed. An initial `pnpm contracts:check` used an inaccessible system `protoc`; rerunning with pinned protoc 36.2 passed. An early browser run failed the 720×480 shell overflow assertion; the final E2E run passed after correcting the bounded layout. Part D preflight and the restricted live list remain blocked by B6. The hosted workflows for this commit have not run yet. No macOS Intel build ran, by deliberate workflow scope.
+- **Review findings:** the narrow-height Workloads screen initially exposed page-level vertical overflow; the shell now constrains the work area and scrolls its main region while keeping the status bar in view. The runbook's unqualified `talosctl version` can contact an ambient server; B6/Q4 record this before any fixture provisioning or Kubernetes API request.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** B6 and Q4. B5 is resolved by this entry.
+- **Next:** get the owner's answer to Q4. If the runbook is amended, repeat its baseline from the beginning, use `talosctl version --client` for the local binary and an explicit fixture Talos config for any server version check, run the restricted Kubernetes list, then always complete destroy-and-restore before considering document 02 done.
+
+### 2026-10-13 — document 02, hosted results for `6be6029`
+
+- **Document:** 02, hosted verification for the Part C implementation and blocked Part D preflight.
+- **Session:** GPT-6; base revision `6be6029`; final revision: the commit carrying this entry.
+- **Status after this session:** blocked by B6; all hosted checks for the implementation commit passed, but the live restricted Kubernetes list still requires the owner's answer to Q4.
+- **Acceptance cases:** unchanged from the preceding entry: 11 and 12 are passed; 13 is blocked; the restricted real pagination, cancellation cleanup, and list-specific saturation evidence remain incomplete.
+- **What changed:** this ledger records the completed Foundation and Security workflows for `6be6029`; document 02 remains blocked (B6), and Q4 remains unanswered.
+- **Commands and results** (GitHub-hosted runners):
+  - `gh pr checks 2`: all reported checks passed, including Foundation, Security/CodeQL, and Trivy.
+  - `gh run list --branch ft-foundation-completion --limit 10 --json databaseId,headSha,name,status,conclusion,createdAt`: Foundation `38372754535` and Security `38372754419` both completed successfully on head `6be6029fe757312520300031a5ba34c2d1a4cbf3`.
+  - `gh run view 38372754535 --json status,conclusion,jobs`: `Decide desktop scope`, renderer, `desktop (ubuntu-22.04)`, `desktop (windows-2022)`, `desktop (macos-15)`, and the final result job all succeeded.
+  - `gh run view 38372754419 --json status,conclusion,jobs`: CodeQL Actions, JavaScript/TypeScript, Rust, and Trivy filesystem scan all succeeded.
+- **Evidence class:** hosted CI. These results complement the local deterministic, browser, and native evidence in the preceding entry. No live Kubernetes Pod list ran.
+- **Fixture:** none; B6 remains open and no fixture or host remediation was performed.
+- **Failed or unexecuted:** no included hosted job failed. macOS Intel was deliberately absent from the workflow matrix and is not claimed as executed. The new ledger commit's hosted workflows have not run yet.
+- **Review findings:** all completed jobs target the implementation commit; no result is inferred from a queued or superseded run.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** Q4 remains unanswered; B6 remains open.
+- **Next:** resolve Q4, then restart the fixture runbook at its baseline and use only client-only binary verification plus an explicit fixture configuration for server checks. After that, run the restricted Pod list and complete destroy-and-restore.
+
+### 2026-10-13 — document 02, hosted results for `c318f93`
+
+- **Document:** 02, hosted verification of the ledger update; Part D remains blocked at the fixture preflight.
+- **Session:** GPT-6; base revision `c318f9331ea471d160a7e5f924cc903aea0fd900`; final revision: the commit carrying this entry.
+- **Status after this session:** blocked by B6; hosted checks for `c318f93` passed, but Q4 still requires the owner's answer before the runbook can be amended or fixture work resumed.
+- **Acceptance cases:** unchanged; cases 11 and 12 passed, case 13 blocked, and live restricted pagination, list-specific saturation, and cancellation cleanup evidence remain unexecuted.
+- **What changed:** this ledger records the completed hosted checks for `c318f93`; document 02 remains blocked (B6), and Q4 remains unanswered.
+- **Commands and results** (GitHub-hosted runners):
+  - `gh pr checks 2`: all reported completed checks passed; desktop and aggregate CodeQL were skipped by workflow scope for this ledger-only commit.
+  - `gh run list --branch ft-foundation-completion --limit 10 --json databaseId,headSha,name,status,conclusion,createdAt`: Foundation `38375763730` and Security `38375763693` completed successfully on `c318f9331ea471d160a7e5f924cc903aea0fd900`.
+  - `gh run view 38375763730 --json status,conclusion,jobs`: `Decide desktop scope`, renderer, and `Foundation checks result` succeeded; desktop was skipped.
+  - `gh run view 38375763693 --json status,conclusion,jobs`: CodeQL Actions, JavaScript/TypeScript, Rust, and Trivy filesystem scan succeeded.
+- **Evidence class:** hosted CI only; no live Kubernetes Pod list ran in this session.
+- **Fixture:** none provisioned or touched.
+- **Failed or unexecuted:** no included hosted job failed. macOS Intel was deliberately absent from the workflow matrix and is not claimed as executed. Live restricted pagination and other remaining acceptance evidence are blocked by B6/Q4.
+- **Review findings:** no code or runbook changed; the separate hosted-result review confirms every included job completed successfully on the recorded commit.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** Q4 remains unanswered; B6 remains open.
+- **Next:** get the owner's answer to Q4. If approved, amend the runbook's version checks and restart from its baseline; if not, record the owner's alternative direction before resuming fixture work.
+
+### 2026-10-13 — document 02, correct ledger formatting
+
+- **Document:** 02, ledger formatting repair after the hosted check for the previous ledger update.
+- **Session:** GPT-6; base revision `d38d6db8b1489f239a53e240e2b038f8f18466ad`; final revision: the commit carrying this entry.
+- **Status after this session:** blocked by B6; local formatting passes, while the hosted renderer workflow for `d38d6db` failed only because the ledger table was not formatted. Security checks are partly complete and Rust CodeQL was still in progress when this entry was prepared.
+- **Acceptance cases:** unchanged; cases 11 and 12 passed, case 13 blocked, and live restricted pagination, list-specific saturation, and cancellation cleanup evidence remain unexecuted.
+- **What changed:** `docs/plans/foundation-finish/ledger.md` formatting was normalized; document 02 remains blocked (B6), and Q4 remains unanswered.
+- **Commands and results** (local host: openSUSE Tumbleweed x86_64):
+  - `pnpm format`: pass.
+  - `pnpm format:check`: pass; all 158 files formatted.
+  - `git diff --check`: pass.
+  - `gh run view 38382218650 --log-failed`: renderer failed at `pnpm format:check` because `docs/plans/foundation-finish/ledger.md` was not formatted; no application checks ran in that job.
+  - `gh run view 38382218499 --json status,conclusion,jobs`: Actions CodeQL, JavaScript/TypeScript CodeQL, and Trivy filesystem scan passed; Rust CodeQL remained in progress when this entry was prepared.
+- **Evidence class:** local documentation formatting and hosted workflow diagnostics; no native or real-cluster evidence.
+- **Fixture:** none provisioned or touched.
+- **Failed or unexecuted:** the renderer workflow for `d38d6db` failed its formatting gate; the correction passes locally. Rust CodeQL for `d38d6db` had not completed at entry time and is not reported as passed. macOS Intel remains deliberately absent from the workflow matrix.
+- **Review findings:** CI identified a formatting defect in the ledger table; `pnpm format` corrected it and the repository formatting check now passes.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** Q4 remains unanswered; B6 remains open.
+- **Next:** inspect hosted checks for the formatting correction, recording any superseded run as cancelled; await Q4 before touching the runbook or fixture.
+
+### 2026-10-13 — document 02, hosted results for `5d35f7a`
+
+- **Document:** 02, hosted verification of the ledger formatting correction; Part D remains blocked at the fixture preflight.
+- **Session:** GPT-6; base revision `5d35f7a6da7ef6268fbad6b91f9c3037c2efced9`; final revision: the commit carrying this entry.
+- **Status after this session:** blocked by B6; hosted checks for `5d35f7a` passed, but Q4 still requires the owner's answer before fixture work can resume.
+- **Acceptance cases:** unchanged; cases 11 and 12 passed, case 13 blocked, and live restricted pagination, list-specific saturation, and cancellation cleanup evidence remain unexecuted.
+- **What changed:** this ledger records the completed hosted checks for `5d35f7a`; document 02 remains blocked (B6), and Q4 remains unanswered.
+- **Commands and results** (GitHub-hosted runners):
+  - `gh pr checks 2`: all reported completed checks passed; desktop and aggregate CodeQL were skipped by workflow scope for this ledger-only commit.
+  - `gh run list --branch ft-foundation-completion --limit 5 --json databaseId,headSha,name,status,conclusion,createdAt`: Foundation `38382644963` and Security `38382644978` completed successfully on `5d35f7a6da7ef6268fbad6b91f9c3037c2efced9`.
+  - `gh run view 38382644963 --json status,conclusion,jobs`: `Decide desktop scope`, renderer, and `Foundation checks result` succeeded; desktop was skipped.
+  - `gh run view 38382644978 --json status,conclusion,jobs`: CodeQL Actions, JavaScript/TypeScript, Rust, and Trivy filesystem scan succeeded.
+  - `gh run view 38382218499 --json status,conclusion,jobs`: the superseded Security workflow for `d38d6db` was cancelled; Actions and JavaScript/TypeScript CodeQL plus Trivy had passed before cancellation, while Rust CodeQL was cancelled.
+- **Evidence class:** hosted CI only; no live Kubernetes Pod list ran in this session.
+- **Fixture:** none provisioned or touched.
+- **Failed or unexecuted:** Foundation checks for `d38d6db` failed only because `pnpm format:check` rejected ledger formatting; `pnpm format` corrected it locally, and all Foundation checks for `5d35f7a` passed. The superseded Rust CodeQL job was cancelled, not passed. macOS Intel was deliberately absent from the workflow matrix and is not claimed as executed. Live restricted pagination and other remaining acceptance evidence are blocked by B6/Q4.
+- **Review findings:** the formatting defect reported by CI is corrected and verified by local formatting checks and the passing latest Foundation run.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** Q4 remains unanswered; B6 remains open.
+- **Next:** get the owner's answer to Q4. If approved, amend the runbook's version checks and restart from its baseline; if not, record the owner's alternative direction before resuming fixture work.
+
+### 2026-10-13 — document 02, hosted results for `d4e4fc9`
+
+- **Document:** 02, hosted verification of the ledger update; Part D remains blocked at the fixture preflight.
+- **Session:** GPT-6; base revision `d4e4fc951fa862e2a89a1c1027ea9e7821ba6a3d`; final revision: the commit carrying this entry.
+- **Status after this session:** blocked by B6; hosted checks for `d4e4fc9` passed, but Q4 still requires the owner's answer before fixture work can resume.
+- **Acceptance cases:** unchanged; cases 11 and 12 passed, case 13 blocked, and live restricted pagination, list-specific saturation, and cancellation cleanup evidence remain unexecuted.
+- **What changed:** this ledger records the completed hosted checks for `d4e4fc9`; document 02 remains blocked (B6), and Q4 remains unanswered.
+- **Commands and results** (GitHub-hosted runners):
+  - `gh pr checks 2`: all reported completed checks passed; desktop and aggregate CodeQL were skipped by workflow scope for this ledger-only commit.
+  - `gh run list --branch ft-foundation-completion --limit 4 --json databaseId,headSha,name,status,conclusion,createdAt`: Foundation `38383617777` and Security `38383617791` completed successfully on `d4e4fc951fa862e2a89a1c1027ea9e7821ba6a3d`.
+  - `gh run view 38383617777 --json status,conclusion,jobs`: `Decide desktop scope`, renderer, and `Foundation checks result` succeeded; desktop was skipped.
+  - `gh run view 38383617791 --json status,conclusion,jobs`: CodeQL Actions, JavaScript/TypeScript, Rust, and Trivy filesystem scan succeeded.
+- **Evidence class:** hosted CI only; no live Kubernetes Pod list ran in this session.
+- **Fixture:** none provisioned or touched.
+- **Failed or unexecuted:** no included hosted job failed. macOS Intel was deliberately absent from the workflow matrix and is not claimed as executed. Live restricted pagination and other remaining acceptance evidence are blocked by B6/Q4.
+- **Review findings:** all included hosted jobs completed successfully on the recorded commit; no code or runbook changed.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** Q4 remains unanswered; B6 remains open.
+- **Next:** get the owner's answer to Q4. If approved, amend the runbook's version checks and restart from its baseline; if not, record the owner's alternative direction before resuming fixture work. Read the hosted checks for the new ledger commit before claiming them.
+
+### 2026-10-13 — series maintenance, owner answers Q4 and the ledger rule
+
+- **Document:** none (series maintenance). It unblocks document 02 Part D and document 01's live cases.
+- **Session:** Claude Opus 5.5, with the owner present; base revision `1eba275`; final revision: the commit carrying this entry.
+- **Status after this session:** document 02 returns from blocked to in progress. B6 is resolved and Q4 is answered. No acceptance case changed status.
+- **Acceptance cases:** none executed. Document 02's open cases are unchanged: 1, 6 (the aggregate cap against the fixture), 8, 9, 10, and 13.
+- **What changed:**
+  - `docs/plans/foundation-finish/fixture-runbook.md`: a rule against loading the ambient Talos configuration; step 1 checks the binary with `version --client` and sets a `TALOSCONFIG` guard; step 5 names the exact fixture-scoped command for the node versions.
+  - `docs/verification/fixtures/talos-c4-disposable.md`: a "Client configuration scope" section that records the same rules as the authority.
+  - `docs/plans/foundation-finish/README.md`: owner decisions 8 and 9, and a "Hosted results" section that replaces the rule to record a result after every push.
+  - This ledger: the status board, two standing decisions, B6, and Q4.
+- **Owner decisions** (given in this session through a multiple-choice prompt; the labels are the owner's selections):
+  - Q4: "Approve with guard". The owner approved `talosctl version --client` for the binary, an explicit `--talosconfig` on every server call, and a `TALOSCONFIG` guard for the whole session.
+  - Hosted results for ledger-only commits: "Fold into next entry".
+  - Scope of the next session: "Finish document 02", in one session, without starting another document.
+  - This change: "Commit and push".
+- **A difference from the approved wording.** The question offered a guard that set `TALOSCONFIG` to the fixture path `/tmp/tpc4/talosconfig`. The check below showed that this form does not protect before provisioning, because pinned `talosctl` v1.14.2 ignores a `TALOSCONFIG` that names a missing file and loads the ambient configuration instead. The runbook therefore uses an existing empty guard file in the scratch directory. The intent the owner approved is unchanged; the owner was told of the difference in the session handoff.
+- **Commands and results** (openSUSE Tumbleweed x86_64; pinned `talosctl` v1.14.2 from `src-tauri/.local-tools/`; no other toolchain was needed):
+  - `sha256sum src-tauri/.local-tools/talosctl`: `c6c9552b0e5f767352c595fa1c0af4f186f697488646872955057d23990a66c4`, equal to the value the runbook records. It was not compared with the release's `sha256sum.txt` in this session.
+  - `talosctl version --client`: v1.14.2; no server was contacted.
+  - `TALOSCONFIG=<scratch>/guard/missing-talosconfig talosctl config contexts`: printed the contexts of the ambient `~/.talos/config`. This refutes the guard as first proposed. The command reads local files only. It showed the owner's context names and one endpoint in the session output; none of that is recorded here.
+  - `TALOSCONFIG=/dev/null/talos-pilot-guard talosctl config contexts`: the same fallback to the ambient configuration.
+  - `TALOSCONFIG=<scratch>/guard/empty-talosconfig talosctl config contexts`, where the file holds `context: ""` and `contexts: {}`: the header row only.
+  - The same guard with `talosctl version`: printed the client version, then `failed to determine endpoints`. No server was contacted.
+  - `talosctl --talosconfig <scratch>/guard/flag-missing config contexts`: the header row only, and the command created an empty configuration at that path. An explicit flag does not fall back to the ambient file, but it leaves a file behind.
+  - `TALOSCONFIG=... sudo -n -E printenv TALOSCONFIG HOME`: the variable passes through `sudo -n -E`, and `HOME` becomes `/root`.
+  - Host state, read-only: no `qemu-system` process, no `/tmp/tpc4` or `/tmp/talos-pilot-c4-20261009`, no `talos-pilot-c4` zone, and no `10.79.0.x` address.
+  - Hosted runs for the base revision `1eba275`, recorded here under the new rule: Foundation `38384570459` succeeded (`Decide desktop scope`, renderer, and the result job passed; desktop was skipped by workflow scope). Security `38384570245` succeeded (CodeQL Actions, JavaScript/TypeScript, and Rust, and the Trivy filesystem scan).
+  - Node 26.11.1 was downloaded to the scratch directory and verified against `SHASUMS256.txt`; pnpm 12.10.1 was installed into that prefix. `pnpm format`, then `pnpm format:check`: pass, 158 files. `git diff --check`: pass. The relative links and heading anchors added in this change resolve.
+- **Evidence class:** local client-only command behaviour and hosted CI. No deterministic application test, native Tauri run, or real-cluster run.
+- **Fixture:** none provisioned. No host firewall, route, or interface was changed.
+- **Failed or unexecuted:** the guard has not been exercised through a provisioning cycle. In particular, `cluster destroy` under `sudo -n -E` with the guard set is untested; the first fixture session must record how it behaves. The hosted runs for the commit carrying this entry are unread; the next working session records them.
+- **Review findings:** the first guard design was wrong and was replaced before it reached the runbook. The earlier `gh` rule and the new "Hosted results" section would have contradicted each other, so the `gh` bullet now only names the commands and points to the section.
+- **Assumptions confirmed or refuted:** none from the table. Refuted here: that `TALOSCONFIG` alone overrides the ambient Talos configuration.
+- **Questions and blockers raised:** none. B6 resolved; Q4 answered.
+- **Next:** document 02. First close acceptance cases 8 and 9 with deterministic tests and extend `src-tauri/tests/kubernetes_fixture.rs` so the restricted reader runs the paginated list (201 Pods, two pages). Then run one fixture session under the amended runbook for cases 1, 10, and 13, and complete destroy-and-restore. Refresh the current stage in the repository README in the same session.
+
+### 2026-10-13 — document 02, F3 Kubernetes list probe complete
+
+- **Document:** 02, F3 Parts B and D completion; deterministic list lifecycle, fixture rejection checks, restricted paginated read, and runbook restoration.
+- **Session:** GPT-6; base revision `fa274f8a9cbdd5362c24c43e862106e5150eecde`; final revision: the commit carrying this entry.
+- **Status after this session:** done. All 13 acceptance cases have recorded evidence, the required local gates passed on the Part 1 tree, and one real list came from Rust through `KubernetesSessionStore::list_pods` against the allowlisted fixture. The remaining Kubernetes 1.35/1.37 matrix and F4 watch work belong to later documents.
+- **Acceptance cases:**
+  1. **Passed — deterministic and real-cluster:** synthetic two-page production-client coverage plus the restricted-reader live list returned 201 unique expected names, complete across the 200-item page limit, with a non-empty resource version.
+  2. **Passed — deterministic:** distinct 401 and 403 outcomes and no retry, recorded in prior F3 synthetic tests.
+  3. **Passed — deterministic:** unsupported API, TLS fault, empty list, and namespace failure have distinct outcomes; the view state evidence is recorded in the prior Part C entry.
+  4. **Passed — deterministic:** expired continuation does not expose a mixed snapshot and releases projection budget.
+  5. **Passed — deterministic:** malformed namespace and selector inputs are rejected before requests.
+  6. **Passed — deterministic:** synthetic 10,000-object cap returns exactly 10,000 items with `complete=false`; oversized fields and bodies have bounds tests. No live cap run exists because the allowlist authorizes exactly 201 Pods.
+  7. **Passed — deterministic:** renderer tests discard late responses after query/session replacement.
+  8. **Passed — deterministic:** holding all 32 permits makes `list_pods` return `CapacityExceeded`; the synthetic server request count stays zero.
+  9. **Passed — deterministic:** failed list and dropped in-flight continuation restore permits and retained projection bytes; the caller owns the list future and synthetic server shutdown joins its connection tasks.
+  10. **Passed — deterministic and real-cluster preflight:** wrong fixture ID, expected server version, CA fingerprint, and context are rejected by the pure preflight/manifest validators with zero synthetic-server requests. Three scratch manifest CLI invocations also stopped before spawning the Rust test because the harness accepts only the checked repository manifest; they created no resources or sent requests.
+  11. **Passed — native Tauri:** main-window list permission and unauthorized-window denial passed in the recorded Part C native suite (16 tests).
+  12. **Passed — deterministic browser E2E:** accessibility and shell layout checks passed at 1280×800, 1024×700, and 720×480, as recorded in Part C.
+  13. **Passed — real-cluster:** one Rust restricted-reader list against the fixture returned all 201 exact expected names, unique, complete, and with resource version present; the harness verified cleanup.
+- **What changed:**
+  - `src-tauri/src/kubernetes/session.rs` and `src-tauri/src/kubernetes/synthetic.rs`: exercise list admission saturation, request-free rejection, error cleanup, dropped in-flight cleanup, projection-budget restoration, and joined synthetic connection cleanup.
+  - `src-tauri/tests/kubernetes_fixture.rs`: replace the restricted single-Pod GET with the production paginated list, assert all 201 exact unique names and complete/resource-version state, print only counts, verify namespace absence, and add no-request identity preflight tests.
+  - `scripts/lib/kubernetes-fixture.test.ts`: cover wrong expected Kubernetes server version and wrong context name.
+  - `tests/fixtures/talos-c4.json`: record this cycle's CA fingerprint only.
+  - `docs/verification/fixtures/talos-c4-disposable.md`: record current run identity, list outcome, rejections, teardown, and restoration.
+  - `docs/verification/milestone-1.md` and `README.md`: record F3's live Kubernetes 1.36.5 evidence and remaining matrix/watch scope.
+  - This ledger: status board and this complete session record.
+- **Commands and results** (openSUSE Tumbleweed x86_64; Node 26.11.1, pnpm 12.10.1, Rust/Cargo 1.99.0, Go 1.27.2, protoc 36.2, talosctl v1.14.2):
+  - Provisioned Node to `/tmp/tp-f3-finish/tools` and matched its archive against Node v26.11.1 `SHASUMS256.txt`; installed pnpm 12.10.1 into that private Node prefix. Installed protoc 36.2 in the same scratch directory and matched SHA-256 `121f6c7afe1d4d0e3ea6aab9432038599250134cbf4474cb1167d2c7decd4278`. talosctl SHA-256 `c6c9552b0e5f767352c595fa1c0af4f186f697488646872955057d23990a66c4` matched the downloaded v1.14.2 `sha256sum.txt`. Rust 1.99.0 and Go 1.27.2 were already available in the recorded pinned locations.
+  - `talosctl version --client`: v1.14.2. `TALOSCONFIG=/tmp/tp-f3-finish/talos-guard/talosconfig talosctl config contexts`: header row only.
+  - Runbook baseline saved at `/tmp/tp-f3-finish/baseline.txt`: default zone `public`; zone list `block dmz docker drop external home internal libvirt libvirt-routed nm-shared public trusted work`; active zones Docker and public with the recorded interfaces; FORWARD and POSTROUTING had no `10.79.0` rules; no QEMU process, fixture bridge/address, `/tmp/tpc4`, or `/tmp/talos-pilot-c4-20261009`; route `10.79.0.2` via `tun0`.
+  - Applied the exact fixture zone, bound only `talosb8c871e1` and its four attached veths, and installed the five allowlisted iptables rules. Provisioned with the exact runbook `cluster create qemu` command; it completed without bootstrap fallback. All four Talos nodes reported v1.14.2 at `10.79.0.2`–`10.79.0.5` with the exact step 5 command.
+  - Before Kubernetes requests, changed `/tmp/tpc4/kubeconfig` ownership to the harness user with mode 0600; verified endpoint `https://10.79.0.1:6443`, context `admin@talos-pilot-c4-20261009`, Kubernetes CA SHA-256 `4ab5ce013beccd2df2a84637355adb96db0d6696ed8e33a66645c7b6899fbc26`; updated the checked manifest before the first request.
+  - `pnpm kubernetes:fixture -- --manifest /tmp/tp-f3-finish/fixture-id.json --admin-kubeconfig /tmp/tpc4/kubeconfig`: rejected before Rust harness start because manifest must be checked in-repository. The server-version and CA-fingerprint scratch variants produced the same path rejection. One duplicate fixture-ID invocation occurred when the shell rejected a local variable named `status`; it also exited at the same path check. No rejection invocation sent a Kubernetes request or created a resource. Scratch output is in `/tmp/tp-f3-finish/reject-*.log`.
+  - `pnpm kubernetes:fixture -- --manifest tests/fixtures/talos-c4.json --admin-kubeconfig /tmp/tpc4/kubeconfig`: passed. Result lines: `fixture namespace gone: true`; `restricted list: items=201, unique=201, complete=true, resource_version_present=true`; `fixture admin setup, restricted paginated Pod list, and UID-anchored cleanup passed: Kubernetes v1.36.5 at the allowlisted endpoint`; `test live_fixture_sets_up_restricted_reader_and_cleans_up_by_uid ... ok`; `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out`. Full output is `/tmp/tp-f3-finish/live-list.log`.
+  - Case 6 synthetic test `aggregate_object_cap_returns_an_incomplete_snapshot_and_releases_memory` passed and asserted 10,000 items, incomplete status, page count, and release on drop. No live cap request was made.
+  - Rust: `pnpm format:rust:check`; default/native-test Clippy (`--locked --all-targets -- -D warnings`); default/native-test `cargo test --locked --all-targets`; `cargo test --locked --doc`; `RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps`; locked `cargo build`; and `cargo test --locked --features native-test --test kubernetes_fixture --no-run`: pass. Each all-target library suite reports 111 passed, 0 failed, 1 ignored; the nine fixture tests stay ignored by default.
+  - Frontend/document gates: `pnpm format`, `pnpm format:check`, `pnpm check` (144 renderer tests and production Vite build), `pnpm test:e2e` (8 tests), targeted `pnpm vitest run scripts/lib/kubernetes-fixture.test.ts` (12 tests), and `git diff --check`: pass.
+  - Hosted results for base `fa274f8`: Foundation run `38385915666` completed successfully (scope decision, renderer, and result jobs passed; desktop matrix skipped for this base documentation/code state). Security run `38385915753` completed successfully: CodeQL Actions, JavaScript/TypeScript, Rust, and Trivy filesystem scan passed; Trivy check passed.
+  - Part 1 commit `24104a8` was pushed. At the time of this entry, its Foundation run `38386815775` and Security run `38386815568` were in progress. Renderer passed; Ubuntu, Windows, and macOS desktop jobs were pending; CodeQL Actions/JavaScript and Trivy checks passed; CodeQL Rust remained pending.
+  - Runbook step 7: the exact `cluster destroy --name talos-pilot-c4-20261009 --force` command succeeded with the empty `TALOSCONFIG` guard set. It completed fixture teardown without needing a Talos endpoint. Removed exactly the five fixture iptables rules (both counts 0), deleted the temporary firewalld zone, and removed `/tmp/tpc4` and `/tmp/talos-pilot-c4-20261009`. Restoration output is `/tmp/tp-f3-finish/restoration.txt`; zone/default/active-zone lists match the saved baseline, no fixture rule/process/link/address remains, and `10.79.0.2` routes through `tun0` again.
+- **Evidence class:** deterministic Rust and TypeScript tests; prior native Tauri IPC and browser E2E evidence; real-cluster Talos/Kubernetes 1.36.5 run through the Rust adapter. No current native desktop run was needed for this Part 1 test-only code change; case 11 relies on the prior Part C native suite.
+- **Fixture:** `talos-pilot-c4-20261009`, Talos v1.14.2/Kubernetes v1.36.5, 3 control planes and 1 worker. Baseline and restoration files are under `/tmp/tp-f3-finish`; no bootstrap fallback. The allowed endpoint/context/CA and four node addresses matched. The restricted list and UID-anchored cleanup passed, then `cluster destroy` and host restoration completed. No fixture or `/tmp/tpc4` remains.
+- **Failed or unexecuted:** no required local gate failed on the final code tree. The scratch manifest rejection runs did not parse the mutated value because the script intentionally accepts only the checked manifest path; pure validators independently cover wrong ID/version/CA/context with no synthetic requests. The separate post-rejection namespace absence check was not independently queried: doing so would issue a Kubernetes request after an identity rejection. The fixture namespace was absent at the fresh baseline, each rejection invocation stopped before creating anything, and the successful real run later verified cleanup. No live 10,000-object cap test was run because the allowlist permits exactly 201 Pods. Kubernetes 1.35/1.37 and F4 watch remain unexecuted in this document's scope. Hosted jobs for `24104a8` were still running when this entry was prepared.
+- **Review findings:** final diff review confirmed list admission occurs before request dispatch; a held continuation occupies one admission and projection lease, which both release on future drop; synthetic server tasks are joined during stop. Live assertions verify exact names and unique count after UID-anchored cleanup, and output contains counts/boolean presence only. The checked fixture manifest changed only its CA fingerprint. The runbook's rejection preflight is stricter than scratch paths: it blocked all three wrong-value copies before parsing; deterministic validators cover value-level rejection. No unresolved defect found within document 02.
+- **Assumptions confirmed or refuted:** confirmed the allowlisted endpoint/context, Kubernetes v1.36.5, mTLS admin preflight, Talos v1.14.2 on all nodes, restricted Pod-only reader access to its namespace, list pagination/resource version, and namespace cleanup. The document-02 aggregate cap has deterministic evidence only; no live-cap assumption is claimed.
+- **Questions and blockers raised:** none. B6 remains resolved by the series-maintenance entry; no new question is needed because the rejected scratch manifests and no-request constraint have deterministic coverage.
+- **Next:** document 03, F4 Kubernetes watch. Do not repeat document 02 or its 201-Pod fixture run.
+
+### 2026-10-13 — document 02, independent verification
+
+- **Document:** 02, verification of the session entry "document 02, F3 Kubernetes list probe complete" at the owner's request. No acceptance case was re-run against a cluster.
+- **Session:** Claude Opus 5.5; base revision `2c31524`; final revision: the commit carrying this entry.
+- **Status after this session:** document 02 stays `done`. The live list, the gates, and the host restoration are confirmed from evidence that the verified session did not write. Four corrections and gaps are recorded below; none changes the status.
+- **Acceptance cases:** 1 to 9 and 11 to 13 confirmed as recorded. Case 10 is confirmed as passed on deterministic evidence only; see the first review finding.
+- **What changed:** this ledger only. The verified entry had been appended after the "Entry template" section; it is moved into the session log with its wording unchanged. Two rows are added to "Deferred and carried rows".
+- **Commands and results** (openSUSE Tumbleweed x86_64; Node 26.11.1, pnpm 12.10.1, Rust/Cargo 1.99.0, protoc 36.2, reusing the verified session's digest-checked tools in `/tmp/tp-f3-finish/tools`):
+  - `journalctl --since '2026-10-13 12:50' --until '13:05'`, user-visible `sudo` records: the fixture zone was created at 12:56:47, `cluster create` started at 12:56:54, the bridge `talosb8c871e1` and four guest interfaces were bound at 12:57:02 with the five recorded `iptables` rules, the two role configurations were issued through `10.79.0.2` at 12:58:48, `/tmp/tpc4/kubeconfig` changed owner at 12:59:08, `cluster destroy` ran at 12:59:38, and the five rules, the zone, and `/tmp/tpc4` were removed by 12:59:47. This matches the entry step for step. No `talosctl` command in that window lacks an explicit fixture `--talosconfig`, apart from `cluster create` and `cluster destroy`.
+  - `/tmp/tp-f3-finish/live-list.log`: holds the five result lines the entry quotes, including `restricted list: items=201, unique=201, complete=true, resource_version_present=true`.
+  - `/tmp/tp-f3-finish/reject-*.log`: all three runs stopped with `--manifest must reference a checked file inside this repository`.
+  - `/tmp/tp-f3-finish/baseline.txt` against `restoration.txt`: zones, default zone, active zones, links, addresses, and route are equal.
+  - Host state read again in this session: no `qemu-system` process, no `talos*` link, no `10.79.0.x` address, both `10.79.0` rule counts `0`, no `talos-pilot-c4` zone, no `/tmp/tpc4` or `/tmp/talos-pilot-c4-20261009`, and `10.79.0.2` routes through `tun0`. The only configuration file left in the scratch directory is the empty guard.
+  - `cargo test --locked --all-targets --features native-test` and the same without the feature, on `2c31524`: pass, 111 passed and 1 ignored in the library suite each time; the nine Talos fixture tests and the live Kubernetes test stay ignored.
+  - The three new session tests (`list_rejects_excess_admission_without_a_request`, `failed_list_releases_admission_and_retained_projection`, `dropping_in_flight_list_releases_admission_and_retained_projection`) repeated 30 times: 0 failures.
+  - `cargo clippy --locked --all-targets -- -D warnings` and the same with `--features native-test`: pass. `pnpm format:rust:check`: pass. `pnpm format:check`: pass, 158 files. `pnpm vitest run scripts/lib/kubernetes-fixture.test.ts`: 12 passed. `git diff --check fa274f8..2c31524`: pass.
+  - Hosted, code commit `24104a8`: Foundation `38386815775` and Security `38386815568` were **cancelled** when `2c31524` was pushed. Renderer, the scope decision, CodeQL Actions and JavaScript/TypeScript, and Trivy had passed; the three desktop jobs and CodeQL Rust were cancelled. That commit has no completed hosted desktop result.
+  - Hosted, head `2c31524`, which contains the same code: Foundation `38387404499` succeeded, with renderer, `desktop (ubuntu-22.04)`, `desktop (windows-2022)`, and `desktop (macos-15)`. The Ubuntu job's steps include both Clippy runs, both test runs, `pnpm desktop:build`, `pnpm production:check`, and "Run actual Tauri IPC tests". Security `38387404645` succeeded: CodeQL Actions, JavaScript/TypeScript, and Rust, and the Trivy filesystem scan. macOS Intel is outside the pull-request matrix and did not run.
+- **Evidence class:** host journal and retained logs for the real-cluster run; deterministic Rust and TypeScript tests re-run locally; hosted CI, including a hosted native Tauri run on Ubuntu 22.04. No new real-cluster run and no local native Tauri run in this session.
+- **Fixture:** none provisioned. Nothing on the host was changed.
+- **Failed or unexecuted:** not re-run locally: `pnpm check`, `pnpm test:e2e`, `pnpm test:native`, `pnpm desktop:build`, `pnpm production:check`, rustdoc, and the Go gates; the hosted run for `2c31524` covers them. The system journal's kernel messages are not readable by this user, so bridge creation is confirmed from the `sudo` records only. The hosted runs for the commit carrying this entry are unread.
+- **Review findings:**
+  1. **Case 10 is deterministic evidence only.** The verified entry labels it "deterministic and real-cluster preflight". The three scratch manifests were refused by the path rule before the script read them, so those runs exercised neither the fixture nor the wrong values. The instruction to use scratch copies came from the session prompt, which had not accounted for that rule. The value-level evidence is the manifest validator tests in `scripts/lib/kubernetes-fixture.test.ts` and the pure identity check in `src-tauri/tests/kubernetes_fixture.rs`.
+  2. **The request-count assertions in `wrong_fixture_id_version_ca_and_context_are_rejected_before_requests` cannot fail.** The test starts a synthetic server and never passes it to the function under test, which is pure. The `is_err` assertions are real; the "zero synthetic-server requests" evidence is true by construction and proves nothing. Carried to document 03.
+  3. **A server that reports an unexpected version has no test.** The live test asserts the reported version after the `/version` read, and the deterministic tests cover only the manifest's expected version. Carried to document 04, which makes the expected version a parameter.
+  4. **The Talos node versions rest on the entry alone.** No output of the step 5 version command or of provisioning was kept in the scratch directory. The Kubernetes version is confirmed by the retained harness output; the Talos one is not independently confirmed.
+  5. Confirmed by reading the diff: the three session tests are inside the test module, `list.rs` spawns no task, cleanup runs before the list assertions, and the live test prints counts only. No production code changed in `24104a8`.
+- **Assumptions confirmed or refuted:** none from the table. Confirmed: `cluster destroy` works with the `TALOSCONFIG` guard set, which the series-maintenance entry had left untested.
+- **Questions and blockers raised:** none.
+- **Next:** document 03, F4 Kubernetes watch. Keep the provisioning output and the step 5 version output in the scratch directory, and quote the node version lines in the entry.
+
+### 2026-10-13 — document 03, F4 dependency setup
+
+- **Document:** 03, F4 prerequisite research and packet task 1 setup.
+- **Session:** GPT-6; base revision `4c69ec5`; final revision: this commit.
+- **Status after this session:** in progress. The pinned kube watcher feature is enabled and verified, but no watch service, IPC stream, acknowledgement contract, renderer behavior, or fixture watch has been implemented.
+- **Acceptance cases:** 1–15 unexecuted; this session only enabled and checked the pinned library capability.
+- **What changed:** `src-tauri/Cargo.toml` enables only kube's `runtime` feature; `src-tauri/Cargo.lock` adds the exact `kube-runtime` 4.2.0 graph; `docs/dependencies.md` records feature purpose and pinned watcher documentation; this ledger records progress.
+- **Commands and results:** `cargo check` in `src-tauri/` passed after lockfile update. `cargo tree --locked --manifest-path src-tauri/Cargo.toml -e features -i kube-runtime` confirmed `kube-runtime` is reached through `kube/runtime`. `cargo fmt --manifest-path src-tauri/Cargo.toml --check`, `cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings`, and the same Clippy command with `--features native-test` passed on openSUSE Tumbleweed x86_64. `protoc` 36.2 was downloaded under `/tmp/tp-f4-tools` and matched SHA-256 `121f6c7afe1d4d0e3ea6aab9432038599250134cbf4474cb1167d2c7decd4278`. `pnpm format` and `pnpm format:check` passed on 158 files; `git diff --check` passed.
+- **Evidence class:** dependency graph and compilation only. No deterministic watch tests, native Tauri run, or real-cluster run.
+- **Fixture:** none. The allowlisted C4 fixture does not currently exist; no host networking or cluster was changed.
+- **Failed or unexecuted:** all Rust tests, rustdoc, frontend/IPC/native gates, synthetic watch fault cases, and the F4 real-cluster interruption run are unexecuted because this increment introduces only dependency configuration and documentation.
+- **Review findings:** review confirmed the feature is exact-pinned by the lockfile and only the selected `runtime` feature is enabled; kube default features remain disabled. The protocol has not changed, so no generated IPC artifacts changed.
+- **Assumptions confirmed or refuted:** confirmed from kube 4.2.0 source/docs: `runtime` exposes the supported watcher; watcher `Init`/`InitDone` events delimit replacement lists and its documented recovery owns resource-version bookkeeping, including relisting after an expired resource version.
+- **Questions and blockers raised:** none.
+- **Next:** implement a bounded session-owned watcher around kube 4.2.0's watcher events, then add deterministic relist/cancellation/UID tests before introducing IPC and renderer changes.
+
+### 2026-10-13 — document 03, F4 session-owned watcher
+
+- **Document:** 03, F4 implementation packet tasks 1, 2, 6 (backend ownership foundation), and 8 (synthetic 410 support).
+- **Session:** GPT-6; base revision `4311db1`; final revision: this commit.
+- **Status after this session:** in progress. A bounded watcher now runs under a credential session and joins on stop/close; IPC delivery, consumer acknowledgements, shared query ownership, renderer validation, and the fixture watch remain open.
+- **Acceptance cases:** deterministic coverage added for the complete initial generation, 410 relist generations, exhausted relist and transient budgets, permission failure without retry, consumer closure, explicit stop, session close, and admission exhaustion (partial evidence for 3, 4, 5, 10, 11, 12, and 13). Cases 1, 2, 6–9, 14, and 15 remain unverified; the watcher library owns list/watch handoff recovery but no live handoff/change test was run.
+- **What changed:** `watch.rs` translates kube 4.2.0 recovery events into UID-keyed Pod projections and atomic snapshot generations, with seven admitted subscriptions, 64-message/8 MiB queues, 200-item batches, bounded retained projections, terminal status out of band, and bounded relist/transient failure handling. `KubernetesSessionStore` owns each task and cancellation signal; stop and async session close join it. The synthetic API server can return a watch `410 Gone`. This increment does not add Tauri channel forwarding or renderer code.
+- **Commands and results:** `cargo test --manifest-path src-tauri/Cargo.toml --locked kubernetes:: -- --nocapture` passed (35 tests). With Go 1.27.2 and protoc 36.2 selected from `/home/kiss/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.linux-amd64/bin` and `/tmp/tp-f4-tools/protoc/bin`, `cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings`, the same with `--features native-test`, both `cargo test --locked --all-targets` variants, `cargo test --locked --doc`, `RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps`, and `cargo fmt --check` passed. `pnpm test:native` passed on openSUSE Tumbleweed Linux with WebKitGTK 605.1.15: helper-status 12 specs and Kubernetes session 4 specs; its teardown reported no helper or synthetic endpoint remained. `pnpm desktop:build` and `pnpm production:check` passed; production output excluded WebDriver and exposed no driver listener. Documentation formatting and final diff checks are recorded below after final ledger formatting.
+- **Evidence class:** deterministic synthetic API and Rust session tests; real native Tauri suite for existing IPC coverage; production build inspection. No watch event traversed Tauri IPC, and no Kubernetes cluster watch was run.
+- **Fixture:** none provisioned. The C4 fixture is still absent; no host or cluster resources were changed.
+- **Failed or unexecuted:** no final Rust or native gate failed. F4 TypeScript/Svelte, acknowledgement-pressure behavior, duplicate query sharing, 2 MiB decoded-event pre-decode enforcement, 15 s watch establishment deadline, 60 s relist deadline, and live 1.36 watch interruption remain unimplemented or unexecuted. The queue byte accounting starts after kube has decoded an object, so it does not itself bound an oversized response before decode. No acceptance case is marked complete by this backend increment.
+- **Review findings:** snapshot replacement now moves the staged map into current state rather than cloning the entire generation; queued batch copies are accounted against the queue budget. Resource-version recovery remains delegated to kube's pinned watcher. The current terminal and queue messages are Rust types only and do not alter the application IPC contract.
+- **Assumptions confirmed or refuted:** confirmed by synthetic tests that an API watch 410 leads kube's watcher to a fresh complete list generation and the configured no-update relist budget then terminates stale. No live API server behavior was verified.
+- **Questions and blockers raised:** none.
+- **Next:** add bounded acknowledged Tauri IPC forwarding with subscription/session/generation/sequence validation, then deduplicate identical query ownership and connect renderer stale/reconnect state.
+
+### 2026-10-13 — document 03, F4 acknowledged IPC and renderer projection
+
+- **Document:** 03, F4 implementation packet tasks 3, 5, and 7; partial coverage for 6 and 8.
+- **Session:** GPT-6; base revision `5900a59`; final revision: this commit.
+- **Status after this session:** in progress. Rust IPC delivery, renderer validation, visible stale/reconnect state, generated DTOs, deterministic synthetic event tests, and native channel delivery now exist. Identical-query multi-consumer ownership and live Kubernetes 1.36 interruption remain open, so F4 is not done.
+- **Acceptance cases:** 1, 2, 6, 7, 8, 10, 12, and 14 have synthetic or native evidence in this increment (not all failure variants); 3–5 and 9, 11, 13, and 15 remain unverified. The live handoff/change and resource-baseline cases need more evidence.
+- **What changed:** generated watch DTOs and capability-scoped open/stream/ack/stop commands; one outstanding sequence acknowledgement; renderer runtime validation and UID-keyed atomic generation application; visible stale and explicit reconnect controls; deterministic synthetic duplicate, delete, and recreation stream; native tests for ordered channel delivery and session-close cleanup. Added the IPC contract and decision record 0015. Fixed opening a watch to run asynchronously on Tokio; the synchronous command previously panicked on the Tauri UI thread.
+- **Commands and results:** `pnpm contracts:generate` passed; `PATH="/home/kiss/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.linux-amd64/bin:/tmp/tp-f4-tools/protoc/bin:/tmp/tp-f4-tools/node/bin:$PATH" pnpm contracts:check` passed; `cargo test --manifest-path src-tauri/Cargo.toml --locked kubernetes:: -- --nocapture` passed (38 tests); the same pinned-toolchain `pnpm test:native` passed on openSUSE Tumbleweed x86_64, WebKitGTK 605.1.15 (helper-status 12 and Kubernetes session 6); native teardown reported no helper or synthetic endpoint remained. `pnpm lint`, `pnpm lint:svelte`, and `pnpm test:run` passed earlier on this working tree; rerun on the final tree. `git diff --check` passed before documentation additions; rerun before commit.
+- **Evidence class:** deterministic Rust synthetic API tests and mock renderer tests; actual Linux Tauri/WebKitGTK IPC delivery. No real-cluster watch test.
+- **Fixture:** none used this increment. C4 was last recorded as destroyed; F4 live mutation and interruption actions still need to be explicitly added to the allowlist and exercised in one runbook session.
+- **Failed or unexecuted:** native suite initially crashed because the synchronous Tauri command spawned Tokio work without a runtime; corrected by making command and store entry point async, then the final native suite passed. No live C4 watch was run. Query deduplication is not implemented. The 2 MiB projection check follows kube object decoding, and the watch client has no response read timeout to preserve quiet streams; strict pre-decode memory and 15-second establishment behavior therefore remain incomplete. Queue/ack fault cleanup and the full baseline observation matrix need dedicated coverage.
+- **Review findings:** native logs found and fixed the UI-thread Tokio panic. Final review still needs to cover cancellation and delivery attach-error paths, sequence overflow, query sharing, and transport establishment bounds before F4 can close. The Tauri channel tests prove the ordered success path and session shutdown join only.
+- **Assumptions confirmed or refuted:** confirmed that the actual Tauri channel can deliver and acknowledge a deterministic ordered event stream and that session close joins the active watch on Linux. The prior assumption that a synchronous command could spawn the watcher was refuted by native runtime evidence.
+- **Questions and blockers raised:** none.
+- **Next:** implement shared producer ownership for identical queries; add deterministic fault/cleanup observation tests; then update the fixture allowlist and run the real 1.36 watch interruption case before deciding whether any remaining resource limit needs a design change.
+
+### 2026-10-13 — document 03, live watch interruption evidence and retry hardening
+
+- **Document:** 03, F4 tasks 1, 6, 8, and 9; acceptance cases 2, 6, 12, 13, and 15.
+- **Session:** GPT-6; base revision `d2d48fe`; final revision: the commit carrying this entry.
+- **Status after this session:** in progress. A real Kubernetes 1.36 watch resumed after its endpoint connection was interrupted, but identical-query multi-consumer ownership, complete fault cleanup observation, and strict response-establishment limits remain unresolved.
+- **Acceptance cases:** 1 passed in prior live run for initial list/watch handoff; 2 passed synthetically (same UID/resource version identical event ignored, conflicting projection rejected); 3–5 unexecuted as completion-state UI and bounded exhaustion cases; 6 passed synthetically and live; 7–8 passed in renderer/native paths as recorded in the prior entry; 9 unimplemented; 10 synthetic queue accounting only, acknowledgement timeout cleanup not yet fully observed; 11–12 partial synthetic/native cleanup evidence; 13 unexecuted as a complete per-case baseline matrix; 14 passed in the prior Linux native Tauri run; 15 passed in a real fixture run described below.
+- **What changed:** the synthetic API can close an established stream and produce a distinct event on the replacement; watch event identity handling ignores exact duplicate UID/resource-version projections and rejects conflicting same-version projections; watch sequence and generation increment paths fail closed on overflow; live harness now quiets the namespace before watching, checks fixture-bound established sockets before reset, waits for a distinct resumed Pod UID, and cleans exact names even on panic. Updated the exact fixture allowlist and runbook, and corrected the README's F4 stage summary.
+- **Commands and results:** `pnpm format` and `pnpm format:check` passed (164 files); `cargo test --manifest-path src-tauri/Cargo.toml --locked kubernetes:: -- --nocapture` passed (39 tests); `cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings` passed. A prior `pnpm kubernetes:fixture` run on openSUSE Tumbleweed x86_64 used the allowlisted C4 disposable Talos v1.14.2 / Kubernetes v1.36.5 cluster, three control planes and one worker, endpoint `10.79.0.1:6443`; it passed add, status change, delete, same-name recreation, exact established-socket interruption, and delivery of the resumed Pod UID. The current quiet-namespace adjustment to that harness was not rerun on a newly provisioned fixture. Final native, full renderer, contract, and production build gates remain to run after the remaining implementation work.
+- **Evidence class:** deterministic Rust tests and one real Kubernetes 1.36.5 fixture run. The actual Tauri native channel run and renderer tests are from the preceding committed increment; this session did not rerun them after the Rust synthetic/watch changes.
+- **Fixture:** `talos-pilot-c4-20261009`, Talos v1.14.2 / Kubernetes v1.36.5, three control planes and one worker, `10.79.0.1:6443`, CA fingerprint `93e97fab562cd9b4eae85c81e705eeb05ee27014da4ad033a012e7aa1da68b06`. Baseline and restoration records are in `/tmp/tp-f4-live.QA4lhl/baseline.txt` and `restoration.txt`. C4 was destroyed. Checks confirmed the state directory and VM path are absent, no matching QEMU process or `10.79.x` host address remains, firewall zones and active interfaces match baseline, and fixture iptables rule counts are zero. One earlier namespace cleanup command used an unsupported kubectl `--preconditions` option; cleanup was completed by a local API proxy DELETE with a namespace UID precondition and verified gone. Earlier fixture attempts waiting for server-side watch close were superseded by the exact socket interruption that passed.
+- **Failed or unexecuted:** the latest harness-only quieting/cleanup edits have not been rerun on a fresh live fixture. The strict 15 s watch response-establishment deadline and a pre-decode 2 MiB bound remain unimplemented; the current Kube client leaves response reads unbounded to preserve quiet watches. Query deduplication and multi-consumer ownership are unimplemented. The full fault-path/resource-baseline matrix is unexecuted. Full native, renderer, contract, and production checks are to be rerun after implementation is finished.
+- **Review findings:** fixture connection reset is guarded by an exact established-destination count and exact endpoint/port; cleanup scopes are exact named Pods and a UID-anchored namespace delete. Rust no longer treats a repeated same-version conflicting projection as a harmless duplicate. Final review still needs to exercise admission release and task joins for the full cancellation, attach-error, closed-channel, acknowledgement-timeout, and app-shutdown matrix.
+- **Assumptions confirmed or refuted:** confirmed that closing the established TLS connection to the fixture endpoint causes kube's recovering watcher to relist/reconnect and deliver a later, distinct Pod UID event. The prior wait-for-close approach was not reliable with a busy namespace; clearing list probes before the live watch makes the event sequence deterministic.
+- **Questions and blockers raised:** none.
+- **Next:** implement shared query groups with distinct bounded consumer queues and acknowledgements, then exercise their independent-stop behavior and remaining fault cleanup cases.
+
+### 2026-10-13 — document 03, repeat C4 live watch after harness refinement
+
+- **Document:** 03, F4 task 9; acceptance cases 6, 13, and 15.
+- **Session:** GPT-6; base revision `6883532`; final revision: the commit carrying this entry.
+- **Status after this session:** in progress. The final refined fixture harness passed against a freshly provisioned disposable Kubernetes 1.36.5 cluster and the host was restored. Shared-query ownership, the complete fault/resource baseline matrix, and the strict transport/event limits remain open.
+- **Acceptance cases:** 6 and 15 passed live. Case 13 has fixture host/namespace teardown observation for this run only, not the requested baseline matrix after every acceptance case. Cases 1–5, 7–8, 10–12, and 14 retain the prior entry's evidence and gaps; case 9 remains unimplemented.
+- **What changed:** refreshed the allowlisted C4 Kubernetes CA fingerprint to match the newly generated cluster certificate authority, as read and checked by the fixture harness. No application implementation changed.
+- **Commands and results:** `src-tauri/.local-tools/talosctl version --client` reported v1.14.2; SHA-256 `c6c9552b0e5f767352c595fa1c0af4f186f697488646872955057d23990a66c4`. `src-tauri/.local-tools/talosctl --talosconfig /tmp/tpc4/talosconfig --nodes 10.79.0.2,10.79.0.3,10.79.0.4,10.79.0.5 version` reported v1.14.2 at all four exact nodes. `pnpm kubernetes:fixture -- --manifest tests/fixtures/talos-c4.json --admin-kubeconfig /tmp/tpc4/kubeconfig` passed: add/status change/delete/recreate; exact endpoint socket reset; resumed Pod UID delivered; 201 unique Pods listed; namespace gone after UID-anchored cleanup. A first invocation correctly stopped before cluster mutation because the generated CA fingerprint differed from the stale manifest value; after updating the manifest to the harness-reported `32c04d6dc9988ad2cace8aa3bf4491dc5e70f22055dc772cb317d437a648e16a`, the same command passed. The initial identity setup command also stopped before any Talos operation because it assumed provisioning would leave the Talos config absent; the subsequent command used the provisioned config directly and succeeded. `git diff --check` and application gates are to be run on the next code increment.
+- **Evidence class:** real disposable C4 Kubernetes v1.36.5 / Talos v1.14.2 live integration. The fixture was newly provisioned with three control planes and one worker at `10.79.0.2`–`.5`, endpoint `https://10.79.0.1:6443`, fixture ID `talos-pilot-c4-20261009`. The observed CA SHA-256 is recorded in the manifest. No native or renderer test was run in this fixture session.
+- **Fixture:** baseline captured in `/tmp/tp-f4-rerun-20261013/baseline.txt`; restoration captured in `/tmp/tp-f4-rerun-20261013/restoration.txt`. `talosctl cluster destroy --force` reported stopping all four VMs and removing the network/state. The exact five fixture iptables rules were deleted, the fixture firewalld zone removed, and `/tmp/tpc4` plus `/tmp/talos-pilot-c4-20261009` removed. Post-run checks found zero fixture FORWARD/NAT rules, no fixture zone, no fixture link/address, no QEMU match, and absent fixture paths. Default/active firewalld zones, Docker interfaces, forwarding/NAT baseline rules, and VPN route matched the pre-run capture.
+- **Failed or unexecuted:** the first harness invocation did not pass its expected-CA identity assertion and performed no test mutations; the rerun passed after manifest refresh. The earlier server-close based attempts recorded above remain failed historical attempts and were replaced by the authorized exact TCP reset. The shared ownership and remaining F4 bounds/fault matrix remain unexecuted.
+- **Review findings:** fixture scope remained within the allowlist. An unsupported command-line precondition flag was not retried; the fixture harness used its UID-anchored deletion path and printed `fixture namespace gone: true`. Host cleanup removed the exact setup rules and all fixture VM/network state.
+- **Assumptions confirmed or refuted:** confirmed that the refined live harness's quieting step permits stable live watch mutation and reconnection evidence on a newly created fixture, not only on the earlier run.
+- **Questions and blockers raised:** none.
+- **Next:** implement shared query groups with independent consumer queues, replayable current snapshots, and ref-counted watch/task ownership; then test owner removal while another consumer remains active.
+
+### 2026-10-13 — document 03, shared renderer query ownership
+
+- **Document:** 03, F4 tasks 3–7; acceptance cases 7–10 and 12.
+- **Session:** GPT-6; base revision `5eca5ed`; final revision: the commit carrying this entry.
+- **Status after this session:** in progress. Identical queries in one renderer transport now share one native subscription with independently releasable consumer leases and bounded snapshot replay. The establishment/body bounds and complete fault cleanup matrix remain open.
+- **Acceptance cases:** 7 passed for sequence-gap rejection in the shared source path and per-consumer contiguous sequence validation in state tests; 8 remains covered by existing session/query identity guards, though no dedicated two-session registry test was added; 9 passed in deterministic renderer-registry tests: two consumers share one `open`/channel, one can leave while the other receives an event, and a late owner gets the last complete snapshot; 10 and 12 retain queue/ack/native evidence from earlier entries, but full overflow/timeout/shutdown observation is incomplete. Cases 1–6 and 11, 13–15 retain their previous evidence and gaps.
+- **What changed:** added `kubernetesPodWatchRegistry.ts` with query identity keyed by session, namespace, and selectors; source IPC sequence checking before fanout; independent renderer-local sequence counters; bounded 10,000-item complete snapshot cache with 200-item replay batches; owner ref-counting, cancellation of the final owner, and rejoin handling while a snapshot is being built. `KubernetesWorkloadsState` now acquires/releases a registry lease. Added deterministic two-owner, late replay, and source-gap tests. Updated IPC protocol and README stage notes.
+- **Commands and results:** `pnpm check` passed with 18 test files, 150 tests, and the production Vite renderer build before the final sequence-gap test was added; after that test, `pnpm lint` and `pnpm vitest run src/lib/ipc/kubernetesPodWatchRegistry.test.ts` passed (3 tests). `PATH="/home/kiss/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.linux-amd64/bin:/tmp/tp-f4-tools/protoc/bin:/tmp/tp-f4-tools/node/bin:$PATH" pnpm contracts:check` passed. The same pinned-toolchain `pnpm test:native` passed on openSUSE Tumbleweed x86_64 with WebKitGTK 605.1.15: helper-status 12, Kubernetes session 6, no helper or synthetic endpoint left after teardown. Full `pnpm check` is to be rerun after this entry's final test addition.
+- **Evidence class:** deterministic renderer registry/state tests; actual native Tauri channel, ordered delivery, and session-close tests. The two-owner registry test uses an injected transport to isolate ownership behavior; it does not itself exercise two owner leases over a live Tauri window.
+- **Fixture:** none this increment. The immediately preceding entry records the repeat real Kubernetes 1.36.5 run and host restoration.
+- **Failed or unexecuted:** `pnpm contracts:check` without the pinned `protoc` path again failed to start `protoc` with `EACCES`; rerunning with `/tmp/tp-f4-tools/protoc/bin` passed. No final full check after the last test-only change yet. The strict 15-second response-establishment bound, pre-decode 2 MiB watch event limit, relist/backoff cancellation cases, acknowledgement timeout, and complete resource-baseline matrix remain unimplemented or unverified.
+- **Review findings:** review found a join-before-initial-snapshot race; the owner is now registered before waiting for native stream readiness, and activation replays a completed snapshot or waits for the in-progress replacement to complete. Last-owner release keeps the registry entry in a closing state until backend stop completes, preventing an overlapping replacement subscription. Internal fanout sequence numbers are explicitly documented as renderer-local; the actual IPC source sequence is checked before any consumer receives or acknowledges an event.
+- **Assumptions confirmed or refuted:** confirmed that a renderer-level owner registry can share one backend/Tauri stream while preserving independent per-view application sequence validation, provided only the shared source event is acknowledged once after synchronous fanout.
+- **Questions and blockers raised:** none.
+- **Next:** implement a transport layer that bounds initial response headers without imposing an idle timeout on established watch bodies, then add an event-frame size limiter before kube's JSON decoder and test those bounds.
+
+### 2026-10-13 — correction to shared ownership verification entry
+
+- **Document:** 03, correction to the preceding shared renderer query ownership entry.
+- **Session:** GPT-6; base revision `5eca5ed`; final revision: the commit carrying this correction.
+- **Status after this session:** in progress, unchanged.
+- **Acceptance cases:** unchanged from the preceding entry.
+- **What changed:** correction only; no source change.
+- **Commands and results:** after adding the sequence-gap test, `pnpm format && pnpm check` passed: formatting, Oxlint/type diagnostics, Svelte diagnostics (0 errors/warnings), 18 test files / 151 tests, and production Vite build. `PATH="/home/kiss/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.linux-amd64/bin:/tmp/tp-f4-tools/protoc/bin:/tmp/tp-f4-tools/node/bin:$PATH" pnpm contracts:check` passed. `git diff --check` passed.
+- **Evidence class:** local renderer tests/build and generated-contract check; no new native or fixture execution.
+- **Fixture:** none.
+- **Failed or unexecuted:** none for these commands. This does not change the remaining F4 acceptance gaps listed in the prior entry.
+- **Review findings:** this entry corrects the prior entry's statement that the full `pnpm check` remained to be rerun; it passed after the final test addition.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** none.
+- **Next:** implement and verify the remaining transport and decoded-event bounds.
+
+### 2026-10-13 — document 03, bound watch transport and cancellation
+
+- **Document:** 03, F4 tasks 1, 6, and 8; acceptance cases 10–13 and 15.
+- **Session:** GPT-6; base revision `cd2a1e6`; final revision: the commit carrying this entry.
+- **Status after this session:** in progress. Watch response headers now have a 15-second attempt deadline without an idle timeout on an established body; watch lines are capped at 2 MiB before kube decoding and yielded in 64 KiB chunks. The updated transport passed the live Kubernetes 1.36.5 watch interruption case. Native acknowledgement-timeout/closed-channel cleanup and the complete per-case resource-baseline matrix remain open.
+- **Acceptance cases:** 1–9 retain earlier synthetic, renderer, and live evidence; 10 queue accounting and pre-decode line rejection are deterministic, but native acknowledgement timeout remains unverified; 11 transient-backoff cancellation now joins in under 250 ms and releases retained/queued bytes, while cancellation during list/relist is not independently tested; 12 native session-close joins the active watch, but closed-channel/app-shutdown resource observations are incomplete; 13 remains unexecuted as a complete matrix; 14 native ordered acknowledged delivery and session-close join passed, while fault-path cleanup is incomplete; 15 passed against the current Tower transport wrapper in the fresh C4 run described below.
+- **What changed:** added a Tower response-header deadline and streaming pre-decode watch-line limiter; tested deadline retry, quiet established body, and oversized valid JSON input; added cancellation-during-backoff cleanup test; updated the application IPC protocol, dependency inventory, decision 0015, and README stage summary; corrected the production exclusion checker to recognize the production watch commands already granted by `main.json`.
+- **Commands and results:** on openSUSE Tumbleweed x86_64 with Rust 1.99.0, Go 1.27.2, Node 26.11.1, pnpm 12.10.1, and protoc 36.2, `cargo fmt --manifest-path src-tauri/Cargo.toml --check` passed; default and `native-test` `cargo test --locked --all-targets` each passed (127 passed, 1 ignored); default and `native-test` Clippy passed; `cargo test --locked --doc` and `RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps` passed; `pnpm inventory:check`, `pnpm contracts:check`, `pnpm test:native` (WebKitGTK 605.1.15, 12 helper-status and 6 Kubernetes tests), `pnpm check` (18 files, 151 tests, production Vite build), `pnpm test:e2e` (8 tests), `pnpm install --frozen-lockfile`, `pnpm audit --audit-level=low`, `pnpm audit:go`, `pnpm advisories:check`, `pnpm desktop:build`, `pnpm production:check`, and final `pnpm format:check` plus `git diff --check` passed. `pnpm kubernetes:fixture -- --manifest tests/fixtures/talos-c4.json --admin-kubeconfig /tmp/tpc4/kubeconfig` passed the current bounded transport watch cases (add, status change, delete, same-name recreation, exact endpoint socket reset, resumed UID), 201 unique list items, and namespace cleanup.
+- **Evidence class:** deterministic synthetic Rust tests; renderer tests; actual native Linux Tauri/WebKitGTK IPC run; the current live Kubernetes 1.36.5 fixture run after the Tower transport change.
+- **Fixture:** `talos-pilot-c4-20261009`, Talos v1.14.2/Kubernetes v1.36.5, 3 control planes and 1 worker, endpoint `10.79.0.1:6443`, CA SHA-256 `2b54ffa7a6297636b9bb2ea97730a6b2f1e4e48e621faf75c351edfaccb56364`. Baseline and restoration are in `/tmp/tp-f4-transport-20261013/baseline.txt` and `restoration.txt`. A first run correctly rejected the newly generated CA before any API request; the checked manifest fingerprint was refreshed after observing the harness-reported value. The live harness then passed; no bootstrap fallback was needed. Destruction removed the fixture state, five iptables rules and temporary firewall zone; post-run zone/default/active zones, Docker interfaces/rules, VPN route, absence of QEMU/fixture address, and absent `/tmp/tpc4` paths matched baseline.
+- **Failed or unexecuted:** production exclusion initially failed because its permission allowlist omitted watch commands already in the main capability; the checker was updated and its rerun passed. A first live harness attempt rejected a stale CA fingerprint before any API request; the manifest was refreshed to the observed fresh fixture CA and the rerun passed. An initial compile of the cancellation test missed a test-scope `Ordering` path; it was corrected and the final full Rust suite passed. Native acknowledgement timeout, deliberate closed-channel teardown, the full per-case resource-baseline matrix, and OS/version matrix remain unexecuted.
+- **Review findings:** response deadline is in the Tower service future through response headers only; the body wrapper does not add idle timeouts and limits each newline-delimited event before kube JSON decoding. The 64 KiB wrapper chunking bounds parser input chunks but does not limit total response duration after headers. `main.json` already included all four native watch permissions; the production exclusion script was stale and now matches that established source contract.
+- **Assumptions confirmed or refuted:** confirmed synthetically that cancellation during transient backoff stops before another request and releases retained projection and queued bytes; confirmed live watch recovery through the bounded transport on Kubernetes 1.36.5; confirmed that the generated CA can change between fresh provisioning while fixture endpoint/context/version remain allowlisted, and recorded the current fingerprint in the manifest.
+- **Questions and blockers raised:** none.
+- **Next:** exercise native acknowledgement timeout and closed-channel teardown, then collect per-case resource-baseline observations required by acceptance case 13; resolve any remaining cancellation cases before considering F4 complete.
+
+### 2026-10-13 — document 03, prove watch fault cleanup paths
+
+- **Document:** 03, F4 tasks 5–6 and 8; acceptance cases 10–14.
+- **Session:** GPT-6; base revision `fe9659a`; final revision: the commit carrying this entry.
+- **Status after this session:** in progress. Native acknowledgement timeout after the Tauri channel consumer closes is verified. Queue-full, initial-list, 410-relist, and transient-backoff cancellation paths now prove prompt termination and release queued/retained projection bytes. A failed delivery attachment retains its spawned task handle for abort-and-join. The packet-wide task/socket/permit/data baseline matrix, including shutdown while a watch is active, remains open.
+- **Acceptance cases:** 10 synthetic full-queue termination returns queued bytes to zero after drain; native closed-channel callback is detected through the five-second acknowledgement timeout and session closes; queue byte overflow by projected bytes remains separately covered by the existing per-message bounded accounting rather than a dedicated synthetic saturation run. 11 passed synthetically for cancellation during initial paginated list, 410 relist pagination, and transient retry backoff; each joins within 250 ms, releases queued and retained bytes, and produces no subsequent API requests. 12 native session-close joins an active watch; a closed renderer callback ends by acknowledgement timeout; app shutdown while a watch is active is not independently observed. 13 remains incomplete as a full acceptance-case matrix. 14 native ordered delivery, consumer-close timeout, and session-close cleanup passed; an underlying Tauri `Channel.send` failure and full application shutdown with a live stream remain unobserved. Other acceptance cases retain evidence from earlier entries, including the post-transport live case 15.
+- **What changed:** native test unregisters its real Tauri channel callback after receiving the first event and asserts the timeout terminal; added queue-full and list/relist/backoff cancellation tests with resource-counter assertions; delivery attachment now takes a mutable optional JoinHandle, preserving ownership on failure so the caller aborts and joins it; added a regression test for that failed-attachment ownership contract.
+- **Commands and results:** `cargo test --manifest-path src-tauri/Cargo.toml --locked kubernetes:: -- --nocapture` passed (47 tests); default and `native-test` `cargo test --locked --all-targets` passed (131 passed, 1 ignored in each library suite; integration/session suites passed; live fixture cases stay ignored by default); default and `native-test` Clippy passed with `-D warnings`; `pnpm test:native` passed on openSUSE Tumbleweed x86_64 / WebKitGTK 605.1.15 (12 helper-status and 7 Kubernetes tests, including the 5.7-second acknowledgement timeout); `pnpm check` passed (18 files, 151 tests and Vite production build); `cargo test --locked --doc`, `RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps`, `cargo fmt --manifest-path src-tauri/Cargo.toml --check`, `pnpm format:check`, `pnpm contracts:check`, `pnpm inventory:check`, `pnpm desktop:build`, `pnpm production:check`, and `git diff --check` passed.
+- **Evidence class:** synthetic API/Rust unit tests for queue and cancellation cleanup; actual native Tauri/WebKitGTK channel-close/ack-timeout and session-close tests. No new live fixture run was needed for these failure-path changes; the immediately preceding entry records live 1.36.5 watch recovery after the transport change.
+- **Fixture:** none this increment. C4 was destroyed and restored in the preceding entry; its host baseline and restoration evidence remain in `/tmp/tp-f4-transport-20261013/`.
+- **Failed or unexecuted:** an initial test invocation supplied two Cargo test filters (Cargo accepts one) and did not run; rerunning the complete Kubernetes suite passed. First compiles of new tests caught test-only `Ordering` imports, which were corrected before the successful run. No required final gate failed. The complete per-case task/socket/permit/projection baseline matrix, active-watch application shutdown, and direct Tauri send failure case remain unexecuted.
+- **Review findings:** review found that a failed `attach_watch_delivery` previously dropped a `JoinHandle`, detaching the delivery task. Passing a mutable option makes ownership transfer explicit only on successful registration; the command aborts and awaits the handle on failure, and the unit test verifies the handle remains available. The renderer callback closure is distinct from the Rust channel transport closing, so that native case proves acknowledgement-timeout cleanup but does not claim `ChannelClosed` classification.
+- **Assumptions confirmed or refuted:** confirmed that queue saturation terminates rather than growing beyond capacity; confirmed cancellation is prompt during initial list, relist, and retry backoff; confirmed the native channel timeout path cleans up after its renderer callback is unregistered.
+- **Questions and blockers raised:** none.
+- **Next:** construct and record the per-acceptance resource baseline matrix, explicitly measuring owned task completion, watch/request permits, projected/queued bytes, and synthetic connection teardown; cover application shutdown with an active subscription if the native harness permits it.
+
+### 2026-10-13 — document 03, close F4 watch acceptance
+
+- **Document:** 03, F4 tasks 1–9 and checkpoint C5.2.
+- **Session:** GPT-6; base revision `fe9659a`; final revision: the commit carrying this entry.
+- **Status after this session:** done on Linux. All 15 acceptance cases have recorded evidence across deterministic synthetic tests, renderer tests, native Tauri tests, and the disposable Kubernetes 1.36.5 fixture. Direct send-error classification and forced OS process shutdown during an active WebDriver watch remain specifically documented limits; bounded timeout/cleanup and the application shutdown store boundary are exercised.
+- **Acceptance cases:** (1) passed: synthetic event created after list snapshot is delivered from watch at the list resource version; (2) passed: duplicates ignored and UID recreation tracked; (3) passed: 410 relist publishes only complete generations; (4) passed: three event-free relists end stale pending explicit reconnect; (5) passed: disconnect/reconnect and retry exhaustion transitions tested; (6) passed live: same-name recreation yields a different UID; (7) passed: both ends reject sequence gaps and invalid/stale source events; (8) passed: namespace change stops prior subscription and ignores a late event; (9) passed: identical renderer queries share an upstream watch and final-owner release stops it; (10) passed: message queue saturation, byte budget, and native acknowledgement timeout terminate boundedly; (11) passed: cancellation during initial list, 410 relist, and retry backoff joins promptly; (12) passed: channel consumer disappearance terminates by acknowledgement timeout, session close joins the watch, and active-watch store shutdown returns resources to baseline; (13) passed: per-case resource observations recorded in `docs/verification/kubernetes-watch-resource-baseline.md`; (14) passed: native Tauri ordered delivery and fault cleanup; (15) passed live: Kubernetes v1.36 watch resumed after endpoint connection reset and delivered real changes.
+- **What changed:** Added handoff and active-connection observations to synthetic watch fixtures and cancellation/byte-budget tests. Added renderer namespace replacement regression and native closed-consumer acknowledgement-timeout coverage. Updated README stage, C5.2 checkpoint status, resource evidence matrix, and this ledger.
+- **Commands and results:** On openSUSE Tumbleweed x86_64, WebKitGTK 605.1.15, using Rust 1.99.0, Node 26.11.1, pnpm 12.10.1, Go 1.27.2, and protoc 36.2: `cargo test --manifest-path src-tauri/Cargo.toml --lib` passed (134 passed, 1 ignored); `cargo test --manifest-path src-tauri/Cargo.toml --features native-test --lib` passed (134 passed, 1 ignored); `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings` passed; `pnpm check` passed (18 files, 152 tests and production renderer build); `pnpm test:e2e` passed (8 tests); isolated `pnpm test:native` passed (12 helper-status and 7 Kubernetes tests, including real ordered Tauri channel delivery, closed-consumer timeout and session-close cleanup); `pnpm desktop:build` and `pnpm production:check` passed; `cargo fmt --manifest-path src-tauri/Cargo.toml --check`, `pnpm format:check`, `pnpm contracts:check`, `pnpm inventory:check`, `RUSTDOCFLAGS="-D warnings" cargo doc --manifest-path src-tauri/Cargo.toml --no-deps`, and `git diff --check` passed. `pnpm test:native` was first attempted concurrently with the production desktop build; the shared release binary was overwritten and WebDriver timed out before tests. Cleanup was confirmed, then the native run was repeated alone and passed. The first rustdoc invocation also lacked the pinned protoc path and stopped at build-script initialization; it passed when rerun with the pinned toolchain path. Fresh C4 command and fixture results are recorded in the immediately preceding fixture entry; the fixture run postdates the bounded response transport change.
+- **Evidence class:** deterministic Rust synthetic API/task/resource tests and renderer state/registry tests; native Tauri/WebKitGTK run using the synthetic Kubernetes endpoint; live disposable Talos v1.14.2 / Kubernetes v1.36.5 fixture run.
+- **Fixture:** `talos-pilot-c4-20261009`, three control planes and one worker, endpoint `10.79.0.1:6443`, Talos v1.14.2 / Kubernetes v1.36.5. Baseline and restoration are recorded in `/tmp/tp-f4-transport-20261013/baseline.txt` and `restoration.txt`. Fixture VM/network, namespace and exact firewall setup were removed; baseline Docker/firewall/VPN routing was restored.
+- **Failed or unexecuted:** The first final native run failed before tests because concurrent build commands replaced the native-test binary; isolated rerun passed. No direct Tauri `Channel.send` transport error was induced; missing consumer acknowledgement exercised bounded termination instead. WebDriver did not forcibly terminate the OS process mid-watch; `KubernetesSessionStore::shutdown` was verified with an active socket, and app shutdown invokes that owner cleanup. macOS/Windows and Kubernetes 1.35/1.37 qualification are outside this F4 Linux fixture result and remain open in their respective ledger rows.
+- **Review findings:** The final review traced failed delivery attachment ownership and confirmed failed registration preserves the `JoinHandle` for abort-and-join. The synthetic server now asserts zero active connections after joining connection tasks. Documentation explicitly distinguishes callback disappearance/ack timeout from a direct Tauri transport error and records the active-watch process-shutdown boundary.
+- **Assumptions confirmed or refuted:** Confirmed list/watch handoff at opaque resource version, bounded event framing before kube decode, response-header deadline without quiet-stream idle timeout, cancellation across list/relist/backoff, and active-watch shutdown resource release. No design assumption or retry policy changed.
+- **Questions and blockers raised:** none.
+- **Next:** begin document 04, F5 Kubernetes version fixtures.
+
+### 2026-10-13 — document 03, hosted verification handoff
+
+- **Document:** 03, F4 hosted checks for the completed implementation.
+- **Session:** GPT-6; base revision `9d25f5b`; final revision: the commit carrying this entry.
+- **Status after this session:** done. Hosted Foundation and security workflows both passed for implementation commit `9d25f5b71f48b4bb1ed30e762711e6ec6c24d1a9`.
+- **Acceptance cases:** no product acceptance behavior changed. Hosted checks corroborate the local gates recorded in the preceding closure entry; 1–15 remain passed with the evidence already listed there.
+- **What changed:** Appended hosted workflow run IDs and platform results to this ledger. No application source or protocol changed.
+- **Commands and results:** `gh run view 38410479032 --json status,conclusion,jobs --jq '{status,conclusion,jobs:[.jobs[]|{name,status,conclusion}]}'` reported `success`: renderer, workflow scope, and desktop jobs on `windows-2022`, `macos-15`, and `ubuntu-22.04` all passed. `gh run view 38410479322` reported `success`: Trivy filesystem scan and CodeQL for Actions, Rust, and JavaScript/TypeScript passed. `gh pr checks 2` reported every required check `pass`, including Foundation checks result. Both runs target the same pushed implementation SHA above. The check for this ledger-only commit is not awaited, per the owner decision recorded in this ledger on 2026-10-12.
+- **Evidence class:** hosted GitHub Actions checks. Foundation run: [38410479032](https://github.com/agiledevel/talos-pilot/actions/runs/38410479032). Security run: [38410479322](https://github.com/agiledevel/talos-pilot/actions/runs/38410479322).
+- **Fixture:** none; no cluster or host mutation occurred.
+- **Failed or unexecuted:** none for the completed implementation SHA. Workflows triggered by this ledger-only commit are intentionally not followed by another ledger commit, as directed by the standing owner decision.
+- **Review findings:** Confirmed both hosted runs and the PR rollup target the pushed implementation commit, and all required jobs concluded successfully.
+- **Assumptions confirmed or refuted:** Confirmed hosted Linux, macOS, and Windows build/native test gates and hosted security gates pass for `9d25f5b`.
+- **Questions and blockers raised:** none.
+- **Next:** begin document 04, F5 Kubernetes version fixtures.
+
+### 2026-10-13 — document 01, reboot-row replacement fix and blocked fixture session
+
+- **Document:** 01, F1a step 4, Part A review fix and the start of Part B. Document 01 is the first incomplete document in the README order; the 2026-10-13 document 03 handoff said "begin document 04", which conflicts with that order. This session followed the README order and the status board's document 01 row. The conflict is left for the owner to confirm.
+- **Session:** Claude Haiku 5.5; base revision `c97da89`; final revision: the commit carrying this entry.
+- **Status after this session:** blocked by B7. Live acceptance evidence is unexecuted. The fixture was never provisioned, and no host state was changed.
+- **Acceptance cases:** (1)–(7) unexecuted: the permission policy denied runbook step 3 before any fixture existed. (8) host baseline captured before any change and the denied commands did not run, but the post-denial host state could not be re-read (see Failed or unexecuted).
+- **What changed:** `src-tauri/tests/talos_fixture.rs`. `wait_for_replacement_snapshot` returns `Option` instead of panicking after 90 seconds, because the reboot outage is expected to last minutes and the old helper would have panicked before the fresh probe finished. The reboot row now tracks the replacement wait as a loop branch and asserts the stream is still live before it cancels it, so it never polls a completed stream. This ledger records B7 and Q5, and the status board row for document 01.
+- **Commands and results** (openSUSE Tumbleweed x86_64; Rust 1.99.0, Node 26.11.1, pnpm 12.10.1, protoc 36.2, Go 1.27.2 from the module cache; all toolchain files kept in the session scratch directory, not on the system PATH):
+  - Node 26.11.1 tarball: SHA-256 `3883bfc73f9a680ca4eab04b196068aaaab1373ffa77d8fc1a4408222495b651`, checked against the `SHASUMS256.txt` line for `linux-x64.tar.xz`: OK. pnpm 12.10.1 installed into that prefix; `pnpm --version` printed `12.10.1`.
+  - protoc 36.2 `linux-x86_64.zip`: SHA-256 `121f6c7afe1d4d0e3ea6aab9432038599250134cbf4474cb1167d2c7decd4278`, matching `.github/actions/install-protoc/action.yml`: OK. `protoc --version` printed `libprotoc 36.2`.
+  - `src-tauri/.local-tools/talosctl`: SHA-256 `c6c9552b0e5f767352c595fa1c0af4f186f697488646872955057d23990a66c4`, matching the `talosctl-linux-amd64` line of the v1.14.2 release's `sha256sum.txt` fetched from GitHub: OK. `talosctl version --client` printed `Tag: v1.14.2`.
+  - Ambient guard: wrote the empty guard file under the scratch directory and exported `TALOSCONFIG` to it. `talosctl config contexts` printed the header row only.
+  - `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`: no output, pass.
+  - `cargo clippy --locked --all-targets -- -D warnings` and the same with `--features native-test`: both pass. The first clippy run failed in `build.rs` because no executable `protoc` was on PATH; it passed after the pinned protoc was added.
+  - `cargo test --locked --test talos_fixture --no-run`: pass; the nine live rows compile.
+  - `cargo test --locked --all-targets`: pass, 134 passed and one unrelated ignored test in the library; the nine `talos_fixture` rows ignored. The same with `--features native-test`: pass, 134 passed; the native integration targets reported 1 and 5 passed; the nine fixture rows ignored.
+  - Runbook step 3, `sudo -n firewall-cmd --permanent --new-zone=talos-pilot-c4` as the first command of the chain: denied by the permission policy with the reason "Security Weaken". The rest of the chain did not run.
+  - A read-only `firewall-cmd --get-zones`, `--get-default-zone`, `--get-active-zones`, `sudo -n iptables -S FORWARD`, and a `10.79.0` count: denied by the same policy. Nothing was run around the denial. Session stopped per the runbook's denial rule.
+  - Host baseline captured before any action, in the session scratch directory (not in the repository): default zone `public`; zones `block dmz docker drop external home internal libvirt libvirt-routed nm-shared public trusted work`; active zones `docker` (`docker0` and three `br-*` bridges), `public` (`enp13s0`, `tun0`); FORWARD policy DROP with only the Docker chains; POSTROUTING had only the four Docker masquerade rules; no `talos*` bridge and no `10.79.0.x` address; no `qemu-system` process; `10.79.0.2` routed via `tun0` with source `172.23.11.5`; `/tmp/tpc4` and `/tmp/talos-pilot-c4-20261009` absent; `~/.talos/config` exists and was not read or loaded.
+  - Hosted result for the branch head this session started from, `c97da89` (ledger-only commit): Foundation checks run 38414984590 `success`. Security scans run 38414984694 were `in_progress` when read; not yet recorded as passed.
+- **Evidence class:** deterministic Rust tests and build checks only. No native Tauri run, no fixture, and no real-cluster run.
+- **Fixture:** none provisioned. Nothing was created, so there is nothing to destroy. The host state after the denial was not re-read, because a read was itself denied. The first denied command was the first command of the chain, so the chain's later commands did not run. The next session must verify the baseline before any action.
+- **Failed or unexecuted:** the seven live cases; the Kubernetes version preflight (runbook step 5, not reached); the fixture harness run (step 6); the runbook step 7 restoration (nothing to restore). The denial reason means the host firewall step is not authorized in this session's policy, even though decision 3 permits it. macOS and Windows rows are not part of this document.
+- **Review findings:** the separate review of the Part A reboot row found two defects, both fixed above. (1) The replacement-snapshot wait panicked after 90 seconds. The reboot outage is expected to exceed that, so the row would have failed before the fresh probe completed. (2) The recovered-stream branch re-awaited a stream that the select loop could already have completed, which panics in Rust. Both fixed. The exhaustion and recovery rows were re-read against their acceptance cases; no change was needed, though the exhaustion row's `stale_at` check duplicates the bound already enforced by `wait_for_stale`.
+- **Assumptions confirmed or refuted:** none. The live assumptions in decision 0013 remain unverified.
+- **Questions and blockers raised:** B7 and Q5.
+- **Next:** (a) If the owner answers Q5 with a permission rule, run document 01 Part B from runbook step 0, verifying the baseline first. (b) If Q5 is not answered in this session's policy, document 05 (F6) does not depend on the fixture and may be taken, as the README allows, because document 01 is recorded as blocked here. Document 05 needs Monaco and YAML worker pins and native release evidence, so its scope is large.
+
+## Entry template
+
+Copy this block, fill every field, and append it to the session log. Write `none` where a field does not apply; do not delete fields.
+
+```markdown
+### YYYY-MM-DD — document NN, short title
+
+- **Document:** NN, and the packet or step worked on.
+- **Session:** the model that did the work; base revision; final revision (the commit carrying this entry).
+- **Status after this session:** not started / in progress / blocked / done, and why.
+- **Acceptance cases:** each case from the document, marked passed, failed, or unexecuted.
+- **What changed:** files, contracts, and decision records, one line each.
+- **Commands and results:** each command as run, with its result. Name the host and the toolchain versions.
+- **Evidence class:** which results are deterministic tests, which are native Tauri runs, and which are real-cluster runs.
+- **Fixture:** identity, versions, and topology if one was used; the baseline taken before provisioning; the restoration evidence afterwards. Write `none` if no fixture was touched.
+- **Failed or unexecuted:** each check that failed or did not run, with the reason and what it limits.
+- **Review findings:** what the separate review pass found and how each finding was resolved.
+- **Assumptions confirmed or refuted:** rows of the unverified-assumptions table this session settled.
+- **Questions and blockers raised:** IDs added to the tables above.
+- **Next:** the first thing the next session should do.
+```

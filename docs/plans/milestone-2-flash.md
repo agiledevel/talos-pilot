@@ -30,7 +30,7 @@ Before M2.0 is accepted:
 
 1. Complete the remaining packets in the
    [foundation completion plan](foundation-completion-flash.md), starting with
-   F1 steps 4–5, then F2–F10. Preserve completed F0 and F1 steps 1–3.
+   F1a, then F3–F10. Preserve closed F0 and F1 and accepted F2.
 2. Record final-candidate evidence for every row of the original
    [foundation acceptance matrix](milestone-1-flash.md#8-milestone-acceptance-matrix),
    including actual Kubernetes reads/watches, offline workers, OS vaults,
@@ -42,6 +42,16 @@ Source inspection and dependency/API research for milestone 2 may proceed
 before acceptance. Feature implementation follows foundation acceptance.
 If the owner directs a changed sequence, record that decision and its
 consequences; keep unexecuted checks visible.
+
+**Owner decision, 2026-10-12.** The owner has no macOS or Windows machine and
+decided that milestone 1 may stay open for those platform rows without blocking
+further development. The entry gate above is therefore met when documents 01 to
+09 of the [foundation finish series](foundation-finish/README.md) are done on
+Linux, as its [ledger](foundation-finish/ledger.md) records. The deferred rows
+stay listed there as unexecuted and are revisited through
+[series document 10](foundation-finish/10-platform-revisit.md) when the
+platforms are available. Items 2 and 3 above apply to the Linux rows now and to
+the deferred rows then.
 
 ## 2. Scope and boundaries
 
@@ -586,9 +596,9 @@ changes; ownership and numeric limits; normal/invalid/denied/failure/cleanup tes
 commands, exit codes and actual hosts; mock versus native/live evidence; separate
 review findings; remaining tasks with acceptance criteria; next smallest packet.
 
-**Current next executable work:** foundation F1 steps 4–5, documented in the
-[foundation ledger](../verification/milestone-1.md#next-increment), followed by
-F2–F10. This milestone 2 plan remains prepared until that acceptance gate closes.
+**Current next executable work:** the
+[foundation finish series](foundation-finish/README.md); its
+[ledger](foundation-finish/ledger.md) names the next document. This milestone 2 plan remains prepared until that acceptance gate closes.
 
 After foundation acceptance, use:
 

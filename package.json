@@ -16,6 +16,7 @@
     "advisories:check": "node scripts/advisory-baseline.ts",
     "audit:go": "node scripts/go-vulnerability-scan.ts",
     "talos:fixture": "node scripts/talos-fixture.ts",
+    "kubernetes:fixture": "node scripts/kubernetes-fixture.ts",
     "inventory:generate": "node scripts/dependency-inventory.ts",
     "inventory:check": "node scripts/dependency-inventory.ts --check",
     "test:native": "node scripts/test-native.ts",
@@ -42,6 +43,7 @@
     "@internationalized/date": "3.12.4",
     "@skeletonlabs/skeleton": "5.0.1",
     "@skeletonlabs/skeleton-svelte": "5.0.1",
+    "@tanstack/svelte-query": "6.3.1",
     "@tauri-apps/api": "2.12.1",
     "bits-ui": "2.19.5",
     "svelte": "5.57.2"
