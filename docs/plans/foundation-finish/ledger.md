@@ -20,7 +20,7 @@ A document is `done` only when every acceptance case in it has recorded evidence
 | Document                                                                        | Packet           | Status       | Last commit | Updated    | Next action                                                                                                                       |
 | ------------------------------------------------------------------------------- | ---------------- | ------------ | ----------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | [01 F1a live stall rows](01-f1a-live-stall-rows.md)                             | F1a step 4       | in progress  | this commit | 2026-10-13 | Resume its remaining live cases after the owner-directed document 02 session completes                                            |
-| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | blocked (B6) | this commit | 2026-10-13 | Resolve Q4; then repeat the fixture runbook with client-only binary verification and an explicit fixture config for server checks |
+| [02 F3 Kubernetes list probe](02-f3-kubernetes-list-probe.md)                   | F3               | blocked (B6) | this commit | 2026-10-13 | Await Q4; if approved, amend the fixture preflight and restart the runbook from its baseline |
 | [03 F4 Kubernetes watch](03-f4-kubernetes-watch.md)                             | F4               | not started  | —           | 2026-10-12 | After 02                                                                                                                          |
 | [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started  | —           | 2026-10-12 | After 03                                                                                                                          |
 | [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | not started  | —           | 2026-10-12 | After 04, or earlier if a fixture document is blocked                                                                             |
@@ -549,6 +549,26 @@ Entries are appended below, oldest first.
 - **Assumptions confirmed or refuted:** none.
 - **Questions and blockers raised:** Q4 remains unanswered; B6 remains open.
 - **Next:** resolve Q4, then restart the fixture runbook at its baseline and use only client-only binary verification plus an explicit fixture configuration for server checks. After that, run the restricted Pod list and complete destroy-and-restore.
+
+### 2026-10-13 — document 02, hosted results for `c318f93`
+
+- **Document:** 02, hosted verification of the ledger update; Part D remains blocked at the fixture preflight.
+- **Session:** GPT-6; base revision `c318f9331ea471d160a7e5f924cc903aea0fd900`; final revision: the commit carrying this entry.
+- **Status after this session:** blocked by B6; hosted checks for `c318f93` passed, but Q4 still requires the owner's answer before the runbook can be amended or fixture work resumed.
+- **Acceptance cases:** unchanged; cases 11 and 12 passed, case 13 blocked, and live restricted pagination, list-specific saturation, and cancellation cleanup evidence remain unexecuted.
+- **What changed:** this ledger records the completed hosted checks for `c318f93`; document 02 remains blocked (B6), and Q4 remains unanswered.
+- **Commands and results** (GitHub-hosted runners):
+  - `gh pr checks 2`: all reported completed checks passed; desktop and aggregate CodeQL were skipped by workflow scope for this ledger-only commit.
+  - `gh run list --branch ft-foundation-completion --limit 10 --json databaseId,headSha,name,status,conclusion,createdAt`: Foundation `38375763730` and Security `38375763693` completed successfully on `c318f9331ea471d160a7e5f924cc903aea0fd900`.
+  - `gh run view 38375763730 --json status,conclusion,jobs`: `Decide desktop scope`, renderer, and `Foundation checks result` succeeded; desktop was skipped.
+  - `gh run view 38375763693 --json status,conclusion,jobs`: CodeQL Actions, JavaScript/TypeScript, Rust, and Trivy filesystem scan succeeded.
+- **Evidence class:** hosted CI only; no live Kubernetes Pod list ran in this session.
+- **Fixture:** none provisioned or touched.
+- **Failed or unexecuted:** no included hosted job failed. macOS Intel was deliberately absent from the workflow matrix and is not claimed as executed. Live restricted pagination and other remaining acceptance evidence are blocked by B6/Q4.
+- **Review findings:** no code or runbook changed; the separate hosted-result review confirms every included job completed successfully on the recorded commit.
+- **Assumptions confirmed or refuted:** none.
+- **Questions and blockers raised:** Q4 remains unanswered; B6 remains open.
+- **Next:** get the owner's answer to Q4. If approved, amend the runbook's version checks and restart from its baseline; if not, record the owner's alternative direction before resuming fixture work.
 
 ## Entry template
 
