@@ -168,16 +168,20 @@ jobs:
       # them on windows-2022 in run 38155107982.
       - name: Verify generated contracts are current
         run: pnpm contracts:check
-      # Saved only by a job that passed every step and missed the cache, so the
-      # entry for a lockfile is one complete dependency build and never grows.
+      # Saved only by a job that missed the cache and finished its last build,
+      # the release example that `pnpm test:native` compiles, so the entry for a
+      # lockfile is one complete dependency build and never grows. A test that
+      # fails after that build does not make the next run compile from scratch.
+      # Update the artifact named in the condition if the last build changes.
       - name: Drop first-party artifacts before the cache save
-        if: steps.cargo-cache.outputs.cache-hit != 'true'
+        id: cargo-prune
+        if: ${{ !cancelled() && steps.cargo-cache.outputs.cache-hit != 'true' && hashFiles('src-tauri/target/release/examples/kubernetes-synthetic-apiserver*') != '' }}
         shell: bash
         run: |
           cargo clean --manifest-path src-tauri/Cargo.toml --locked --package talos-pilot
           cargo clean --manifest-path src-tauri/Cargo.toml --locked --package talos-pilot --release
       - name: Save the Cargo dependency cache
-        if: steps.cargo-cache.outputs.cache-hit != 'true'
+        if: ${{ !cancelled() && steps.cargo-prune.outcome == 'success' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |

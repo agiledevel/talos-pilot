@@ -70,8 +70,10 @@ commit `55cc8345863c7cc4c66a329aec7e433d2d1c52a9`. The key is the runner label
 plus the hash of `rust-toolchain.toml` and `src-tauri/Cargo.lock`. There are no
 fallback keys, so an entry is one complete dependency build for one lockfile
 and never accumulates stale output. A job saves an entry only when it missed
-the cache and every step passed, after `cargo clean --package talos-pilot`
-removes first-party artifacts. CI sets `CARGO_INCREMENTAL=0` and
+the cache and completed its last build, the release example that
+`pnpm test:native` compiles. `cargo clean --package talos-pilot` removes the
+first-party artifacts first. A test that fails after the last build therefore
+does not prevent the save. CI sets `CARGO_INCREMENTAL=0` and
 `line-tables-only` debug information for the `dev` and `test` profiles; the
 commands are the ones in [quality.md](../quality.md#3-required-command-contracts).
 
