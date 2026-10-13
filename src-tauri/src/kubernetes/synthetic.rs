@@ -520,7 +520,7 @@ fn version_response(path: &str) -> (&'static str, String) {
             (
                 "200 OK",
                 format!(
-                    r#"{{"kind":"PodList","apiVersion":"v1","metadata":{{"resourceVersion":"42"{continue_field}}},"items":[{{"metadata":{{"name":"{pod_name}","namespace":"workloads","uid":"uid-{pod_name}","resourceVersion":"42"}},"status":{{"phase":"Running","containerStatuses":[{{"name":"app","ready":true}}]}}}}]}}"#
+                    r#"{{"kind":"PodList","apiVersion":"v1","metadata":{{"resourceVersion":"42"{continue_field}}},"items":[{{"metadata":{{"name":"{pod_name}","namespace":"workloads","uid":"uid-{pod_name}","resourceVersion":"42"}},"spec":{{"containers":[{{"name":"app"}}]}},"status":{{"phase":"Running","containerStatuses":[{{"name":"app","ready":true}}]}}}}]}}"#
                 ),
             )
         }
@@ -580,7 +580,10 @@ mod tests {
     use std::sync::{Arc, atomic::AtomicUsize};
 
     use super::{SyntheticApiserver, SyntheticResponse, build_test_client};
-    use crate::kubernetes::{KubernetesError, list::collect_pods};
+    use crate::kubernetes::{
+        KubernetesError,
+        list::{ReadySummary, collect_pods},
+    };
 
     #[tokio::test]
     async fn serves_a_version_read_and_records_the_authorization_header() {
@@ -633,6 +636,14 @@ mod tests {
         assert_eq!(snapshot.items.len(), 2);
         assert_eq!(snapshot.items[0].name, "first");
         assert_eq!(snapshot.items[1].name, "second");
+        // The native suite asserts this readiness over IPC; a synthetic Pod
+        // without declared containers would project as unknown instead.
+        assert!(
+            snapshot
+                .items
+                .iter()
+                .all(|pod| pod.ready == ReadySummary::Ready)
+        );
 
         let requests = server.requests();
         assert_eq!(requests.len(), 3);

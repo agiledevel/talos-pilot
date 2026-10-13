@@ -46,11 +46,13 @@ pub struct PodProjection {
 /// Safe readiness summary derived from the Pod's container status fields.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ReadySummary {
-    /// At least one container status exists and every reported container is ready.
+    /// The Pod declares at least one container, every declared container has a
+    /// status, and every status is ready.
     Ready,
     /// At least one container status exists and at least one is not ready.
     NotReady,
-    /// The server omitted container statuses or reported none.
+    /// The server omitted the declared containers or their statuses, or the
+    /// ready statuses do not cover every declared container.
     Unknown,
 }
 

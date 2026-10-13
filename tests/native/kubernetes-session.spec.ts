@@ -237,6 +237,6 @@ describe("native Kubernetes credential and session boundary", () => {
       },
       withExecuteOptions({ windowLabel: "unauthorized" }),
     );
-    assert.deepEqual(results, ["denied", "denied", "denied", "denied"]);
+    assert.deepEqual(results, ["denied", "denied", "denied", "denied", "denied"]);
   });
 });
