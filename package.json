@@ -43,6 +43,7 @@
     "@internationalized/date": "3.12.4",
     "@skeletonlabs/skeleton": "5.0.1",
     "@skeletonlabs/skeleton-svelte": "5.0.1",
+    "@tanstack/svelte-query": "6.3.1",
     "@tauri-apps/api": "2.12.1",
     "bits-ui": "2.19.5",
     "svelte": "5.57.2"
