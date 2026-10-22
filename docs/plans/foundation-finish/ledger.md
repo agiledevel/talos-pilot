@@ -1112,6 +1112,25 @@ Entries are appended below, oldest first.
 - **Questions or blockers raised:** none. B8, B9, and B10 are resolved; no owner question is open.
 - **Next:** Session A1: research and lock the remaining toolchain versions from primary sources and add the digest-verifying bootstrap script, using the now-current Go 1.27.3 pin. Then Session A2 for the CI tiers. Do not start document 05 in the same session as A1.
 
+### 2026-10-22 — Session A follow-up, hosted confirmation for `51e3ede`
+
+- **Document:** none. This is the hosted result record for the B8/B9/B10 fix commit; no packet status changed.
+- **Session:** DeepSeek Flash; base revision `51e3ede`; final revision: the commit carrying this entry.
+- **Status after this session:** unchanged. B8, B9, and B10 are confirmed resolved by hosted required CI and hosted security scans on `51e3ede`; document 01 remains `in progress`, documents 04 to 09 are not started, and document 10 remains deferred. Session A1 is next.
+- **Acceptance cases:** none. No packet acceptance case is implemented or claimed.
+- **What changed:** this ledger only.
+- **Commands and results:** read with `gh run view <id> --json status,conclusion,jobs` and `gh pr checks 2`, and with the job logs for the audit steps.
+  - Foundation checks `39855524115` for `51e3edecdf674b24ee1b15d224c1c3f288b2cd87`: **success**. `Decide desktop scope`, `renderer` (1m47s), `desktop (ubuntu-22.04)` (20m38s), `desktop (windows-2022)` (31m44s), `desktop (macos-15)` (21m53s), and `Foundation checks result` all passed. The Ubuntu log shows `pnpm audit:go` reporting `No vulnerabilities found.` and `pnpm advisories:check` reporting `Scanned 74099 demangled executable symbols against 5 recorded advisories` followed by `Recorded advisories still match the scanner report, dependency path, and linked executable.` The three desktop jobs took longer than the previous runs because the `Cargo.lock` change invalidated the dependency cache.
+  - Security scans `39855523961` for the same revision: **success**. `Trivy filesystem scan`, `CodeQL (actions)`, `CodeQL (javascript-typescript)`, and `CodeQL (rust)` (32m30s) all passed, and the aggregate `CodeQL` and `Trivy` checks passed. The Rust job log ends with `CodeQL results: 0`, so the `rust/cleartext-logging` result is gone.
+  - `gh pr checks 2` reports every check for the revision as `pass`.
+- **Evidence class:** hosted GitHub Actions on Ubuntu 22.04, Windows Server 2022, and macOS 15, plus hosted CodeQL. No native-tier workflow, live fixture, or real-cluster run.
+- **Fixture:** none provisioned or contacted. No owner cluster, ambient kube context, or ambient talosconfig was used.
+- **Failed or unexecuted:** nothing failed for the fix revision. The `Native tests` workflow still does not exist (Session A2), so no hosted native-tier result exists; the local native run recorded in the previous entry covers that boundary for this revision on Linux. The executable-symbol advisory scan is defined for the Linux ELF artifact only; the macOS and Windows jobs passed their own gates but their symbol scan remains unexecuted rather than a pass. The hosted run for this ledger-only commit is not awaited, per the standing owner decision.
+- **Review findings:** the hosted results match the local expectations: the Go vulnerability gate now passes on all three desktop runners, and CodeQL reports zero results. No new finding appeared from the dependency patch refresh.
+- **Assumptions confirmed or refuted:** confirmed that Go 1.27.3 clears GO-2026-6809 in the hosted gate and that the test change clears the hosted CodeQL query.
+- **Questions or blockers raised:** none. B8, B9, and B10 stay resolved.
+- **Next:** Session A1: research and lock the remaining toolchain versions from primary sources and add the digest-verifying bootstrap script with the Go 1.27.3 pin. Then Session A2 for the CI tiers.
+
 ## Entry template
 
 Copy this block, fill every field, and append it to the session log. Write `none` where a field does not apply; do not delete fields.
