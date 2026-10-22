@@ -1176,6 +1176,25 @@ Entries are appended below, oldest first.
 - **Questions or blockers raised:** none. No owner question is open.
 - **Next:** Session A2: implement decision 0016's CI tiers (native workflow, required-CI step removal, cache-prune rework, release-QA call, actionlint, hosted runs), then Session B (document 05).
 
+### 2026-10-22 — Session A1, hosted confirmation for `8c1c2c1`
+
+- **Document:** none. This is the hosted result record for the toolchain refresh and bootstrap commit; no packet status changed.
+- **Session:** DeepSeek Flash; base revision `8c1c2c1`; final revision: the commit carrying this entry.
+- **Status after this session:** unchanged. The refreshed pins and the new bootstrap are confirmed by hosted required CI and hosted security scans; document 01 remains `in progress`, documents 04 to 09 are not started, and document 10 remains deferred. Session A2 is next.
+- **Acceptance cases:** none. No packet acceptance case is implemented or claimed.
+- **What changed:** this ledger only.
+- **Commands and results:** read with `gh run view <id> --json status,conclusion,jobs`, `gh pr checks 2`, and the Ubuntu job log.
+  - Foundation checks `39862309635` for `8c1c2c1`: **success**. `Decide desktop scope`, `renderer` (1m45s), `desktop (ubuntu-22.04)` (22m28s), `desktop (windows-2022)` (28m32s), `desktop (macos-15)` (20m25s), and `Foundation checks result` all passed. The Ubuntu log reports `Done in 3.1s using pnpm v12.15.0`, `go version go1.27.3 linux/amd64`, `rustc 1.99.1`, `pnpm audit:go` reporting `No vulnerabilities found.`, and `pnpm advisories:check` reporting `Recorded advisories still match the scanner report, dependency path, and linked executable.`
+  - Security scans `39862309633` for the same revision: **success**. `Trivy filesystem scan` and CodeQL for Actions, JavaScript/TypeScript, and Rust (8m43s) all passed; the aggregate `CodeQL` and `Trivy` checks passed.
+  - `gh pr checks 2` reports every check for the revision as `pass`.
+- **Evidence class:** hosted GitHub Actions on Ubuntu 22.04, Windows Server 2022, and macOS 15, plus hosted CodeQL. No native-tier workflow, live fixture, or real-cluster run.
+- **Fixture:** none provisioned or contacted. No owner cluster, ambient kube context, or ambient talosconfig was used.
+- **Failed or unexecuted:** nothing failed for the refreshed revision. The `Native tests` workflow still does not exist (Session A2), so the hosted native tier is unexecuted; the local native run in the previous entry covers that boundary on Linux. The bootstrap's macOS paths remain unexecuted on this host, and the Talos v1.14.4 refresh remains carried to a fixture session. The hosted run for this ledger-only commit is not awaited, per the standing owner decision.
+- **Review findings:** the hosted jobs exercised the refreshed Node, pnpm, Rust, Go, and lockfile on all three desktop runners and in CodeQL; no new finding appeared and the advisory and vulnerability gates stayed green.
+- **Assumptions confirmed or refuted:** confirmed that the refreshed toolchain and lockfile work in hosted CI, not only locally.
+- **Questions or blockers raised:** none.
+- **Next:** Session A2: implement decision 0016's CI tiers (native workflow, required-CI step removal, cache-prune rework, release-QA call, actionlint, hosted runs), then Session B (document 05).
+
 ## Entry template
 
 Copy this block, fill every field, and append it to the session log. Write `none` where a field does not apply; do not delete fields.
