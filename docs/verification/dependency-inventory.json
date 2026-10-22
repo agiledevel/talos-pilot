@@ -5,10 +5,10 @@
     "node": "26.11.1",
     "pnpm": "12.10.1",
     "rustc": "1.99.0",
-    "go": "1.27.2",
+    "go": "1.27.3",
     "lockfiles": {
       "pnpmLock": "a929fca81c3d986a6ab0bd3dd720ea70af69545e702e0c766bf476340f3b5a1f",
-      "cargoLock": "a599783f0de32f0a9c1c121bcea9bf239351ac9dbecc9e3ebff927f676551dfc",
+      "cargoLock": "3c936c54d89ff545ab05a9ab559920cc15671c4267da017d8665a4a838edc56f",
       "goSum": "ffb278d2583c3268a8ca81ca86449aa64e8e2f788deea074fbfee96032f7e00b"
     }
   },
@@ -6630,7 +6630,7 @@
     },
     {
       "name": "rustls",
-      "version": "0.23.45",
+      "version": "0.23.46",
       "license": "Apache-2.0 OR ISC OR MIT",
       "hasNotice": false
     },
@@ -6660,7 +6660,7 @@
     },
     {
       "name": "rustls-webpki",
-      "version": "0.103.15",
+      "version": "0.103.16",
       "license": "ISC",
       "hasNotice": false
     },
@@ -7530,7 +7530,7 @@
     },
     {
       "name": "webpki-root-certs",
-      "version": "1.0.9",
+      "version": "1.0.10",
       "license": "CDLA-Permissive-2.0",
       "hasNotice": false
     },

@@ -170,7 +170,7 @@ The currently recorded pins are:
 | Node     | 26.11.1 |
 | pnpm     | 12.10.1 |
 | Rust     | 1.99.0  |
-| Go       | 1.27.2  |
+| Go       | 1.27.3  |
 | protoc   | 36.2    |
 | talosctl | v1.14.2 |
 
@@ -178,7 +178,9 @@ Session A1 researches the current upstream stable versions from primary
 sources, verifies compatibility, refreshes these pins and every affected
 lockfile or CI digest together, and then writes the bootstrap script. Do not
 copy the values below into the script without that research: they are the
-current record, not a claim that they are the latest stable release.
+current record, not a claim that they are the latest stable release. The Go pin
+was already refreshed from 1.27.2 on 2026-10-22 for GO-2026-6809; see the
+ledger.
 
 Until Session A1 lands the script, provision the recorded pins into a session
 scratch directory and verify provenance. The snippet below shows the current
@@ -208,9 +210,14 @@ echo "121f6c7afe1d4d0e3ea6aab9432038599250134cbf4474cb1167d2c7decd4278  $SCRATCH
 unzip -q "$SCRATCH/protoc.zip" -d "$SCRATCH/tools/protoc"
 export PATH="$SCRATCH/tools/protoc/bin:$PATH"
 
-# Go 1.27.2 from the module cache. Verify the version, do not trust PATH.
-export PATH="$HOME/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.2.linux-amd64/bin:$PATH"
-go version    # must print go1.27.2
+# Go 1.27.3, checked against the SHA-256 in the Go release list.
+curl -fsSL https://go.dev/dl/go1.27.3.linux-amd64.tar.gz -o "$SCRATCH/go.tar.gz"
+echo "65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40  $SCRATCH/go.tar.gz" \
+  | sha256sum --check
+mkdir -p "$SCRATCH/tools/go1.27.3"
+tar -xzf "$SCRATCH/go.tar.gz" -C "$SCRATCH/tools/go1.27.3" --strip-components=1
+export PATH="$SCRATCH/tools/go1.27.3/bin:$PATH"
+go version    # must print go1.27.3
 
 # Rust 1.99.0 is selected by rust-toolchain.toml. Put rustup's bin first.
 export PATH="$HOME/.cargo/bin:$PATH"
