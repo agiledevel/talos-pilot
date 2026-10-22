@@ -1238,6 +1238,22 @@ Entries are appended below, oldest first.
 - **Questions or blockers raised:** none open. The post-merge dispatch evidence is a carried row, not an owner decision.
 - **Next:** Session B, document 05 (F6 editor workers under the packaged CSP).
 
+### 2026-10-22 — Session A2, hosted result for the verification record
+
+- **Document:** none. Hosted result record for the CI-tier verification commit; no packet status changed.
+- **Session:** DeepSeek Flash; base revision `c9304b6`; final revision: the commit carrying this entry.
+- **Status after this session:** unchanged. Decision 0016 implementation and evidence stand; Session B is next.
+- **Acceptance cases:** none.
+- **What changed:** this ledger only.
+- **Commands and results:** Foundation `39870301752` for `c9304b6` **success**: `Decide desktop scope` and `renderer` passed, `desktop` was skipped because the commit changes only documentation, and `Foundation checks result` passed. Security `39870301723` **success**: Trivy and CodeQL for Actions, JavaScript/TypeScript, and Rust. This also confirms the documentation-only scope skip still works after the native step moved out.
+- **Evidence class:** hosted CI only.
+- **Fixture:** none.
+- **Failed or unexecuted:** nothing failed. The run for this ledger-only commit is not awaited, per the standing owner decision; the carried native-dispatch row is unchanged.
+- **Review findings:** the expected scope skip and required result gate behaved as documented.
+- **Assumptions confirmed or refuted:** confirmed the documentation-only scope decision still skips the desktop matrix while the renderer and result jobs run.
+- **Questions or blockers raised:** none.
+- **Next:** Session B, document 05 (F6 editor workers under the packaged CSP).
+
 ## Entry template
 
 Copy this block, fill every field, and append it to the session log. Write `none` where a field does not apply; do not delete fields.
