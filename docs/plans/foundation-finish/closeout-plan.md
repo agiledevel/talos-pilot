@@ -84,26 +84,25 @@ The ledger records these as Q5 to Q14. The default is what a session may do
 without another answer; a default marked "none" means the session must stop and
 wait rather than choose.
 
-| ID  | Decision                                | Options                                                                                                                                                                                                         | Default for a session                                                                                                                                                                                  | Impact if unresolved                                                                                           |
-| --- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| Q5  | Fixture firewall/iptables authorization | (a) add a permission rule for the exact runbook commands; (b) run fixture sessions under a policy that permits them; (c) defer fixture work                                                                     | Decided 2026-10-22: the agent may override the local firewall/iptables policy for exactly the recorded fixture remediation, apply nothing broader, and restore the host. No broader rule is authorized | Documents 01 and 04 can proceed; document 09 remains dependent on their evidence                               |
-| Q6  | Kubernetes-only 1.35/1.37 fixture route | (a) kind over the working Docker daemon with pinned node images; (b) k3d; (c) QEMU VMs; (d) hosted CI only                                                                                                      | Decided 2026-10-22: (a), with disposable `talos-pilot-*` clusters; never touch the existing containers. Hosted kind is optional evidence                                                               | Document 04's 1.35/1.37 rows stay unexecuted                                                                   |
-| Q7  | Fixture CI job shape                    | (a) explicit `workflow_dispatch` workflow, not a PR gate; (b) PR gate; (c) no CI job                                                                                                                            | Decided 2026-10-22: (a). Hosted kind is acceptable for 1.35/1.37; the Talos 1.36 run stays local. Required CI has no live fixture                                                                      | Document 04's CI evidence row is unexecuted                                                                    |
-| Q8  | Toolchain bootstrap                     | (a) add a checked-in digest-verifying bootstrap script; (b) keep the manual procedure in the series README                                                                                                      | (b) until approved. Do not add a new script speculatively                                                                                                                                              | Sessions keep losing time to missing Node 26.11.1, protoc 36.2, and Go 1.27.2                                  |
-| Q9  | Uncommitted `talos_fixture.rs` change   | (a) review, record, and commit as document 01 Part A; (b) revert and redo from `2ef72ab`                                                                                                                        | Decided 2026-10-22: (a). Reviewed as usable and committed as document 01 Part A                                                                                                                        | The working tree is clean before the next session                                                              |
-| Q10 | Trivy exception renewal authority       | (a) renew only after re-proving the recorded evidence, without widening; (b) stop for the owner before renewing; (c) remove when a fix exists                                                                   | (a), with no automatic renewal and no widening. If the evidence no longer holds, stop                                                                                                                  | The 2026-11-30 expiry fails security and release gates                                                         |
-| Q11 | Sequencing after Q5                     | (a) finish A2, then documents 05 to 08, with the fixture sessions as soon as the host is prepared; (b) run the fixture path before the independent documents; (c) run only the Kubernetes-only part of 04 first | (a), with F/G taking priority whenever a fixture window is available                                                                                                                                   | The branch can idle while the fixture path is ready                                                            |
-| Q12 | Clean Linux VM images for document 08   | (a) download pinned Ubuntu 22.04 and current Fedora cloud images and run them under QEMU with user-mode networking; (b) provide other machines; (c) leave F9.1 unexecuted                                       | (a), if downloads and disk use are acceptable. No host firewall change is needed                                                                                                                       | The Linux C8 rows stay unexecuted                                                                              |
-| Q13 | Owner UX/tradeoff review timing         | (a) schedule the review before document 09 is marked done; (b) document 09 records the review as delivered but acceptance pending; (c) defer the review                                                         | (a). If the owner is unavailable, record it as pending and leave milestone 1 open                                                                                                                      | Document 09 cannot honestly claim its owner-review exit                                                        |
-| Q14 | CI test tiering                         | (a) keep deterministic CI and Playwright; move native WebdriverIO to a manual/weekly workflow and release QA; run live fixtures locally; (b) keep all in required CI; (c) delete native/e2e                     | Decided 2026-10-22: (a), per [decision 0016](../../decisions/0016-ci-test-tiering.md). Keep synthetic Kubernetes/session tests in required CI. Move, do not delete                                     | A required CI job cannot provide the native or live-cluster evidence; release QA must call the native workflow |
+| ID  | Decision                                | Options                                                                                                                                                                                                         | Default for a session                                                                                                                                                                                     | Impact if unresolved                                                                                           |
+| --- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Q5  | Fixture firewall/iptables authorization | (a) add a permission rule for the exact runbook commands; (b) run fixture sessions under a policy that permits them; (c) defer fixture work                                                                     | Decided 2026-10-22: the agent may override the local firewall/iptables policy for exactly the recorded fixture remediation, apply nothing broader, and restore the host. No broader rule is authorized    | Documents 01 and 04 can proceed; document 09 remains dependent on their evidence                               |
+| Q6  | Kubernetes-only 1.35/1.37 fixture route | (a) kind over the working Docker daemon with pinned node images; (b) k3d; (c) QEMU VMs; (d) hosted CI only                                                                                                      | Decided 2026-10-22: (a), with disposable `talos-pilot-*` clusters; never touch the existing containers. Hosted kind is optional evidence                                                                  | Document 04's 1.35/1.37 rows stay unexecuted                                                                   |
+| Q7  | Fixture CI job shape                    | (a) explicit `workflow_dispatch` workflow, not a PR gate; (b) PR gate; (c) no CI job                                                                                                                            | Decided 2026-10-22: (a). Hosted kind is acceptable for 1.35/1.37; the Talos 1.36 run stays local. Required CI has no live fixture                                                                         | Document 04's CI evidence row is unexecuted                                                                    |
+| Q8  | Toolchain bootstrap                     | (a) add a checked-in digest-verifying bootstrap script; (b) keep the manual procedure in the series README                                                                                                      | Decided 2026-10-22: (a). Research current upstream stable versions from primary sources, verify compatibility, then lock the refreshed pins in the script and the repository. Do not hardcode a stale pin | Sessions get a reproducible toolchain; the pin refresh needs source and compatibility evidence                 |
+| Q9  | Uncommitted `talos_fixture.rs` change   | (a) review, record, and commit as document 01 Part A; (b) revert and redo from `2ef72ab`                                                                                                                        | Decided 2026-10-22: (a). Reviewed as usable and committed as document 01 Part A                                                                                                                           | The working tree is clean before the next session                                                              |
+| Q10 | Trivy exception renewal authority       | (a) renew only after re-proving the recorded evidence, without widening; (b) stop for the owner before renewing; (c) remove when a fix exists                                                                   | Decided 2026-10-22: (a), with no automatic renewal and no widening. Stop if the evidence no longer holds                                                                                                  | The 2026-11-30 expiry is handled at document 07                                                                |
+| Q11 | Sequencing after Q5                     | (a) finish A2, then documents 05 to 08, with the fixture sessions as soon as the host is prepared; (b) run the fixture path before the independent documents; (c) run only the Kubernetes-only part of 04 first | Decided 2026-10-22: (a). A2, then 05-08; run 01/04 as soon as a fixture window is prepared                                                                                                                | The working order is fixed; fixture sessions still take priority when available                                |
+| Q12 | Clean Linux VM images for document 08   | (a) download pinned Ubuntu 22.04 and current Fedora cloud images and run them under QEMU with user-mode networking; (b) provide other machines; (c) leave F9.1 unexecuted                                       | Decided 2026-10-22: (a). Record image digests and the exact Fedora release; no host firewall, bridge, or zone change                                                                                      | The Linux C8 rows can proceed                                                                                  |
+| Q13 | Owner UX/tradeoff review timing         | (a) schedule the review before document 09 is marked done; (b) document 09 records the review as delivered but acceptance pending; (c) defer the review                                                         | Decided 2026-10-22: (a). Document 09 stays in progress until the review                                                                                                                                   | Document 09 cannot close without the owner review                                                              |
+| Q14 | CI test tiering                         | (a) keep deterministic CI and Playwright; move native WebdriverIO to a manual/weekly workflow and release QA; run live fixtures locally; (b) keep all in required CI; (c) delete native/e2e                     | Decided 2026-10-22: (a), per [decision 0016](../../decisions/0016-ci-test-tiering.md). Keep synthetic Kubernetes/session tests in required CI. Move, do not delete                                        | A required CI job cannot provide the native or live-cluster evidence; release QA must call the native workflow |
 
 A session that needs an unanswered question writes it in the ledger's "Questions
 for the owner" table before stopping. It does not invent an answer, and it does
 not silently pick the default when the table says "None".
 
-Q5, Q6, Q7, Q9, and Q14 were decided by the owner on 2026-10-22. Q8, Q10, Q11,
-Q12, and Q13 remain open; the plan uses the stated defaults only where they are
-not marked "None".
+All owner questions Q5 to Q14 are answered as of 2026-10-22. The defaults column
+records the decisions; no question remains open.
 
 ## 4. Rules that apply to every session
 
@@ -164,7 +163,7 @@ The host is openSUSE Tumbleweed on x86_64. `sudo -n` works and `/dev/kvm`
 exists. Do not install anything system-wide and do not change host
 configuration outside the recorded fixture remediation.
 
-The pinned tools are:
+The currently recorded pins are:
 
 | Tool     | Pin     |
 | -------- | ------- |
@@ -175,8 +174,15 @@ The pinned tools are:
 | protoc   | 36.2    |
 | talosctl | v1.14.2 |
 
-Provision them into a session scratch directory and verify provenance. A
-representative procedure, to be adapted only when an upstream artifact changes:
+Session A1 researches the current upstream stable versions from primary
+sources, verifies compatibility, refreshes these pins and every affected
+lockfile or CI digest together, and then writes the bootstrap script. Do not
+copy the values below into the script without that research: they are the
+current record, not a claim that they are the latest stable release.
+
+Until Session A1 lands the script, provision the recorded pins into a session
+scratch directory and verify provenance. The snippet below shows the current
+recorded values; Session A1 replaces it with the script and the refreshed pins.
 
 ```sh
 SCRATCH="$(mktemp -d)"
@@ -240,11 +246,9 @@ on a system-wide installation.
 
 ## 6. Session sequence
 
-The sequence below is the default when Q5 is still open: start with the
-independent UI and supply-chain documents, then take the fixture documents when
-Q5 is answered, and close with document 09. If Q5 is answered before document
-05 starts, move documents 01 and 04 earlier; record the reordering in the
-ledger.
+The sequence below is decided by Q11: A → A1 → A2 → B → C → D → E, with
+Sessions F and G (documents 01 and 04) as soon as a fixture window is prepared,
+then H. Q5 is resolved. Record any reordering in the ledger.
 
 ### Session A — Reconcile the tree and the baseline
 
@@ -282,6 +286,77 @@ section 3, and the current `git diff`.
 baseline record under the pinned tools.
 
 **Exit:** clean working tree; Q9 resolved and committed; no unexplained failure.
+
+### Session A1 — Research and lock the toolchain, add the bootstrap script
+
+**Prerequisite:** Session A. This is the implementation of Q8.
+
+**Read:** `docs/dependencies.md`, `README.md`, `docs/quality.md`, the version
+policy in `docs/design.md`, `docs/ci-release.md`, `.node-version`,
+`package.json`, `helper/go.mod`, `src-tauri/Cargo.toml`, `rust-toolchain.toml`,
+`.github/actions/install-protoc/action.yml`, the fixture manifests/allowlists,
+and the Talos/Kubernetes release pages from their primary sources.
+
+**Research, before writing any pin:**
+
+1. Check the current stable release of Node, pnpm, Rust, Go, protoc, Talos, and
+   the Kubernetes fixture patch from their official release indexes. Also review
+   the direct application dependency pins in `package.json`,
+   `src-tauri/Cargo.toml`, and `helper/go.mod` against their upstream releases.
+   Record the query date and the exact source URL for each.
+2. Verify compatibility, not just recency:
+   - Tauri, Vite, Svelte, Oxc/TypeScript, and `svelte-check` with the Node/pnpm
+     pins;
+   - Tauri and the project crates with the Rust pin;
+   - the Go module graph and Talos machinery with the Go pin;
+   - `prost-build` with the protoc pin;
+   - `kube`/`k8s-openapi`, keyring, and the Tauri Linux prerequisites with the
+     Rust and platform pins.
+3. For Talos, check whether a newer 1.14 patch exists. If it does, move
+   `pkg/machinery`, `talosctl`, the fixture image, and the fixture manifest
+   together, and re-run the affected read/stream checks before accepting it.
+4. For Kubernetes, check the current 1.36 patch used by the fixture. If it
+   changes, update the manifest, allowlist evidence, and fixture expectations
+   together.
+5. This is a deliberate pin refresh, not an unbounded dependency upgrade.
+   Update a direct application dependency only when compatibility, security, or
+   an active packet requires it. If a newer version is incompatible or needs a
+   design/platform change, keep the recorded pin and write down the evidence
+   and the reason. Record deferred upgrades. Do not silently choose a version
+   from memory or a search snippet.
+
+**Then implement:**
+
+6. Update every affected pin together: `.node-version`, `package.json`
+   (`packageManager`, engines, and dependency pins only where the research
+   requires it), `rust-toolchain.toml`, `helper/go.mod`, `src-tauri/Cargo.toml`
+   and `Cargo.lock`, `.github/actions/install-protoc/action.yml`, the fixture
+   manifests, and `docs/dependencies.md`.
+7. Add a checked-in bootstrap script (for example `scripts/dev-toolchain.ts`)
+   that:
+   - downloads Node, pnpm, and protoc into a gitignored `.tools/` directory;
+   - verifies Node against `SHASUMS256.txt`, and protoc/talosctl against their
+     published SHA-256 values, failing closed on a mismatch;
+   - verifies Go and Rust versions, and the pinned `talosctl`;
+   - never installs system-wide, never needs `sudo`, and never writes outside
+     the ignored directory;
+   - is idempotent, bounds downloads, and prints the resolved versions;
+   - has deterministic tests for version parsing and digest-mismatch failure.
+8. Add `.tools/` to `.gitignore` and document the script in `README.md` and the
+   close-out plan. Keep the manual procedure as a fallback.
+9. Regenerate lockfiles and run the affected gates: frozen install, `pnpm
+   check`, both Rust feature configurations, Go format/vet/test/race/build,
+   `pnpm contracts:check`, `pnpm test:e2e`, `pnpm inventory:check`,
+   `pnpm audit --audit-level=low`, `pnpm audit:go`, `pnpm advisories:check`, and
+   workflow validation if CI action pins changed. Run the bootstrap script from
+   a clean scratch directory and record its output.
+10. Record the research, the chosen pins, rejected versions, compatibility
+    evidence, and gate results in the ledger.
+
+**Exit:** every toolchain pin is either refreshed with recorded evidence or
+kept with a recorded incompatibility; the bootstrap script provisions the same
+pins from a clean directory; lockfiles and docs are current; affected gates
+pass.
 
 ### Session A2 — Implement the CI tiers (decision 0016)
 
@@ -417,9 +492,11 @@ are recorded; the document is `done`.
 
 **Prerequisite:** documents 05 and 06, because they finalize the dependency set.
 
-**Date checkpoint:** if the date is on or after 2026-11-15 and document 06 is
-not done, pause the sequence and re-evidence or renew/remove the two Trivy
-exceptions first. Do not let the 2026-11-30 expiry surprise the branch.
+**Date checkpoint:** Q10 is decided: renew only after re-proving the recorded
+evidence, without widening or automatic renewal. If the date is on or after
+2026-11-15 and document 06 is not done, pause the sequence and re-evidence or
+renew/remove the two Trivy exceptions first. Do not let the 2026-11-30 expiry
+surprise the branch.
 
 **Read:** [document 07](07-f8-dependencies-notices-security.md),
 `docs/dependencies.md`, `docs/ci-release.md`, decision 0006, decision 0002,
@@ -459,8 +536,8 @@ producer/consumer gates for any changed script or contract.
 
 ### Session E — Document 08: F9.0, F9.1, and the Linux part of F9.4
 
-**Prerequisite:** document 07. Needs Q7 for the installer-artifact workflow and
-Q12 for the clean VMs.
+**Prerequisite:** document 07. Q7 and Q12 are decided: use an explicit
+installer-artifact workflow and QEMU user-mode Linux VMs.
 
 **Read:** [document 08](08-f9-linux-packages.md), `docs/ci-release.md`,
 `docs/release-preview.md`, the release workflow and release Tauri
@@ -584,13 +661,14 @@ document 01 is `done`.
 
 ### Session G — Document 04: F5 Kubernetes 1.35 to 1.37 fixtures
 
-**Prerequisite:** F4 done; Q5 for the Talos-hosted 1.36 run; Q6 and Q7 for the
-Kubernetes-only fixtures and CI. This document may be split:
+**Prerequisite:** F4 done. Q5, Q6, and Q7 are decided: the Talos-hosted 1.36 run
+is local, the Kubernetes-only fixtures use pinned kind, and the fixture workflow
+is explicit rather than required CI. This document may be split:
 
 - **04a:** generalize the harness and run Kubernetes-only 1.35 and 1.37
-  fixtures. This can start while Q5 is open.
-- **04b:** run 1.36 in the Talos fixture, add the CI job, and close the
-  document. This needs Q5.
+  fixtures.
+- **04b:** run 1.36 in the Talos fixture, add the explicit fixture workflow, and
+  close the document.
 
 Record the split and partial evidence in the ledger.
 
@@ -698,7 +776,9 @@ ledger entry, quality.md sections 6 and 9, and the milestone 2 plan's section 1.
     security boundaries, resource ownership, maintainability, and missing
     failure-path coverage.
 12. Write the short milestone UX and tradeoff review for the owner: what works,
-    what is rough, which tradeoffs were made, and what you would change.
+    what is rough, which tradeoffs were made, and what you would change. Q13 is
+    decided: the owner reviews it before document 09 is marked done. If the
+    review is unavailable, leave document 09 `in progress` and say so.
 13. Record the closing state:
     - milestone checkpoint table: each Linux checkpoint complete, deferred rows
       named;
@@ -727,19 +807,19 @@ Q5 resolved 2026-10-22 ────────────────┐
                                         v
 Session F (doc 01) ──► Session G (doc 04) ──► Session H (doc 09)
                                         ^
-Session A ──► A2 (CI tiers) ──► B (doc 05) ──► C (doc 06) ──► D (doc 07) ──► E (doc 08)
+Session A ──► A1 (toolchain) ──► A2 (CI tiers) ──► B (doc 05) ──► C (doc 06) ──► D (doc 07) ──► E (doc 08)
 ```
 
 - **Critical path:** document 01 → document 04 → document 09. Q5 is resolved,
   so the fixture sessions can start as soon as the host is prepared.
 - **Independent path:** documents 05 → 06 → 07 → 08.
-- **Default order:** A → A2 → B → C → D → E → F → G → H, unless Q11 chooses
-  the fixture path earlier or a fixture window becomes available.
+- **Default order:** A → A1 → A2 → B → C → D → E → F → G → H. Q11 is
+  decided: run 01/04 as soon as a fixture window is prepared.
 - **Q5 is answered.** Sessions F and G may run before or alongside B/C/D/E;
   fixture sessions are the least predictable and the close depends on them. A2
   still comes first so every later session records evidence against the correct
-  CI tiers. Q11 still decides whether the fixture path or the independent
-  documents go first.
+  CI tiers. Q11 is decided: finish A2, then 05-08, with 01/04 as soon as a
+  fixture window is prepared.
 - **Partial work:** document 04a (harness generalization plus Kubernetes-only
   1.35/1.37) may run independently; document 04b (Talos 1.36, CI, and closure)
   now has no Q5 blocker.
@@ -804,6 +884,8 @@ Before declaring the foundation complete on Linux:
 - [ ] The milestone 2 plan's entry gate is marked met on Linux with a date and
       link.
 - [ ] Required CI runs no `pnpm test:native` and no live fixture job.
+- [ ] The toolchain research is recorded, the refreshed pins are locked, and
+      the bootstrap script provisions them from a clean directory.
 - [ ] The `Native tests` workflow exists with manual, weekly, and release-call
       triggers, and has a green run for the final revision.
 - [ ] Release QA calls the native workflow for the exact revision.
@@ -814,8 +896,8 @@ Before declaring the foundation complete on Linux:
 - [ ] The final diff review is recorded and has no unresolved defect in scope.
 - [ ] `git diff --check`, formatting, link checks, contracts, and the final gate
       set pass on the final tree.
-- [ ] The owner has the UX/tradeoff review or it is explicitly recorded as
-      pending, with milestone acceptance left open accordingly.
+- [ ] The owner has reviewed the UX/tradeoff summary; otherwise document 09 is
+      still `in progress` and milestone acceptance is left open.
 
 ## 10. Prompt template for a new session
 
@@ -851,6 +933,15 @@ choosing silently.
   Windows Server 2022 are hosted evidence only.
 - **May I add a dependency without a packet?** No. Pin it when its packet needs
   it, record the license, and commit the lockfile.
+- **May I lock the toolchain pins currently in the repository?** Not without
+  Session A1's primary-source research and compatibility evidence (Q8).
+- **May I renew the Trivy exceptions?** Only with re-proven evidence, without
+  widening or automatic renewal (Q10).
+- **Which order should I follow?** A → A1 → A2 → B → C → D → E, with documents
+  01/04 as soon as a fixture window is prepared (Q11).
+- **May I use QEMU user-mode Linux VMs for document 08?** Yes. Record the image
+  digests and the exact Fedora release (Q12).
+- **Can document 09 close without the owner review?** No (Q13).
 - **May I widen the CSP, a capability, or the fixture allowlist to pass a
   test?** No. Use the minimum change, record the evidence and an ADR where
   required, or stop.
