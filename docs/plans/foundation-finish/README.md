@@ -24,6 +24,8 @@ Two shared documents support them:
 - [ledger.md](ledger.md) is the progress record. **Every session must update it.** The rules are in its first section.
 - [fixture-runbook.md](fixture-runbook.md) is the procedure for provisioning, using, and destroying the disposable Talos fixture.
 
+For the recommended close-out order, the session-by-session sequence, the critical path, and the current owner decisions, see [closeout-plan.md](closeout-plan.md). It sequences this series; it does not replace the per-packet documents or the ledger.
+
 Work the documents in order. Documents 05 to 07 do not depend on the fixture and may be taken while a fixture document is blocked, but only if the ledger records why the earlier one is blocked.
 
 ## What the owner has decided
