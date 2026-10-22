@@ -1195,6 +1195,27 @@ Entries are appended below, oldest first.
 - **Questions or blockers raised:** none.
 - **Next:** Session A2: implement decision 0016's CI tiers (native workflow, required-CI step removal, cache-prune rework, release-QA call, actionlint, hosted runs), then Session B (document 05).
 
+### 2026-10-22 — Session A2, CI tiers (decision 0016)
+
+- **Document:** none. This is Session A2 of the [close-out plan](closeout-plan.md), implementing [decision 0016](../../decisions/0016-ci-test-tiering.md). No packet status changed.
+- **Session:** DeepSeek Flash; base revision `9ec5bf2`; final revision: the commit carrying this entry.
+- **Status after this session:** implemented. Required `Foundation checks` no longer runs `pnpm test:native`; a new `Native tests` workflow runs it on the four desktop runners via manual dispatch, a weekly schedule, and a release call; release qualification calls it for the exact revision; the required-check Cargo cache now keys its prune/save on its own last build; the native workflow owns a separate cache. Workflow lint passed locally. The hosted required-CI run, the native dispatch, the deterministic-defect probe, and the cache observations are recorded in the follow-up entry.
+- **Acceptance cases:** none. This session implements a CI tier decision; it changes no product behavior.
+- **What changed:**
+  - `.github/workflows/native.yml`: new reusable/manual/scheduled `Native tests` workflow. `workflow_call` takes a required `revision`, `workflow_dispatch` takes an optional revision/ref, and a weekly schedule runs Mondays 03:23 UTC. It runs the four-runner matrix (`ubuntu-22.04`, `macos-15`, `macos-15-intel`, `windows-2022`), uses the pinned Node/pnpm/Rust/Go/protoc toolchain, runs `pnpm test:native`, uploads a per-runner log artifact with 14-day retention, and keeps `contents: read`. It owns a `native-v1` Cargo cache, pruning first-party artifacts before a save that only happens after the release executable exists.
+  - `.github/workflows/check.yml`: removed the `Run actual Tauri IPC tests` step; rewrote the cache-prune/save condition to key on `src-tauri/target/release/talos-pilot*` (the executable `pnpm desktop:build` produces) instead of the native release example, with the comments updated. `xvfb` stays in the Linux prerequisites because `pnpm production:check` launches the packaged app through `xvfb-run` when no display is set.
+  - `.github/workflows/release.yml`: new `native` job calling `native.yml` with `needs.source.outputs.revision`; `assets` and `draft` now depend on it.
+  - `docs/ci-release.md` and `README.md`: the workflow is described as implemented, with its triggers, four-runner matrix, separate cache, evidence artifact, read-only permissions, and its status as a merge and release gate rather than a branch-protection check. The required-cache paragraph now describes the new save condition.
+  - This ledger: this entry and the later hosted/evidence follow-up.
+- **Commands and results** (openSUSE Tumbleweed x86_64; Node 26.12.1, pnpm 12.15.0, Rust 1.99.1, Go 1.27.3, protoc 36.2): the pinned actionlint 1.7.12 archive (SHA-256 `8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`, matched against the digest in `check.yml`) was downloaded and `actionlint` over the repository exited 0, covering the new and edited workflows including the reusable call. `pnpm format:check` and `git diff --check` passed. No application gate was rerun because no application source changed; the hosted foundation run that exercises the edited workflow is the applicable verification.
+- **Evidence class:** workflow lint and documentation only. No native run, fixture, or hosted result yet in this entry.
+- **Fixture:** none. No host or cluster state changed.
+- **Failed or unexecuted:** the required-CI run for this commit, the four-runner native dispatch, the required-check failure probe on a deliberate defect, the cache save/hit observations, and any end-to-end release call are recorded in the follow-up entry. A real release rehearsal is not executed because it needs a version tag, and tagging or releasing is outside the owner's standing permission.
+- **Review findings:** the desktop job still needs `xvfb` for `pnpm production:check`, so the package stays even though the native suite moved. The cache condition now matches the executable every desktop runner builds, including `talos-pilot.exe` on Windows, and the native workflow's own cache cannot collide with `cargo-v1`. The native test script already builds its own native-test application and synthetic API example, so no extra build step precedes it. The four-runner matrix and the 90-minute bound match the desktop job's known worst case with a bounded margin.
+- **Assumptions confirmed or refuted:** none yet; the hosted runs confirm or refute them in the follow-up.
+- **Questions or blockers raised:** none.
+- **Next:** push, read the required-CI result to confirm it passes without the native step, dispatch `native.yml` for the same revision on `ft-foundation-completion`, run the deterministic-defect probe on a scratch branch and delete it, record the cache entries, then write the follow-up entry.
+
 ## Entry template
 
 Copy this block, fill every field, and append it to the session log. Write `none` where a field does not apply; do not delete fields.

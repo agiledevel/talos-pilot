@@ -60,9 +60,19 @@ jobs:
     with:
       revision: ${{ needs.source.outputs.revision }}
 
+  native:
+    needs: source
+    # Native qualification runs on the same four desktop runners and must pass
+    # for the exact release revision before packages are built.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/native.yml
+    with:
+      revision: ${{ needs.source.outputs.revision }}
+
   assets:
     name: Build ${{ matrix.target }} assets
-    needs: [source, qa, security]
+    needs: [source, qa, security, native]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -126,7 +136,7 @@ jobs:
 
   draft:
     name: Create draft prerelease
-    needs: [source, qa, security, assets]
+    needs: [source, qa, security, native, assets]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

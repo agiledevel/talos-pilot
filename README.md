@@ -67,7 +67,7 @@ pnpm audit:go                      # pinned govulncheck over the helper module g
 pnpm inventory:check               # generated dependency/license inventory is current
 pnpm talos:fixture -- --manifest tests/fixtures/talos-c4.json --talosconfig <path>
                                    # live C4 harness against the allowlisted disposable fixture
-pnpm test:native                   # embedded WebDriver IPC, helper handshake, and denial checks (manual/nightly native workflow or local)
+pnpm test:native                   # embedded WebDriver IPC, helper handshake, and denial checks (manual/weekly native workflow or local)
 pnpm icons:check                   # deterministic desktop icon conversion
 pnpm contracts:check               # generated Rust/Go/TypeScript contracts are current
 pnpm desktop:build                 # builds the target helper and native release executable

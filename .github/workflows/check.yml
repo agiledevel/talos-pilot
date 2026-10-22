@@ -152,8 +152,6 @@ jobs:
       - run: cargo doc --manifest-path src-tauri/Cargo.toml --locked --no-deps
       - run: pnpm desktop:build
       - run: pnpm production:check
-      - name: Run actual Tauri IPC tests
-        run: pnpm test:native
       # The audit reads only Cargo.lock, which is the same file on every runner.
       - if: runner.os == 'Linux'
         run: cargo install cargo-audit --version 0.22.2 --locked
@@ -168,14 +166,14 @@ jobs:
       # them on windows-2022 in run 38155107982.
       - name: Verify generated contracts are current
         run: pnpm contracts:check
-      # Saved only by a job that missed the cache and finished its last build,
-      # the release example that `pnpm test:native` compiles, so the entry for a
-      # lockfile is one complete dependency build and never grows. A test that
-      # fails after that build does not make the next run compile from scratch.
-      # Update the artifact named in the condition if the last build changes.
+      # Saved only by a job that missed the cache and completed its own last
+      # build (`pnpm desktop:build`), so the entry for a lockfile is one complete
+      # dependency build and never grows. A later failing audit or test does not
+      # make the next run compile from scratch, and the native suite's separate
+      # cache is owned by `.github/workflows/native.yml`.
       - name: Drop first-party artifacts before the cache save
         id: cargo-prune
-        if: ${{ !cancelled() && steps.cargo-cache.outputs.cache-hit != 'true' && hashFiles('src-tauri/target/release/examples/kubernetes-synthetic-apiserver*') != '' }}
+        if: ${{ !cancelled() && steps.cargo-cache.outputs.cache-hit != 'true' && hashFiles('src-tauri/target/release/talos-pilot*') != '' }}
         shell: bash
         run: |
           cargo clean --manifest-path src-tauri/Cargo.toml --locked --package talos-pilot
