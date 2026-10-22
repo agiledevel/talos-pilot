@@ -13,9 +13,17 @@ A newer push to a pull request cancels that pull request's running `Foundation c
 
 The `Decide desktop scope` job runs `node scripts/ci-desktop-scope.ts`. On a pull request it finds the newest ancestor commit whose desktop jobs all passed and skips the matrix only when every path that differs from it is Markdown under `docs/`, Markdown in the repository root, or under `.agents/`. Its log line states the decision and the comparison commit. If no such commit is found, or the GitHub API or history cannot be read, the matrix runs and the run shows a `Desktop scope` warning. To run all four runners on a branch regardless, use **Actions → Foundation checks → Run workflow**.
 
-Each desktop job restores compiled Rust dependencies with `actions/cache` **v6.1.0**, pinned to commit `55cc8345863c7cc4c66a329aec7e433d2d1c52a9`. The key is `cargo-v1-<runner>-<hash of rust-toolchain.toml and src-tauri/Cargo.lock>`, with no fallback key. A job that misses the cache and completes its last build, the release example compiled by `pnpm test:native`, removes the first-party artifacts and saves the entry, even if a later test step fails; a job that hits the cache saves nothing. A change to `Cargo.lock` or the toolchain therefore costs one uncached run per runner. To discard every entry, change the `cargo-v1` prefix in the workflow. The release `assets` jobs do not use this cache.
+Each desktop job restores compiled Rust dependencies with `actions/cache` **v6.1.0**, pinned to commit `55cc8345863c7cc4c66a329aec7e433d2d1c52a9`. The key is `cargo-v1-<runner>-<hash of rust-toolchain.toml and src-tauri/Cargo.lock>`, with no fallback key. A job that misses the cache and completes its last build removes the first-party artifacts and saves the entry, even if a later test step fails; a job that hits the cache saves nothing. A change to `Cargo.lock` or the toolchain therefore costs one uncached run per runner. To discard every entry, change the `cargo-v1` prefix in the workflow. The release `assets` jobs do not use this cache. After [decision 0016](decisions/0016-ci-test-tiering.md), the required desktop job no longer compiles the native release example, so its prune/save condition must key on its own last build; the native workflow keeps its own build and cache.
 
 `cargo audit` and `pnpm advisories:check` run in the Linux desktop job only: both read `src-tauri/Cargo.lock`, which is the same file on every runner.
+
+## Test tiers
+
+[Decision 0016](decisions/0016-ci-test-tiering.md) splits checks by trigger. The required `Foundation checks` workflow runs the deterministic renderer, Rust, Go, contract, inventory, advisory, Playwright mock, and security gates. It does not run `pnpm test:native` or a live Talos/Kubernetes fixture.
+
+The planned `Native tests` workflow (`.github/workflows/native.yml`) will run `pnpm test:native` on `ubuntu-22.04`, `macos-15`, `macos-15-intel`, and `windows-2022` on manual dispatch, a weekly schedule, and the release QA call. It is not a required pull-request check. A change touching a native boundary records a passing run for its final revision, or a recorded local equivalent, before merge. Release qualification calls this workflow explicitly. Status: the split is accepted by decision 0016 and is implementation work in Session A2 of the close-out plan; until it lands, the desktop QA matrix still runs the native step.
+
+Live Talos and Kubernetes fixtures, clean-VM package smoke, and performance measurement run locally or in explicit manual workflows. The existing fixture harnesses and allowlists remain the authority. No required CI job provisions a live cluster.
 
 ## Security scans: CodeQL and Trivy
 
@@ -34,7 +42,7 @@ Any new exception needs one finding ID, a path, a statement, and an expiry date.
 Repository setup:
 
 1. Leave GitHub's code scanning **default setup** disabled. Code scanning rejects uploads from an advanced workflow while default setup is enabled.
-2. Protect `main` with required checks for the three **CodeQL** jobs, **Trivy filesystem scan**, and **Foundation checks result**. That job fails unless the scope and renderer jobs passed and the desktop matrix either passed or was skipped by the scope decision. Do not require the individual **desktop** jobs: a pull request has no `macos-15-intel` job, and a skipped matrix reports no per-runner check, so those requirements would never be met. The workflow files create these checks; they do not change branch-protection settings.
+2. Protect `main` with required checks for the three **CodeQL** jobs, **Trivy filesystem scan**, and **Foundation checks result**. That job fails unless the scope and renderer jobs passed and the desktop matrix either passed or was skipped by the scope decision. Do not require the individual **desktop** jobs: a pull request has no `macos-15-intel` job, and a skipped matrix reports no per-runner check, so those requirements would never be met. The workflow files create these checks; they do not change branch-protection settings. The `Native tests` workflow is deliberately not a required branch-protection check; a change touching a native boundary records its run for the final revision before merge, as [decision 0016](decisions/0016-ci-test-tiering.md) requires.
 
 The desktop and release jobs need `protoc` because `prost-build` compiles the helper schema in `src-tauri/build.rs`, and hosted runners do not ship it. The local [`install-protoc`](../.github/actions/install-protoc/action.yml) action downloads the pinned 36.2 archive for the runner's platform, verifies its SHA-256, and adds it to `PATH`; a runner platform with no recorded digest fails the step. [`.gitattributes`](../.gitattributes) checks text out with LF on every platform, because rustfmt (`newline_style = "Unix"`) and the byte-for-byte generated-output comparisons reject the CRLF checkout that Git for Windows otherwise produces.
 
@@ -50,7 +58,7 @@ trivy fs --scanners vuln,secret,misconfig --ignorefile .trivyignore.yaml --exit-
 
 ## Preview release contract
 
-The release workflow supports `push` of `v*` tags and manual selection of an existing tag. Tags must be `vMAJOR.MINOR.PATCH`, optionally with `-alpha.N`, `-beta.N`, or `-rc.N`. It validates the tag's resolved commit, requires main-branch ancestry, and checks the npm, Tauri, and Cargo versions against the tag. QA and security scans operate on that exact source revision, not a newer main build.
+The release workflow supports `push` of `v*` tags and manual selection of an existing tag. Tags must be `vMAJOR.MINOR.PATCH`, optionally with `-alpha.N`, `-beta.N`, or `-rc.N`. It validates the tag's resolved commit, requires main-branch ancestry, and checks the npm, Tauri, and Cargo versions against the tag. QA and security scans operate on that exact source revision, not a newer main build. QA calls the deterministic foundation checks and the `Native tests` workflow for the exact revision; clean-target package, vault, and platform rows remain local or explicit qualification evidence.
 
 Version changes are reviewed source changes. Update `package.json`, `src-tauri/tauri.conf.json`, and the package version in `src-tauri/Cargo.toml`, then run Cargo to regenerate the application's entry in `Cargo.lock`. Dependency pins do not change with an application version bump. Rebuild, check, commit, and merge the version change before tagging.
 
@@ -85,7 +93,7 @@ resource directory. Go format, vet, tests, race tests, module verification,
 and build run in the desktop QA matrix before native compilation. Local
 `pnpm desktop:dev` and `pnpm desktop:build` use the same helper build hook.
 
-The desktop QA matrix also runs `pnpm test:native` on each declared runner. It
+The planned `Native tests` workflow will run `pnpm test:native` on each declared runner. It
 builds a separate `native-test` feature/configuration and uses the embedded
 WebDriver service. Linux runs under Xvfb when the runner has no display. The
 native flow invokes the real helper status command from the main window,

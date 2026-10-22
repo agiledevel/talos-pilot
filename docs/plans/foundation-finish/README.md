@@ -41,6 +41,7 @@ These decisions were made on 2026-10-12, and items 8 and 9 on 2026-10-13. Do not
 7. **F1 is closed and F2 is accepted.** Do not redo them.
 8. **`talosctl` never loads the host's ambient configuration in a fixture session.** Check the binary with `talosctl version --client`, give every server command an explicit fixture `--talosconfig`, and keep `TALOSCONFIG` on an existing empty guard file for the whole session. The [fixture runbook](fixture-runbook.md#step-1-tools) has the commands. This answers question Q4 in the ledger.
 9. **A commit that changes only the ledger gets no follow-up commit for its hosted result.** The next working session reads that result and records it inside its own entry. See [Hosted results](#hosted-results).
+10. **CI is tiered by [decision 0016](../../decisions/0016-ci-test-tiering.md).** Required CI keeps the deterministic gates and Playwright mock flows. Native WebdriverIO moves to a manual and weekly reusable workflow, which release qualification calls explicitly. Live Talos/Kubernetes fixtures, clean-VM package smoke, and performance measurement remain local or explicit manual runs. Synthetic Kubernetes/session tests stay in required CI. The native and fixture gates are moved, not removed; a change is not complete until its tier has run and the result is recorded.
 
 ## How to run one session
 
@@ -105,6 +106,10 @@ The host is openSUSE Tumbleweed on x86_64. `sudo -n` works and `/dev/kvm` exists
 - **The libvirt virtual machine `Win11 Jump` belongs to the owner.** Never start it, inspect it, or use it as a test target.
 - **The `docker` command pointed at a podman socket that was not running** on 2026-10-12. Check what container tooling actually works before relying on it.
 
+## CI tiers
+
+[Decision 0016](../../decisions/0016-ci-test-tiering.md) splits checks by trigger. Required pull-request CI runs the deterministic renderer, Rust, Go, contract, inventory, advisory, Playwright mock, and security gates. Native WebdriverIO runs in a manual and weekly reusable workflow and in release qualification; it is not a required pull-request check. Live Talos/Kubernetes fixtures, clean-VM package smoke, and performance measurement run locally or in explicit manual workflows. A change is not complete until its tier has run and the result is recorded; moving a gate out of required CI does not remove it.
+
 ## Gates
 
 Run the gates for every boundary your change touches, on the final tree. The exact commands are in [quality.md section 3](../../quality.md#3-required-command-contracts). The common sets:
@@ -117,14 +122,14 @@ Run the gates for every boundary your change touches, on the final tree. The exa
 | Rust                           | `pnpm format:rust:check`; in `src-tauri/`: `cargo clippy --locked --all-targets -- -D warnings` and the same with `--features native-test`; `cargo test --locked --all-targets` and the same with `--features native-test`; `cargo test --locked --doc`; `RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps` |
 | Go helper                      | In `helper/`: `gofmt -l .` prints nothing, `go vet ./...`, `go test ./...`, `go test -race ./...`, `go build ./...`                                                                                                                                                                                                |
 | IPC, DTOs, or Protobuf         | `pnpm contracts:check`, plus both the producer and the consumer gates                                                                                                                                                                                                                                              |
-| Tauri commands or capabilities | `pnpm test:native`, then `pnpm desktop:build` and `pnpm production:check`                                                                                                                                                                                                                                          |
+| Tauri commands or capabilities | `pnpm test:native` through the manual/nightly native workflow or a recorded local run; then `pnpm desktop:build` and `pnpm production:check` (the latter two also run in required CI)                                                                                                                              |
 | Dependencies                   | `pnpm install --frozen-lockfile`, `pnpm inventory:check`, `pnpm audit --audit-level=low`, `pnpm audit:go`, `pnpm advisories:check`                                                                                                                                                                                 |
 
 `pnpm format:check` covers Markdown. An earlier handoff failed CI because a ledger table was not formatted.
 
 ## Hosted results
 
-Each push starts three runs: the foundation checks for the push, the same checks for the pull request, and the security scans. The desktop jobs take up to 75 minutes. Do not wait idle for them; keep working and read them when they finish. A pushed commit is not a passed run: a run you did not read to completion is recorded as unexecuted or still in progress.
+Each push updates the pull request's foundation and security runs. Branch pushes do not start foundation or security runs of their own; a branch is checked once it has a pull request. The native workflow runs only on manual dispatch, the weekly schedule, or the release call. Do not wait idle for a run; keep working and read it when it finishes. A pushed commit is not a passed run: a run you did not read to completion is recorded as unexecuted or still in progress.
 
 - **At the start of a session**, read the hosted result for the branch head you start from and record it in your session entry. This is where the result of the previous session's last commit is recorded.
 - **A commit that changes anything besides the ledger**: read its result before your session ends, if it finishes in time, and record it in your session entry. If your entry is already committed, one further ledger-only commit may record it.

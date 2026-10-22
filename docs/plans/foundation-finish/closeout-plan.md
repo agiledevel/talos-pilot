@@ -48,17 +48,18 @@ by itself a completed foundation row.
 
 This section is a snapshot taken on 2026-10-22, not a substitute for the ledger.
 
-| Item                           | State                                                                                                                                                                                                                                       |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Branch                         | `ft-foundation-completion`                                                                                                                                                                                                                  |
-| Head commit                    | `2ef72ab` (`test(talos): keep the live reboot row from panicking during long outages`)                                                                                                                                                      |
-| Pull request                   | #2, "Foundation Next", open, not a draft; do not merge, close, retarget, or edit it                                                                                                                                                         |
-| Working tree                   | One uncommitted file: `src-tauri/tests/talos_fixture.rs` (+145/−67). It compiles and passes the Rust gates but has no ledger entry. See Q9                                                                                                  |
-| Hosted foundation checks       | Run `38416194064` for `2ef72ab`: scope, renderer, ubuntu-22.04, windows-2022, macos-15, and result all pass                                                                                                                                 |
-| Hosted security scans          | Run `38416194074` for `2ef72ab`: success                                                                                                                                                                                                    |
-| Local checks run on 2026-10-22 | `pnpm format:check`, `pnpm check`, `pnpm format:rust:check`, Clippy, both Rust test configurations, Go format/vet/test/build, `pnpm contracts:check`, `pnpm test:e2e`, `pnpm icons:check`, and `pnpm inventory:check` (with pinned Go) pass |
-| Local checks not run           | `pnpm test:native`, `pnpm desktop:build`, `pnpm production:check`, `pnpm advisories:check`, `pnpm audit`, `pnpm audit:go`, package builds, performance measurement, and every live fixture run                                              |
-| Toolchain caveat               | The default shell had Node 24.21.0, Go 1.27.1, and no protoc. The checks above used Go 1.27.2 from the module cache and a digest-verified protoc 36.2 in `/tmp`; Node 26.11.1 was not installed                                             |
+| Item                           | State                                                                                                                                                                                                                                                                                                            |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Branch                         | `ft-foundation-completion`                                                                                                                                                                                                                                                                                       |
+| Head commit                    | `2ef72ab` (`test(talos): keep the live reboot row from panicking during long outages`)                                                                                                                                                                                                                           |
+| Pull request                   | #2, "Foundation Next", open, not a draft; do not merge, close, retarget, or edit it                                                                                                                                                                                                                              |
+| Working tree                   | One uncommitted file: `src-tauri/tests/talos_fixture.rs` (+145/−67). It compiles and passes the Rust gates but has no ledger entry. See Q9                                                                                                                                                                       |
+| Hosted foundation checks       | Run `38416194064` for `2ef72ab`: scope, renderer, ubuntu-22.04, windows-2022, macos-15, and result all pass                                                                                                                                                                                                      |
+| Hosted security scans          | Run `38416194074` for `2ef72ab`: success                                                                                                                                                                                                                                                                         |
+| Local checks run on 2026-10-22 | `pnpm format:check`, `pnpm check`, `pnpm format:rust:check`, Clippy, both Rust test configurations, Go format/vet/test/build, `pnpm contracts:check`, `pnpm test:e2e`, `pnpm icons:check`, and `pnpm inventory:check` (with pinned Go) pass                                                                      |
+| Local checks not run           | `pnpm test:native`, `pnpm desktop:build`, `pnpm production:check`, `pnpm advisories:check`, `pnpm audit`, `pnpm audit:go`, package builds, performance measurement, and every live fixture run                                                                                                                   |
+| Toolchain caveat               | The default shell had Node 24.21.0, Go 1.27.1, and no protoc. The checks above used Go 1.27.2 from the module cache and a digest-verified protoc 36.2 in `/tmp`; Node 26.11.1 was not installed                                                                                                                  |
+| CI tiering                     | [Decision 0016](../../decisions/0016-ci-test-tiering.md), accepted 2026-10-22: required CI is deterministic plus Playwright; native WebdriverIO is a manual/weekly reusable workflow and a release-QA call; live fixtures, clean-VM package smoke, and performance measurement are local or explicit manual runs |
 
 Completed packets that must not be redone: F0, F1 (with its owner re-scoped
 row), F2, F3, and F4. F1a's implementation is done, and its live rows are
@@ -79,25 +80,30 @@ Remaining packets:
 
 ## 3. Open owner decisions
 
-The ledger records these as Q5 to Q13. The default is what a session may do
+The ledger records these as Q5 to Q14. The default is what a session may do
 without another answer; a default marked "none" means the session must stop and
 wait rather than choose.
 
-| ID  | Decision                                | Options                                                                                                                                                                    | Default for a session                                                                                                 | Impact if unresolved                                                          |
-| --- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Q5  | Fixture firewall/iptables authorization | (a) add a permission rule for the exact runbook commands; (b) run fixture sessions under a policy that permits them; (c) defer fixture work                                | None. Stop before provisioning                                                                                        | Documents 01 and 04 cannot finish; document 09 cannot close                   |
-| Q6  | Kubernetes-only 1.35/1.37 fixture route | (a) kind over the working Docker daemon with pinned node images; (b) k3d; (c) QEMU VMs; (d) hosted CI only                                                                 | (a), if the owner approves use of the Docker daemon and pulling images. Never touch the seven existing containers     | Document 04's 1.35/1.37 rows stay unexecuted                                  |
-| Q7  | Fixture CI job shape                    | (a) explicit `workflow_dispatch` workflow, not a PR gate; (b) PR gate; (c) no CI job                                                                                       | (a). Hosted kind is acceptable evidence for 1.35/1.37; the Talos 1.36 run stays local unless a suitable runner exists | Document 04's CI evidence row is unexecuted                                   |
-| Q8  | Toolchain bootstrap                     | (a) add a checked-in digest-verifying bootstrap script; (b) keep the manual procedure in the series README                                                                 | (b) until approved. Do not add a new script speculatively                                                             | Sessions keep losing time to missing Node 26.11.1, protoc 36.2, and Go 1.27.2 |
-| Q9  | Uncommitted `talos_fixture.rs` change   | (a) review, record, and commit as document 01 Part A; (b) revert and redo from `2ef72ab`                                                                                   | (a). The change compiles and passes the Rust gates                                                                    | The work is lost or silently mixed into a later commit                        |
-| Q10 | Trivy exception renewal authority       | (a) renew only after re-proving the recorded evidence, without widening; (b) stop for the owner before renewing; (c) remove when a fix exists                              | (a), with no automatic renewal and no widening. If the evidence no longer holds, stop                                 | The 2026-11-30 expiry fails security and release gates                        |
-| Q11 | Sequencing while Q5 is open             | (a) start document 05 now, then 06, 07, 08; do 01/04 when Q5 resolves; close with 09; (b) wait for Q5 before any further work; (c) do the Kubernetes-only part of 04 first | (a). The series README explicitly allows 05 to 07 while a fixture document is blocked                                 | The branch idles while a fixable permission issue is open                     |
-| Q12 | Clean Linux VM images for document 08   | (a) download pinned Ubuntu 22.04 and current Fedora cloud images and run them under QEMU with user-mode networking; (b) provide other machines; (c) leave F9.1 unexecuted  | (a), if downloads and disk use are acceptable. No host firewall change is needed                                      | The Linux C8 rows stay unexecuted                                             |
-| Q13 | Owner UX/tradeoff review timing         | (a) schedule the review before document 09 is marked done; (b) document 09 records the review as delivered but acceptance pending; (c) defer the review                    | (a). If the owner is unavailable, record it as pending and leave milestone 1 open                                     | Document 09 cannot honestly claim its owner-review exit                       |
+| ID  | Decision                                | Options                                                                                                                                                                                     | Default for a session                                                                                                                                              | Impact if unresolved                                                                                           |
+| --- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Q5  | Fixture firewall/iptables authorization | (a) add a permission rule for the exact runbook commands; (b) run fixture sessions under a policy that permits them; (c) defer fixture work                                                 | None. Stop before provisioning                                                                                                                                     | Documents 01 and 04 cannot finish; document 09 cannot close                                                    |
+| Q6  | Kubernetes-only 1.35/1.37 fixture route | (a) kind over the working Docker daemon with pinned node images; (b) k3d; (c) QEMU VMs; (d) hosted CI only                                                                                  | Decided 2026-10-22: (a), with disposable `talos-pilot-*` clusters; never touch the existing containers. Hosted kind is optional evidence                           | Document 04's 1.35/1.37 rows stay unexecuted                                                                   |
+| Q7  | Fixture CI job shape                    | (a) explicit `workflow_dispatch` workflow, not a PR gate; (b) PR gate; (c) no CI job                                                                                                        | Decided 2026-10-22: (a). Hosted kind is acceptable for 1.35/1.37; the Talos 1.36 run stays local. Required CI has no live fixture                                  | Document 04's CI evidence row is unexecuted                                                                    |
+| Q8  | Toolchain bootstrap                     | (a) add a checked-in digest-verifying bootstrap script; (b) keep the manual procedure in the series README                                                                                  | (b) until approved. Do not add a new script speculatively                                                                                                          | Sessions keep losing time to missing Node 26.11.1, protoc 36.2, and Go 1.27.2                                  |
+| Q9  | Uncommitted `talos_fixture.rs` change   | (a) review, record, and commit as document 01 Part A; (b) revert and redo from `2ef72ab`                                                                                                    | (a). The change compiles and passes the Rust gates                                                                                                                 | The work is lost or silently mixed into a later commit                                                         |
+| Q10 | Trivy exception renewal authority       | (a) renew only after re-proving the recorded evidence, without widening; (b) stop for the owner before renewing; (c) remove when a fix exists                                               | (a), with no automatic renewal and no widening. If the evidence no longer holds, stop                                                                              | The 2026-11-30 expiry fails security and release gates                                                         |
+| Q11 | Sequencing while Q5 is open             | (a) start document 05 now, then 06, 07, 08; do 01/04 when Q5 resolves; close with 09; (b) wait for Q5 before any further work; (c) do the Kubernetes-only part of 04 first                  | (a). The series README explicitly allows 05 to 07 while a fixture document is blocked                                                                              | The branch idles while a fixable permission issue is open                                                      |
+| Q12 | Clean Linux VM images for document 08   | (a) download pinned Ubuntu 22.04 and current Fedora cloud images and run them under QEMU with user-mode networking; (b) provide other machines; (c) leave F9.1 unexecuted                   | (a), if downloads and disk use are acceptable. No host firewall change is needed                                                                                   | The Linux C8 rows stay unexecuted                                                                              |
+| Q13 | Owner UX/tradeoff review timing         | (a) schedule the review before document 09 is marked done; (b) document 09 records the review as delivered but acceptance pending; (c) defer the review                                     | (a). If the owner is unavailable, record it as pending and leave milestone 1 open                                                                                  | Document 09 cannot honestly claim its owner-review exit                                                        |
+| Q14 | CI test tiering                         | (a) keep deterministic CI and Playwright; move native WebdriverIO to a manual/weekly workflow and release QA; run live fixtures locally; (b) keep all in required CI; (c) delete native/e2e | Decided 2026-10-22: (a), per [decision 0016](../../decisions/0016-ci-test-tiering.md). Keep synthetic Kubernetes/session tests in required CI. Move, do not delete | A required CI job cannot provide the native or live-cluster evidence; release QA must call the native workflow |
 
 A session that needs an unanswered question writes it in the ledger's "Questions
 for the owner" table before stopping. It does not invent an answer, and it does
 not silently pick the default when the table says "None".
+
+Q6, Q7, and Q14 were decided by the owner on 2026-10-22. Q5, Q8, Q9, Q10, Q11,
+Q12, and Q13 remain open; the plan uses the stated defaults only where they are
+not marked "None".
 
 ## 4. Rules that apply to every session
 
@@ -133,6 +139,10 @@ Then:
   fixture.
 - Run every gate for every changed boundary on the final tree. A check that did
   not run is `unexecuted`, not `passed`.
+- Required CI green is not enough for a native, fixture, packaging, or
+  performance boundary. Run the manual/weekly `Native tests` workflow or a
+  recorded local equivalent, the explicit fixture harness, the clean-VM smoke,
+  or the performance command, and record its tier and result.
 - Review the final diff as a separate pass for correctness, failure paths,
   ownership, secrets, bounds, and documentation accuracy.
 - Append a session entry to the ledger, update the status board, and commit the
@@ -140,9 +150,13 @@ Then:
   `Co-Authored-By: <model name> <noreply@example.com>`.
 - Push to `ft-foundation-completion` after each commit. Never force-push, tag,
   release, push to `main`, or edit pull request 2.
+- Do not move a native or fixture gate back into required CI, and do not add a
+  live fixture job to required CI, without a new owner-directed decision.
 - Read the hosted result for a non-ledger commit before the session ends when it
-  is available. Never make a follow-up ledger-only commit just to record the
-  result of a ledger-only commit.
+  is available. When a change touches a native boundary, dispatch the `Native
+  tests` workflow for the final revision (or run `pnpm test:native` locally under
+  Xvfb) and record that result separately. Never make a follow-up ledger-only
+  commit just to record the result of a ledger-only commit.
 
 ## 5. Host and toolchain bootstrap
 
@@ -269,9 +283,41 @@ baseline record under the pinned tools.
 
 **Exit:** clean working tree; Q9 resolved; no unexplained failure.
 
+### Session A2 — Implement the CI tiers (decision 0016)
+
+**Prerequisite:** Session A. This is the implementation of
+[decision 0016](../../decisions/0016-ci-test-tiering.md), not a new packet.
+
+**Work:**
+
+1. Add `.github/workflows/native.yml` with `workflow_call`,
+   `workflow_dispatch` with a revision input, and a weekly `schedule`. Use the
+   pinned toolchain and the four-runner desktop matrix. Run `pnpm test:native`
+   after its build, upload bounded logs/evidence, and keep read-only repository
+   permissions.
+2. Remove the `Run actual Tauri IPC tests` step from `.github/workflows/check.yml`.
+3. Rework the `check.yml` Cargo cache-prune/save condition so it no longer
+   depends on the release example compiled by `pnpm test:native`. Verify one
+   complete dependency build per lockfile and no unbounded first-party cache
+   growth. The native workflow keeps its own build/cache.
+4. Update `.github/workflows/release.yml` so release QA calls `native.yml` for
+   the exact revision in addition to the deterministic foundation checks.
+5. Validate both workflows with the pinned actionlint. Push, confirm required
+   CI runs without `pnpm test:native`, and dispatch the native workflow for the
+   same revision. Read both results and record their run IDs.
+6. Prove the required check set still fails on a deterministic defect and that
+   the native workflow can be dispatched for a non-default branch revision.
+7. Record in the ledger that the native workflow is not a required
+   branch-protection check but is a merge and release gate for native-boundary
+   changes.
+
+**Exit:** required CI green without the native step; the native workflow green on
+all four runners; release QA wiring validated or its unexecuted reason recorded;
+the cache behavior verified; the ledger entry names the run IDs and tiers.
+
 ### Session B — Document 05: F6 offline Monaco/YAML workers under the packaged CSP
 
-**Prerequisite:** Session A. No fixture.
+**Prerequisite:** Session A2. No fixture.
 
 **Read:** [document 05](05-f6-editor-workers-csp.md), decisions 0008 and 0009,
 quality.md sections 3 and 6, `src-tauri/tauri.conf.json`, `PilotApp.svelte`,
@@ -310,14 +356,17 @@ memory.
    - a cancelled lazy import leaves nothing mounted or pending.
 6. Record the initial shell chunk size and the editor chunk size. These are
    observations for document 09, not budgets.
-7. Run the native release-executable evidence. `pnpm test:native` proves the
-   lazy chunk, worker diagnostic, and cleanup under the actual WebView. Then
-   `pnpm desktop:build` and `pnpm production:check`.
+7. Run the native release-executable evidence through the manual `Native
+   tests` workflow for the final revision, or a recorded local `pnpm test:native`
+   run under Xvfb. It proves the lazy chunk, worker diagnostic, and cleanup under
+   the actual WebView. Then run `pnpm desktop:build` and `pnpm production:check`;
+   required CI also runs those two.
 8. Record every acceptance case from document 05, labelled browser or native.
    C6 stays `in progress` until document 08 supplies installed-package evidence.
 
 **Gates:** the TypeScript/Svelte set, `pnpm test:e2e` in both themes at
-1280×800, 1024×700, and 720×480, `pnpm test:native`, `pnpm desktop:build`,
+1280×800, 1024×700, and 720×480, `pnpm test:native` through the manual/nightly
+native workflow or a recorded local run, `pnpm desktop:build`,
 `pnpm production:check`, dependency gates, and `pnpm contracts:check` if any
 DTO changed.
 
@@ -354,8 +403,9 @@ versions from upstream. Pin exact versions and record licenses.
 7. Test resize, theme change, and disposal in every order; repeated mount,
    unmount, and prop replacement; oversize batches; cancellation; keyboard and
    accessible names.
-8. Run native evidence in the release executable: both wrappers render, assets
-   resolve offline, and cleanup counts return to baseline.
+8. Run native evidence in the release executable through the manual `Native
+   tests` workflow or a recorded local run: both wrappers render, assets resolve
+   offline, and cleanup counts return to baseline.
 
 **Gates:** the same set as document 05, including native and production
 exclusion.
@@ -472,12 +522,14 @@ decision 0004, and decision 0010.
    package.
 4. Run the final-artifact scans from document 07 on the Linux packages.
 5. Run `pnpm production:check` on the default production artifacts after any
-   test-feature build.
+   test-feature build, and record a green manual `Native tests` run for the same
+   revision.
 
 **Gates:** workflow validation, `pnpm release:check`,
 `pnpm release:check-linux` before using an AppImage, `pnpm release:assets`, the
 smoke procedure on both VMs, `pnpm desktop:build` followed by
-`pnpm production:check`, and TypeScript gates for changed scripts.
+`pnpm production:check`, a green native-tier run for the revision, and
+TypeScript gates for changed scripts.
 
 **Exit:** every Linux acceptance case has evidence or a named unexecuted
 resource; the packaged-installer helper startup and Linux vault-restart carried
@@ -579,9 +631,11 @@ and decision 0012.
 6. Where a live fault is impractical, cover it with a deterministic TLS or 410
    fault and label it as such.
 7. Add an explicit fixture workflow (default: `workflow_dispatch`, not a PR
-   gate) using the same harness command and evidence artifacts. Push it, read
-   the hosted result, and record it. If the result cannot be read, add a
-   blocker and record the hosted row as unexecuted.
+   gate) using the same harness command and evidence artifacts, or record a
+   documented local harness run with its evidence. Per decision 0016, required
+   CI has no live fixture. Push a workflow change if one is added, read the
+   result, and record it. If the result cannot be read, add a blocker and record
+   the row as unexecuted.
 8. Destroy every fixture and verify cleanup, including after a partial setup or
    failed test. The Talos 1.36 run uses the fixture runbook's destroy-and-
    restore procedure.
@@ -635,8 +689,9 @@ ledger entry, quality.md sections 6 and 9, and the milestone 2 plan's section 1.
    deferred or unexecuted row with its reason.
 9. Re-run every applicable final-candidate gate on the final tree: the README's
    gate table, including both Rust feature configurations, Go race tests,
-   contracts, native tests, production exclusion, security scans, and the new
-   performance check.
+   contracts, production exclusion, security scans, the new performance check,
+   and a green manual `Native tests` run for the final revision plus the local
+   fixture and clean-VM evidence.
 10. Validate documentation and contracts: setup, protocol, storage, recovery,
     relative links, and `pnpm contracts:check`.
 11. Perform the separate final review of the whole series diff: correctness,
@@ -672,14 +727,16 @@ Q5 (owner) ───────────────────────
                                         v
 Session F (doc 01) ──► Session G (doc 04) ──► Session H (doc 09)
                                         ^
-Session A ──► B (doc 05) ──► C (doc 06) ──► D (doc 07) ──► E (doc 08)
+Session A ──► A2 (CI tiers) ──► B (doc 05) ──► C (doc 06) ──► D (doc 07) ──► E (doc 08)
 ```
 
 - **Critical path:** Q5 → document 01 → document 04 → document 09.
 - **Independent path:** documents 05 → 06 → 07 → 08.
-- **Default order while Q5 is open:** A → B → C → D → E → F → G → H.
+- **Default order while Q5 is open:** A → A2 → B → C → D → E → F → G → H.
 - **If Q5 is answered early:** move F and G ahead of B/C/D/E, because fixture
-  sessions are the least predictable and the close depends on them.
+  sessions are the least predictable and the close depends on them. A2 still
+  comes first so every later session records evidence against the correct CI
+  tiers.
 - **Partial work:** document 04a (harness generalization plus Kubernetes-only
   1.35/1.37) may run before Q5; document 04b (Talos 1.36, CI, and closure)
   waits for Q5.
@@ -693,22 +750,31 @@ Run the gates for every boundary the change touches, on the final tree. The
 canonical commands are in [quality.md](../../quality.md#3-required-command-contracts)
 and the series README's gate table.
 
-| Boundary changed                        | Minimum evidence                                                                                                                                          |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Any file                                | `pnpm format:check`, `git diff --check`                                                                                                                   |
-| Markdown                                | `pnpm format` before commit; every relative link and heading anchor resolves                                                                              |
-| TypeScript or Svelte                    | `pnpm check`, `pnpm test:e2e`, relevant tests                                                                                                             |
-| Rust                                    | `pnpm format:rust:check`; Clippy default and `native-test`; tests default and `native-test`; doctests; rustdoc with `-D warnings`                         |
-| Go helper                               | `gofmt -l` empty; `go vet ./...`; `go test ./...`; `go test -race ./...`; `go build ./...`                                                                |
-| IPC, DTOs, Protobuf                     | `pnpm contracts:check`, plus producer and consumer gates                                                                                                  |
-| Tauri commands, capabilities, packaging | `pnpm test:native`, then `pnpm desktop:build`, then `pnpm production:check`                                                                               |
-| Dependencies                            | `pnpm install --frozen-lockfile`, `pnpm inventory:check`, `pnpm audit --audit-level=low`, `pnpm audit:go`, `pnpm advisories:check`, license/notice checks |
-| Fixture or live cluster                 | The exact runbook/harness command, fixture identity/version/topology, baseline before, restoration after                                                  |
-| Performance                             | The new performance command and budget check, with environment and repetitions                                                                            |
+| Boundary changed                        | Minimum evidence                                                                                                                                                                |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Any file                                | `pnpm format:check`, `git diff --check`                                                                                                                                         |
+| Markdown                                | `pnpm format` before commit; every relative link and heading anchor resolves                                                                                                    |
+| TypeScript or Svelte                    | `pnpm check`, `pnpm test:e2e`, relevant tests                                                                                                                                   |
+| Rust                                    | `pnpm format:rust:check`; Clippy default and `native-test`; tests default and `native-test`; doctests; rustdoc with `-D warnings`                                               |
+| Go helper                               | `gofmt -l` empty; `go vet ./...`; `go test ./...`; `go test -race ./...`; `go build ./...`                                                                                      |
+| IPC, DTOs, Protobuf                     | `pnpm contracts:check`, plus producer and consumer gates                                                                                                                        |
+| Tauri commands, capabilities, packaging | `pnpm test:native` in the manual/weekly native workflow or a recorded local run, then `pnpm desktop:build` and `pnpm production:check` (the latter two also run in required CI) |
+| Dependencies                            | `pnpm install --frozen-lockfile`, `pnpm inventory:check`, `pnpm audit --audit-level=low`, `pnpm audit:go`, `pnpm advisories:check`, license/notice checks                       |
+| Fixture or live cluster                 | The exact runbook/harness command, fixture identity/version/topology, baseline before, restoration after                                                                        |
+| Performance                             | The new performance command and budget check in the local/explicit tier, with environment and repetitions                                                                       |
+
+Tier is part of the evidence record:
+
+| Tier                      | Where it runs                               | What it covers                                                                                                                                                               |
+| ------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Required deterministic CI | `Foundation checks`                         | Format, lint, types, Svelte, renderer unit, production build, Playwright mock, Go unit/race, Rust unit/deterministic integration, contracts, inventory, advisories, security |
+| Manual/weekly native CI   | `Native tests`                              | `pnpm test:native` on the four-runner desktop matrix, and the release-QA call                                                                                                |
+| Local or explicit fixture | Runbook/harness, clean VMs, manual workflow | Live Talos/Kubernetes fixtures, package/vault/helper smoke, performance measurement                                                                                          |
 
 Evidence classes are recorded separately: deterministic tests, actual native
 Tauri runs, real-cluster runs, hosted CI, and manual inspection. A skipped check
-is `unexecuted` with its reason and practical limit.
+is `unexecuted` with its reason and practical limit. A green row in one tier
+does not satisfy a row in another.
 
 ## 9. Close-out checklist
 
@@ -734,6 +800,14 @@ Before declaring the foundation complete on Linux:
       unexecuted rows.
 - [ ] The milestone 2 plan's entry gate is marked met on Linux with a date and
       link.
+- [ ] Required CI runs no `pnpm test:native` and no live fixture job.
+- [ ] The `Native tests` workflow exists with manual, weekly, and release-call
+      triggers, and has a green run for the final revision.
+- [ ] Release QA calls the native workflow for the exact revision.
+- [ ] The required-CI cache-prune condition no longer depends on the native
+      workflow's release example.
+- [ ] Native, fixture, package, and performance rows name the tier that
+      produced their evidence.
 - [ ] The final diff review is recorded and has no unresolved defect in scope.
 - [ ] `git diff --check`, formatting, link checks, contracts, and the final gate
       set pass on the final tree.
@@ -752,9 +826,12 @@ part <part> only. Start by reading the packet document and the files it lists.
 Set the status board row to in progress. Write the acceptance cases into your
 notes before editing. Provision the pinned toolchain from the close-out plan and
 record the versions. Apply the project skills for the changed domain. Preserve
-the locked architecture and unrelated changes. Run the gates for every changed
-boundary on the final tree, including the pinned-toolchain and native/real-
-cluster evidence the packet requires. Do a separate review of the final diff.
+the locked architecture and unrelated changes. Apply the CI tiers in decision
+0016: required CI is deterministic plus Playwright; run the manual `Native
+tests` workflow for native-boundary work; run live fixtures locally or in an
+explicit manual workflow. Run the gates for every changed boundary on the final
+tree, including the pinned-toolchain and native/real-cluster evidence the packet
+requires. Do a separate review of the final diff.
 Append a ledger entry with exact commands and results, update the status board,
 commit the code and ledger together, and push to ft-foundation-completion. Do
 not start another document. If a decision in section 3 is unanswered and is

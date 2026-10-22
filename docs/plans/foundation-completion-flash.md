@@ -20,6 +20,10 @@ The owner added these on 2026-10-12:
 5. The remaining packets are executed through the [foundation finish series](foundation-finish/README.md): one document per packet, with a shared [ledger](foundation-finish/ledger.md) that every session updates. This plan stays the normative definition of each packet. Packet evidence for the series is written in that ledger; the [milestone ledger](../verification/milestone-1.md) keeps the checkpoint table and the earlier evidence.
 6. The fixture-scoped host firewall remediation may be applied in the session, the fixture may shadow the VPN route covering its network indefinitely, and pushing to `ft-foundation-completion` is permitted.
 
+On 2026-10-22 the owner directed the CI tiering recorded in [decision 0016](../decisions/0016-ci-test-tiering.md):
+
+7. Required CI keeps the deterministic gates and Playwright mock flows. Native WebdriverIO moves to a manual and weekly reusable workflow, which release qualification calls explicitly. Live Talos/Kubernetes fixtures, clean-VM package smoke, and performance measurement remain local or explicit manual runs. Synthetic Kubernetes/session tests and Playwright stay in required CI. The native and fixture gates are moved, not removed; a change is not complete until its tier has run and the result is recorded.
+
 The phase exposes read-only feasibility workflows. Cluster creation, resource mutation, configuration apply, upgrades, Helm, reset, recovery, and operation-history UX remain in their assigned milestones. Test-fixture setup may create synthetic resources only inside a verified disposable allowlist. No existing owner cluster is an implicit fixture.
 
 ## 2. Repository review and implications
@@ -184,7 +188,7 @@ Test at each bound and one beyond it. Retry clocks and transport faults should b
 1. Extend the F3 harness to the Kubernetes-only fixtures with one manifest and allowlist entry per fixture. Keep the same identity, version, endpoint, CA, namespace, and scope validation before dispatch.
 2. Run 1.36 in the Talos fixture. Provision pinned Kubernetes-only 1.35 and 1.37 fixtures through available local virtualization/container resources. Pin exact patch images/digests after primary-source verification. A container CLI used by development fixture setup is not a runtime dependency of the shipped application.
 3. Use synthetic namespaces and restricted identities; seed only allowlisted data to cause live add/change/delete and UID recreation. Separate setup authority from the read identity. A namespace resource UID or equivalent recorded anchor must match before cleanup. Never use an ambient current context.
-4. Wire a provisioned fixture job into CI or an explicit fixture workflow with the same harness command and evidence artifacts. Resource-unavailable versions remain pending; do not replace the fixture job with mock-only coverage.
+4. Wire a provisioned fixture job into required CI or an explicit fixture workflow with the same harness command and evidence artifacts. Per [decision 0016](../decisions/0016-ci-test-tiering.md), required CI does not run a live fixture: an explicit `workflow_dispatch` workflow or a documented local harness run with recorded evidence satisfies this step. A hosted kind fixture may cover the Kubernetes-only 1.35/1.37 rows; the Talos-hosted 1.36 run remains local unless a suitable runner exists. Resource-unavailable versions remain pending; do not replace the fixture job with mock-only coverage.
 
 **Tests/evidence:** real paginated list, valid/restricted reads, watch changes, cancellation and disconnect recovery across 1.35/1.36/1.37; deterministic TLS/410 faults where live generation is impractical; rejection of wrong identity/version/manifest; cleanup on partial setup/test failure. Store redacted revision/version/topology/results, never credentials or raw resource payloads.
 
@@ -266,7 +270,7 @@ Derive thresholds from the measured baseline, document their rationale, and prov
 
 Use the exact commands in [quality.md](../quality.md#3-required-command-contracts) and [CI/release setup](../ci-release.md). Each packet runs the gates for every changed boundary, including default and `native-test` Rust configurations, Go race tests where supported, contracts, browser/native flows, and affected production builds. New fixture/performance/notice commands must be implemented with their actual harness and wired into CI when introduced. Do not add stub commands to satisfy this plan.
 
-Native-test builds replace the shared release executable. Rebuild with `pnpm desktop:build` before `pnpm production:check` and the linked-artifact applicability gate. Installed-package smoke is separate from both commands. Development fixture provisioners may need CLIs; installed product feasibility must pass without them.
+Native-test builds replace the shared release executable. Rebuild with `pnpm desktop:build` before `pnpm production:check` and the linked-artifact applicability gate. Installed-package smoke is separate from both commands. Development fixture provisioners may need CLIs; installed product feasibility must pass without them. Per [decision 0016](../decisions/0016-ci-test-tiering.md), the final gate set combines required deterministic CI, the manual/nightly native workflow result, and the recorded local fixture and package evidence; a green required-CI run alone is not a final-candidate pass.
 
 Append a packet entry to the milestone ledger with:
 
@@ -307,6 +311,8 @@ image, and fixture-manifest refresh stays with F1. The macOS minimum is now
 target is Safari 16.4; see [0010](../decisions/0010-macos-minimum-webview.md).
 The fixture-scoped host firewall remediation from the 2026-10-09 run is
 approved for re-application across F1–F5.
+
+**Resolved on 2026-10-22.** The owner directed the CI tiering in [decision 0016](../decisions/0016-ci-test-tiering.md): required CI keeps deterministic gates and Playwright; native WebdriverIO moves to a manual/nightly reusable workflow that release qualification calls; live fixtures, clean-VM package smoke, and performance measurement remain local or explicit manual runs. The native and fixture gates are unchanged and are still required for completion.
 
 **Resolved on 2026-10-12.** The owner closed F1 with its live retry-exhaustion
 row re-scoped, added packet F1a for bounded stall detection ahead of F3, and

@@ -64,19 +64,19 @@ pnpm audit:go                      # pinned govulncheck over the helper module g
 pnpm inventory:check               # generated dependency/license inventory is current
 pnpm talos:fixture -- --manifest tests/fixtures/talos-c4.json --talosconfig <path>
                                    # live C4 harness against the allowlisted disposable fixture
-pnpm test:native                   # embedded WebDriver IPC, helper handshake, and denial checks
+pnpm test:native                   # embedded WebDriver IPC, helper handshake, and denial checks (manual/nightly native workflow or local)
 pnpm icons:check                   # deterministic desktop icon conversion
 pnpm contracts:check               # generated Rust/Go/TypeScript contracts are current
 pnpm desktop:build                 # builds the target helper and native release executable
 ```
 
-[GitHub Actions](.github/workflows/check.yml) runs renderer checks and Rust formatting, Clippy, tests, rustdoc, builds, and dependency scans across the desktop build matrix. Pull requests run three of the four desktop runners and skip the matrix for a documentation-only push; pushes to `main` and release qualification run all four ([0014](docs/decisions/0014-ci-scope-and-caching.md)). The [security scans](.github/workflows/security.yml) run CodeQL on the workflows, TypeScript, and Rust, and Trivy on dependencies, secrets, and misconfigurations. Each fails on any finding. Badges above report live checks; they are not a claim that every planned feature is qualified.
+[GitHub Actions](.github/workflows/check.yml) runs renderer checks, Playwright mock flows, Rust formatting, Clippy, tests, rustdoc, builds, and dependency scans across the desktop build matrix. Pull requests run three of the four desktop runners and skip the matrix for a documentation-only push; pushes to `main` and release qualification run all four ([0014](docs/decisions/0014-ci-scope-and-caching.md)). Native WebdriverIO is assigned to a manual and weekly `Native tests` workflow and to release qualification; live fixtures, clean-VM package smoke, and performance measurement run locally or in explicit manual workflows ([0016](docs/decisions/0016-ci-test-tiering.md)). The [security scans](.github/workflows/security.yml) run CodeQL on the workflows, TypeScript, and Rust, and Trivy on dependencies, secrets, and misconfigurations. Each fails on any finding. Badges above report live checks; they are not a claim that every planned feature is qualified.
 
 See the [initialization evidence](docs/verification/initialization.md) and [automation evidence](docs/verification/automation.md) for executed environments and limitations. The two GLib/macro dependency advisories inherited from Tauri's Linux GTK3 stack carry a verified applicability decision in [0006](docs/decisions/0006-gtk3-advisory-applicability.md); Trivy has two exceptions, for the tracked GLib advisory and for the unlinked `golang.org/x/crypto/openpgp` deprecation notice (GO-2026-5932), and both expire on 2026-11-30. `pnpm test:native` and `pnpm desktop:build` share the release executable path, so rebuild with `pnpm desktop:build` before `pnpm production:check` or `pnpm advisories:check`. Setup is in [CI/release](docs/ci-release.md).
 
 ## Preview releases
 
-The [release workflow](.github/workflows/release.yml) starts when a version tag is pushed or when an existing tag is selected through **Actions → Release preview → Run workflow**. It validates matching npm/Tauri/Cargo versions and main-branch ancestry, runs QA and the CodeQL/Trivy security scans on the exact commit, builds packages for all four desktop targets, generates Angular-commit release notes, and creates a **draft prerelease** with SHA-256 asset hashes.
+The [release workflow](.github/workflows/release.yml) starts when a version tag is pushed or when an existing tag is selected through **Actions → Release preview → Run workflow**. It validates matching npm/Tauri/Cargo versions and main-branch ancestry, runs QA, the native workflow, and the CodeQL/Trivy security scans on the exact commit, builds packages for all four desktop targets, generates Angular-commit release notes, and creates a **draft prerelease** with SHA-256 asset hashes.
 
 Linux assets are AppImage, DEB, and RPM; macOS assets are separate Apple Silicon and Intel DMGs; Windows uses an NSIS installer. Current previews are development packages without production signing/notarization. Full production releases require the complete release qualification in [quality.md](docs/quality.md).
 

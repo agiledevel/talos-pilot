@@ -386,7 +386,7 @@ Add Rust doctests when a library target/public examples exist, using `cargo test
 
 The Go formatting wrapper must fail if `gofmt -l` returns any maintained source path; printing paths alone is not a failing check. Go race checks and native harness prerequisites need a documented target matrix; unexecuted checks are not passes. Add a pinned Go vulnerability scan and license inventory when the helper dependencies land.
 
-Keep CI and local commands identical. Preserve Linux/macOS/Windows jobs, bounded job deadlines, failure artifact redaction, and exact-revision release inputs. Wire producer/consumer/contract/native/helper gates when their code lands. Never use `continue-on-error`, broad exclusions, a fake success script, or a browser substitute to satisfy a required native/cluster check.
+Keep CI and local commands identical. Preserve Linux/macOS/Windows jobs, bounded job deadlines, failure artifact redaction, and exact-revision release inputs. Wire producer/consumer/contract/native/helper gates when their code lands. Never use `continue-on-error`, broad exclusions, a fake success script, or a browser substitute to satisfy a required native/cluster check. [Decision 0016](../decisions/0016-ci-test-tiering.md) changes the trigger, not the command: required CI is deterministic plus Playwright, native WebdriverIO runs in the manual/weekly workflow and release qualification, and live fixtures remain local or explicit. Every tier's evidence is still required.
 
 ## 8. Milestone acceptance matrix
 

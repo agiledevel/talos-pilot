@@ -174,7 +174,7 @@ Planned package scripts:
 | `contracts:check` | Deterministic regeneration and comparison of DTO/Protobuf artifacts |
 | `check` | Formatting check, lint/type diagnostics, Svelte diagnostics, renderer tests, and frontend build |
 
-Configure the same checks for local development and CI from milestone 1. Verify the pinned tools against Svelte, Skeleton, Bits UI, Monaco workers, and the generated IPC types before accepting the foundation milestone.
+Configure the same checks for local development and CI from milestone 1. Verify the pinned tools against Svelte, Skeleton, Bits UI, Monaco workers, and the generated IPC types before accepting the foundation milestone. [Decision 0016](decisions/0016-ci-test-tiering.md) assigns deterministic checks and Playwright mock flows to required CI, native WebdriverIO to a manual/nightly reusable workflow and release qualification, and live fixtures, clean-VM package smoke, and performance measurement to local or explicit manual runs. The commands remain identical; only the required-check tier and trigger differ.
 
 ### Skeleton and Bits UI component foundation
 
