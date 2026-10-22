@@ -42,6 +42,7 @@ These decisions were made on 2026-10-12, and items 8 and 9 on 2026-10-13. Do not
 8. **`talosctl` never loads the host's ambient configuration in a fixture session.** Check the binary with `talosctl version --client`, give every server command an explicit fixture `--talosconfig`, and keep `TALOSCONFIG` on an existing empty guard file for the whole session. The [fixture runbook](fixture-runbook.md#step-1-tools) has the commands. This answers question Q4 in the ledger.
 9. **A commit that changes only the ledger gets no follow-up commit for its hosted result.** The next working session reads that result and records it inside its own entry. See [Hosted results](#hosted-results).
 10. **CI is tiered by [decision 0016](../../decisions/0016-ci-test-tiering.md).** Required CI keeps the deterministic gates and Playwright mock flows. Native WebdriverIO moves to a manual and weekly reusable workflow, which release qualification calls explicitly. Live Talos/Kubernetes fixtures, clean-VM package smoke, and performance measurement remain local or explicit manual runs. Synthetic Kubernetes/session tests stay in required CI. The native and fixture gates are moved, not removed; a change is not complete until its tier has run and the result is recorded.
+11. **The agent may override the local firewall/iptables policy for exactly the recorded fixture remediation.** Apply nothing broader and restore the host at the end of the session. The reviewed document 01 Part A harness change is committed; Part B is next.
 
 ## How to run one session
 
