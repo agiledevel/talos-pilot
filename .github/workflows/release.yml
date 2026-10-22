@@ -35,7 +35,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
-      - run: rustup toolchain install 1.99.0 --profile minimal
+      - run: rustup toolchain install 1.99.1 --profile minimal
       - id: metadata
         run: node scripts/release-metadata.ts
         env:
@@ -97,7 +97,7 @@ jobs:
         with:
           go-version-file: helper/go.mod
           cache-dependency-path: helper/go.sum
-      - run: npm install --global pnpm@12.10.1
+      - run: npm install --global pnpm@12.15.0
       - run: pnpm install --frozen-lockfile
       - name: Linux package prerequisites
         if: runner.os == 'Linux'
@@ -108,7 +108,7 @@ jobs:
           curl -fsSL --retry 3 --max-time 60 https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64 -o "$RUNNER_TEMP/appimage-runtime-x86_64"
           echo "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  $RUNNER_TEMP/appimage-runtime-x86_64" | sha256sum --check
           printf 'LDAI_RUNTIME_FILE=%s\n' "$RUNNER_TEMP/appimage-runtime-x86_64" >> "$GITHUB_ENV"
-      - run: rustup toolchain install 1.99.0 --profile minimal --target ${{ matrix.target }}
+      - run: rustup toolchain install 1.99.1 --profile minimal --target ${{ matrix.target }}
       - uses: ./.github/actions/install-protoc
       - run: pnpm icons:check
       - name: Build preview packages

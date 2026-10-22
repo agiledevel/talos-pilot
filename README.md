@@ -38,15 +38,18 @@ The renderer does not own cluster credentials or connect directly to cluster API
 
 ## Run from source
 
-Install **Node 26.11.1**, **pnpm 12.10.1**, **Rust 1.99.0**, **Go 1.27.2**, and the [Tauri native prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS. Node and Rust are pinned in `.node-version` and `rust-toolchain.toml`; Go is pinned by `helper/go.mod`.
+Install **Node 26.12.1**, **pnpm 12.15.0**, **Rust 1.99.1**, **Go 1.27.3**, and the [Tauri native prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS. Node and Rust are pinned in `.node-version` and `rust-toolchain.toml`; Go is pinned by `helper/go.mod`. The checked-in [toolchain bootstrap](scripts/dev-toolchain.ts) downloads Node, pnpm, and protoc into the gitignored `.tools/` directory, verifies every archive against its published SHA-256, and checks the pinned Go, Rust, and `talosctl` versions without installing anything system-wide.
 
 ```sh
 git clone https://github.com/agiledevel/talos-pilot.git
 cd talos-pilot
-npm install --global pnpm@12.10.1
+node scripts/dev-toolchain.ts    # host Node 22 or newer; provisions .tools/
+export PATH="$PWD/.tools/node/bin:$PWD/.tools/protoc/bin:$PWD/.tools/bin:$PATH"
 pnpm install --frozen-lockfile
 pnpm desktop:dev
 ```
+
+After the first bootstrap, `pnpm toolchain:bootstrap` re-verifies the same pins. Linux x86_64, macOS arm64, and macOS x64 are supported; other hosts use the manual procedure in the [close-out plan](docs/plans/foundation-finish/closeout-plan.md#5-host-and-toolchain-bootstrap).
 
 Use `pnpm dev` for the browser shell at `http://127.0.0.1:1420`. Appearance preferences last for the current session. Native builds target Linux x86_64, macOS 13.3 or later (Apple Silicon and Intel, per [0010](docs/decisions/0010-macos-minimum-webview.md)), and Windows x86_64; configured CI targets are distinct from verified operating-system compatibility.
 

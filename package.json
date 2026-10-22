@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "toolchain:bootstrap": "node scripts/dev-toolchain.ts",
     "helper:build": "node scripts/build-helper.ts",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build --no-bundle",
@@ -82,5 +83,5 @@
   "engines": {
     "node": ">=26.0.0"
   },
-  "packageManager": "pnpm@12.10.1"
+  "packageManager": "pnpm@12.15.0"
 }

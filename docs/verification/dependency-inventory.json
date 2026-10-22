@@ -2,12 +2,12 @@
   "schemaVersion": 2,
   "generatedFrom": "pnpm licenses list --json, cargo metadata --locked --format-version 1, and go list -m -json all; regenerate with pnpm inventory:generate",
   "sources": {
-    "node": "26.11.1",
-    "pnpm": "12.10.1",
-    "rustc": "1.99.0",
+    "node": "26.12.1",
+    "pnpm": "12.15.0",
+    "rustc": "1.99.1",
     "go": "1.27.3",
     "lockfiles": {
-      "pnpmLock": "a929fca81c3d986a6ab0bd3dd720ea70af69545e702e0c766bf476340f3b5a1f",
+      "pnpmLock": "7837e71f224f2a3e93bb66a8b87da9ac2365d8f4ce38c5e59e471d676fab1a05",
       "cargoLock": "3c936c54d89ff545ab05a9ab559920cc15671c4267da017d8665a4a838edc56f",
       "goSum": "ffb278d2583c3268a8ca81ca86449aa64e8e2f788deea074fbfee96032f7e00b"
     }

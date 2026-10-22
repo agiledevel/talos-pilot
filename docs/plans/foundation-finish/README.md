@@ -93,12 +93,13 @@ Stop the current document, write the question into the ledger's "Questions for t
 
 The host is openSUSE Tumbleweed on x86_64. `sudo -n` works and `/dev/kvm` exists. Facts that have cost earlier sessions time:
 
-- **The pinned toolchain is not on `PATH`.** The pins are Node 26.11.1, pnpm 12.10.1, Rust 1.99.0, Go 1.27.3, protoc 36.2, and `talosctl` v1.14.2. Provision them into your session's scratch directory and verify each download against its published digest. Do not install anything system-wide and do not change host configuration.
-  - Node: the nodejs.org tarball, checked against `SHASUMS256.txt`. Install pnpm into that Node prefix.
-  - Rust: `rustup` resolves 1.99.0 from `rust-toolchain.toml`. Put `~/.cargo/bin` first on `PATH`, because the system Cargo is older.
-  - Go: download `go1.27.3.linux-amd64.tar.gz` from the Go release list and verify SHA-256 `65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40` before use. The system `go` is older, and the module cache holds only the superseded 1.27.2 toolchain.
-  - protoc: the digest is in `.github/actions/install-protoc/action.yml`.
-  - `talosctl`: lives in the ignored directory `src-tauri/.local-tools/`. Verify its SHA-256 against the release's `sha256sum.txt` before use.
+- **The pinned toolchain is not on `PATH`.** The pins are Node 26.12.1, pnpm 12.15.0, Rust 1.99.1, Go 1.27.3, protoc 36.2, and `talosctl` v1.14.2. Provision them with `pnpm toolchain:bootstrap`, or with `node scripts/dev-toolchain.ts` before pnpm exists; it downloads Node, pnpm, and protoc into the gitignored `.tools/` directory, verifies the published digests, and checks the Go, Rust, and `talosctl` versions. Do not install anything system-wide and do not change host configuration.
+  - Node: the nodejs.org tarball, checked against `SHASUMS256.txt`. The bootstrap installs pnpm into that Node prefix.
+  - Rust: `rustup` resolves 1.99.1 from `rust-toolchain.toml`. Put `~/.cargo/bin` first on `PATH`, because the system Cargo is older.
+  - Go: download `go1.27.3.linux-amd64.tar.gz` from the Go release list and verify SHA-256 `65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40` before use. The system `go` is older, and the module cache holds only the superseded 1.27.2 toolchain. The bootstrap verifies the pinned version but does not install Go.
+  - protoc: the script and `.github/actions/install-protoc/action.yml` record the same published digests.
+  - `talosctl`: lives in the ignored directory `src-tauri/.local-tools/`. The bootstrap verifies its SHA-256 against the pinned release and downloads it into `.tools/bin/` when it is absent.
+  - The manual provisioning commands remain in [closeout-plan.md](closeout-plan.md#5-host-and-toolchain-bootstrap) as a fallback for unsupported hosts.
 - **Git has no identity configured.** Commits on this branch are made as `Tamas Kiss <ifjkt@ifjkt.com>` with per-command options: `git -c user.name="Tamas Kiss" -c user.email="ifjkt@ifjkt.com" commit ...`. Do not edit git config.
 - **Pushing works over SSH** since the owner changed the remote on 2026-10-12. Push after each commit. If a push fails, continue locally, do not change remotes or credentials, and record it as a blocker in the ledger.
 - **`gh` is installed and signed in** (account `agiledevel`, since 2026-10-12). Read hosted results with `gh pr checks 2`, `gh run list --branch ft-foundation-completion`, and `gh run view <id>`. To read one job's log while its run is still going, use `gh api --allow-escape-sequences repos/agiledevel/talos-pilot/actions/jobs/<job id>/logs`. [Hosted results](#hosted-results) says which results to record and when.

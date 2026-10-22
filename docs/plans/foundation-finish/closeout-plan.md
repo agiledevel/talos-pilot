@@ -167,38 +167,35 @@ The currently recorded pins are:
 
 | Tool     | Pin     |
 | -------- | ------- |
-| Node     | 26.11.1 |
-| pnpm     | 12.10.1 |
-| Rust     | 1.99.0  |
+| Node     | 26.12.1 |
+| pnpm     | 12.15.0 |
+| Rust     | 1.99.1  |
 | Go       | 1.27.3  |
 | protoc   | 36.2    |
 | talosctl | v1.14.2 |
 
-Session A1 researches the current upstream stable versions from primary
-sources, verifies compatibility, refreshes these pins and every affected
-lockfile or CI digest together, and then writes the bootstrap script. Do not
-copy the values below into the script without that research: they are the
-current record, not a claim that they are the latest stable release. The Go pin
-was already refreshed from 1.27.2 on 2026-10-22 for GO-2026-6809; see the
-ledger.
-
-Until Session A1 lands the script, provision the recorded pins into a session
-scratch directory and verify provenance. The snippet below shows the current
-recorded values; Session A1 replaces it with the script and the refreshed pins.
+Session A1 researched these pins from primary sources on 2026-10-22 and
+recorded the compatibility evidence in the ledger. Provision them with
+`pnpm toolchain:bootstrap` (`node scripts/dev-toolchain.ts` before pnpm exists).
+The script downloads Node, pnpm, and protoc into the gitignored `.tools/`
+directory, verifies every published digest, checks the Go, Rust, and `talosctl`
+versions, never installs system-wide, and is idempotent. Run it from a clean
+directory to prove a reproducible install. The manual commands below remain the
+fallback for an unsupported host or a script failure.
 
 ```sh
 SCRATCH="$(mktemp -d)"
 mkdir -p "$SCRATCH/tools"
 
-# Node 26.11.1, checked against the published SHASUMS256.txt.
-curl -fsSL https://nodejs.org/dist/v26.11.1/SHASUMS256.txt -o "$SCRATCH/SHASUMS256.txt"
-curl -fsSL https://nodejs.org/dist/v26.11.1/node-v26.11.1-linux-x64.tar.xz \
-  -o "$SCRATCH/node-v26.11.1-linux-x64.tar.xz"
-grep ' node-v26.11.1-linux-x64.tar.xz$' "$SCRATCH/SHASUMS256.txt" \
+# Node 26.12.1, checked against the published SHASUMS256.txt.
+curl -fsSL https://nodejs.org/dist/v26.12.1/SHASUMS256.txt -o "$SCRATCH/SHASUMS256.txt"
+curl -fsSL https://nodejs.org/dist/v26.12.1/node-v26.12.1-linux-x64.tar.xz \
+  -o "$SCRATCH/node-v26.12.1-linux-x64.tar.xz"
+grep ' node-v26.12.1-linux-x64.tar.xz$' "$SCRATCH/SHASUMS256.txt" \
   | (cd "$SCRATCH" && sha256sum --check)
-tar -xJf "$SCRATCH/node-v26.11.1-linux-x64.tar.xz" -C "$SCRATCH/tools"
-export PATH="$SCRATCH/tools/node-v26.11.1-linux-x64/bin:$PATH"
-npm install --global pnpm@12.10.1
+tar -xJf "$SCRATCH/node-v26.12.1-linux-x64.tar.xz" -C "$SCRATCH/tools"
+export PATH="$SCRATCH/tools/node-v26.12.1-linux-x64/bin:$PATH"
+npm install --global pnpm@12.15.0
 
 # protoc 36.2. The digest is the one recorded in
 # .github/actions/install-protoc/action.yml.
@@ -219,9 +216,9 @@ tar -xzf "$SCRATCH/go.tar.gz" -C "$SCRATCH/tools/go1.27.3" --strip-components=1
 export PATH="$SCRATCH/tools/go1.27.3/bin:$PATH"
 go version    # must print go1.27.3
 
-# Rust 1.99.0 is selected by rust-toolchain.toml. Put rustup's bin first.
+# Rust 1.99.1 is selected by rust-toolchain.toml. Put rustup's bin first.
 export PATH="$HOME/.cargo/bin:$PATH"
-rustc --version    # must print 1.99.0
+rustc --version    # must print 1.99.1
 ```
 
 `talosctl` for fixture sessions lives in `src-tauri/.local-tools/talosctl`.
