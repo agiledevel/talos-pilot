@@ -30,6 +30,12 @@ A document is `done` only when every acceptance case in it has recorded evidence
 | [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-22 | After documents 01 to 08; the owner review is required before it is done                                                                                           |
 | [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                                                                                             |
 
+## CI pace optimisation — owner-directed prerequisite to Session B
+
+- **Status:** in progress (2026-10-22); document 05 has not started.
+- **Acceptance:** bounded authenticated Ubuntu provisioning with an official-mirror fallback; fail-closed change-aware checks backed by earlier passing evidence; bounded dependency caches; one renderer unit/coverage execution; no duplicate desktop frontend build; release assets may build in parallel but cannot publish before all qualification passes; FLASH workers have an explicit checkpoint/evidence workflow.
+- **Verification:** regression tests for scope, malformed/missing evidence, cache retention and provisioning failures; pinned actionlint and shellcheck; renderer checks/build/browser flows; hosted code and documentation runs; native evidence remains separately required. Record unexecuted environments explicitly.
+
 ## Standing owner decisions
 
 Recorded on 2026-10-12 and 2026-10-13. Their full wording is in the series [README](README.md#what-the-owner-has-decided).
@@ -1253,6 +1259,24 @@ Entries are appended below, oldest first.
 - **Assumptions confirmed or refuted:** confirmed the documentation-only scope decision still skips the desktop matrix while the renderer and result jobs run.
 - **Questions or blockers raised:** none.
 - **Next:** Session B, document 05 (F6 editor workers under the packaged CSP).
+
+### 2026-10-23 — owner-requested CI pace optimisation before Session B
+
+- **Document:** none (CI prerequisite); document 05 is still not started.
+- **Session:** OpenAI coding assistant; base `e4a7fa2`; final revision is the commit carrying this entry.
+- **Status after this checkpoint:** implementation complete locally; hosted code/documentation verification pending. No product acceptance row advanced.
+- **Acceptance cases:** implemented conservative per-domain evidence reuse; bounded authenticated Ubuntu provisioning with an official fallback; dependency-cache migration/fallback/retention; cached pnpm/Chromium; one coverage-enabled renderer aggregate; no redundant pre-Clippy frontend build; release compilation parallel to qualification with publication still gated; FLASH checkpoint/evidence guidance. Hosted setup/cache timings remain unverified until the runs complete.
+- **What changed:** [decision 0018](../../decisions/0018-ci-feedback-and-cache-budgets.md), all four workflows plus default-branch-only cache maintenance, shared JavaScript/provisioning actions, scope/cache/provisioning helpers and regression tests, `pnpm check:ci`, [FLASH pace](../../flash-pace.md), AGENTS and linked setup/plan guidance. No application IPC, CSP, credentials, platform targets or fixture permissions changed.
+- **Starting hosted results:** Foundation `39873299673` and Security `39873299640` at `e4a7fa2` both completed successfully. The investigation found Rust CodeQL prerequisite installs of 20m and 25m 28s and a Playwright install of 12m 27s in earlier runs; see decision 0018 for URLs.
+- **Commands and results:** openSUSE Tumbleweed x86_64, Node 26.12.1, pnpm 12.15.0, Rust 1.99.1, Go 1.27.3, protoc 36.2. Frozen pnpm install, contracts and inventory checks, npm audit, pinned actionlint 1.7.12/ShellCheck 0.11.0, `pnpm check:ci` passed (format, lint/types, zero Svelte errors/warnings, 175 tests in 23 files with coverage, production build), and eight Playwright browser flows passed. Local native Tauri WebKitGTK suite: 19 tests across two spec files passed, with no helper/synthetic endpoint remaining; `pnpm desktop:build` afterwards and `pnpm production:check` passed. Default all-target Clippy also passed with `dist` temporarily absent, proving the removed duplicate frontend build was not required for that Linux check; `dist` was restored.
+- **Cache operation:** reviewed `GITHUB_REPOSITORY=agiledevel/talos-pilot node scripts/ci-cache-maintenance.ts --retire-probes`, then applied the same plan with `--apply`. Eight caches on retired `a2-native-probe` were deleted; the seven working PR/main caches were retained. Inventory fell from 10,316,833,159 to 7,283,651,388 bytes (about 2.82 GiB freed). A subsequent dry-run proposed zero deletions. No active run/ref was deleted.
+- **Evidence class:** deterministic local tests, real local Tauri/native release executable and browser mocks, plus historical hosted results. No real cluster or clean installer qualification.
+- **Fixture:** none. No development-host networking, system packages, apt configuration or owner cluster was touched. Native tests used private Xvfb/XDG directories and cleaned their owned processes.
+- **Failed or unexecuted:** the first scope subprocess test used a Node-only environment incompatible with the shared DOM setup; it was corrected to the existing test environment, not worked around with a suppression. A later lint pass caught unnecessary string escapes and those were removed. Matching Playwright image `v1.64.0-noble` returned HTTP 404; the exact browser pin is retained with the implemented binary-cache/bounded-installer alternative. New hosted Ubuntu provisioning, Windows/macOS tool-cache setup, v2 cache saves/hits, default-branch maintenance dispatch/schedule and release parallelisation need hosted evidence. Native four-platform entry points remain unavailable before merge; no tag/release was created.
+- **Review findings:** retained the native/fixture gates; strengthened desktop evidence to require all three PR runners; rejected skipped/reused CodeQL steps as fresh evidence; added the PR-base containment safeguard and missing-output validation. Maintenance ignores its own run when protecting active refs, so it cannot exempt every main cache forever. Browser dependency reports validate every package and their count without eval. Native cache saves drop inherited debug output. Tests cover the corresponding failure paths.
+- **Assumptions confirmed or refuted:** local builds do not require the duplicate pre-Clippy frontend build. No packet fixture/performance assumption was settled. Speed targets are observations to measure, not claimed improvements yet.
+- **Questions and blockers raised:** none requiring an owner decision. Maintenance and literal native dispatch remain post-merge verification rows.
+- **Next:** read the code checkpoint's Foundation/Security results, correct any finding, then make at most one documentation-only verification record and confirm its scope reuse. Do not create a ledger-follow-up loop. Session B/document 05 starts only after this CI handoff; apply FLASH pace and retain real native worker/CSP evidence.
 
 ## Entry template
 

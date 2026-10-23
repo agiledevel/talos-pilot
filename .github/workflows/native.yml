@@ -20,8 +20,8 @@ on:
 permissions:
   contents: read
 
-# A later dispatch for the same revision replaces an earlier one; release calls
-# and manual runs for different revisions never cancel each other.
+# Calls for the same revision are serialised, not cancelled; evidence for a
+# release or an explicitly selected revision must finish.
 concurrency:
   group: native-tests-${{ inputs.revision || github.sha }}
   cancel-in-progress: false
@@ -51,10 +51,7 @@ jobs:
         with:
           ref: ${{ inputs.revision || github.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .node-version
-      - run: npm install --global pnpm@12.15.0
+      - uses: ./.github/actions/setup-js
       - run: pnpm install --frozen-lockfile
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
@@ -62,7 +59,9 @@ jobs:
           cache-dependency-path: helper/go.sum
       - name: Linux native prerequisites
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libdbus-1-dev libxdo-dev build-essential pkg-config xvfb
+        uses: ./.github/actions/linux-prerequisites
+        with:
+          mode: native
       - run: rustup toolchain install 1.99.1 --profile minimal
       - uses: ./.github/actions/install-protoc
       # The native suite builds the test application and its synthetic API
@@ -75,7 +74,12 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             src-tauri/target
-          key: native-v1-${{ matrix.os }}-${{ hashFiles('rust-toolchain.toml', 'src-tauri/Cargo.lock') }}
+          key: native-v2-${{ matrix.os }}-${{ hashFiles('rust-toolchain.toml', 'src-tauri/.cargo/config.toml') }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            native-v2-${{ matrix.os }}-${{ hashFiles('rust-toolchain.toml', 'src-tauri/.cargo/config.toml') }}-
+            cargo-v2-${{ matrix.os }}-${{ hashFiles('rust-toolchain.toml', 'src-tauri/.cargo/config.toml') }}-
+            ${{ hashFiles('src-tauri/.cargo/config.toml') == '' && format('native-v1-{0}-{1}', matrix.os, hashFiles('rust-toolchain.toml', 'src-tauri/Cargo.lock')) || '' }}
+            ${{ hashFiles('src-tauri/.cargo/config.toml') == '' && format('cargo-v1-{0}-{1}', matrix.os, hashFiles('rust-toolchain.toml', 'src-tauri/Cargo.lock')) || '' }}
       - name: Run the native Tauri suite
         shell: bash
         run: |
@@ -100,6 +104,9 @@ jobs:
         run: |
           cargo clean --manifest-path src-tauri/Cargo.toml --locked --package talos-pilot
           cargo clean --manifest-path src-tauri/Cargo.toml --locked --package talos-pilot --release
+          # A seed from deterministic CI also contains debug tests/Clippy.
+          # This workflow builds only release targets, so do not duplicate them.
+          rm -rf src-tauri/target/debug src-tauri/target/doc
       - name: Save the native Cargo cache
         if: ${{ !cancelled() && steps.native-prune.outcome == 'success' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

@@ -55,6 +55,7 @@ jobs:
     needs: source
     permissions:
       contents: read
+      actions: read
       security-events: write
     uses: ./.github/workflows/security.yml
     with:
@@ -62,8 +63,8 @@ jobs:
 
   native:
     needs: source
-    # Native qualification runs on the same four desktop runners and must pass
-    # for the exact release revision before packages are built.
+    # Native qualification runs on all four desktop runners for the exact
+    # revision. Compilation may overlap it; the draft cannot publish until it passes.
     permissions:
       contents: read
     uses: ./.github/workflows/native.yml
@@ -72,7 +73,9 @@ jobs:
 
   assets:
     name: Build ${{ matrix.target }} assets
-    needs: [source, qa, security, native]
+    # Compile in parallel with qualification; only the draft job can publish,
+    # and it still requires every QA/security/native/asset job for this revision.
+    needs: source
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -100,18 +103,17 @@ jobs:
         with:
           ref: ${{ needs.source.outputs.revision }}
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .node-version
+      - uses: ./.github/actions/setup-js
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: helper/go.mod
           cache-dependency-path: helper/go.sum
-      - run: npm install --global pnpm@12.15.0
       - run: pnpm install --frozen-lockfile
       - name: Linux package prerequisites
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libdbus-1-dev libxdo-dev build-essential pkg-config librsvg2-dev patchelf libfuse2 rpm
+        uses: ./.github/actions/linux-prerequisites
+        with:
+          mode: release
       - name: Fetch the pinned AppImage runtime
         if: runner.os == 'Linux'
         run: |

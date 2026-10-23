@@ -25,7 +25,36 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  scope:
+    name: Decide security scope
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      actions: ${{ steps.scope.outputs.actions }}
+      javascript-typescript: ${{ steps.scope.outputs.javascript-typescript }}
+      rust: ${{ steps.scope.outputs.rust }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.revision || github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '1' }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - id: scope
+        run: node scripts/ci-desktop-scope.ts
+        env:
+          CI_SCOPE_WORKFLOW: security.yml
+          GITHUB_TOKEN: ${{ github.token }}
+          PULL_REQUEST_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PULL_REQUEST_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+
   codeql:
+    needs: scope
     name: CodeQL (${{ matrix.language }})
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -37,6 +66,11 @@ jobs:
       matrix:
         language: [actions, javascript-typescript, rust]
     steps:
+      - name: Validate scope decision
+        env:
+          WANTED: ${{ needs.scope.outputs[matrix.language] }}
+        run: |
+          case "$WANTED" in true|false) ;; *) echo 'Missing scope decision'; exit 1 ;; esac
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.revision || github.sha }}
@@ -44,23 +78,31 @@ jobs:
       # Rust extraction resolves build scripts and proc macros, which need the
       # pinned toolchain from rust-toolchain.toml and the GTK/WebKit headers.
       - name: Linux native prerequisites
-        if: matrix.language == 'rust'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libdbus-1-dev libxdo-dev build-essential pkg-config
+        if: matrix.language == 'rust' && needs.scope.outputs.rust == 'true'
+        uses: ./.github/actions/linux-prerequisites
+        with:
+          mode: security
       - name: Rust toolchain
-        if: matrix.language == 'rust'
+        if: matrix.language == 'rust' && needs.scope.outputs.rust == 'true'
         run: rustup toolchain install 1.99.1 --profile minimal
       - uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        if: needs.scope.outputs[matrix.language] == 'true'
         with:
           languages: ${{ matrix.language }}
           build-mode: none
       - uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        if: needs.scope.outputs[matrix.language] == 'true'
         with:
           category: /language:${{ matrix.language }}
           output: ${{ runner.temp }}/codeql-sarif
           # A release revision may differ from the triggering ref, so release
           # runs gate on the local SARIF without publishing it to code scanning.
           upload: ${{ inputs.revision && 'never' || 'always' }}
+      - name: Report reused evidence
+        if: needs.scope.outputs[matrix.language] == 'false'
+        run: echo 'Unchanged analysis inputs; see Decide security scope for executed ancestor evidence. No fresh analysis or SARIF upload.' >> "$GITHUB_STEP_SUMMARY"
       - name: Require zero CodeQL results
+        if: needs.scope.outputs[matrix.language] == 'true'
         env:
           SARIF_DIR: ${{ runner.temp }}/codeql-sarif
         run: |
@@ -88,8 +130,7 @@ jobs:
           echo "2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a  $RUNNER_TEMP/trivy.tar.gz" | sha256sum --check
           tar -xzf "$RUNNER_TEMP/trivy.tar.gz" -C "$RUNNER_TEMP" trivy
           "$RUNNER_TEMP/trivy" --version
-      - name: Report findings to code scanning
-        if: ${{ !inputs.revision }}
+      - name: Scan once and retain the findings
         run: >-
           "$RUNNER_TEMP/trivy" fs --cache-dir "$RUNNER_TEMP/trivy-cache" --scanners vuln,secret,misconfig
           --ignorefile .trivyignore.yaml --format sarif --output "$RUNNER_TEMP/trivy.sarif" .
@@ -99,6 +140,6 @@ jobs:
           sarif_file: ${{ runner.temp }}/trivy.sarif
           category: trivy
       - name: Require zero vulnerabilities, secrets, and misconfigurations
-        run: >-
-          "$RUNNER_TEMP/trivy" fs --cache-dir "$RUNNER_TEMP/trivy-cache" --scanners vuln,secret,misconfig
-          --ignorefile .trivyignore.yaml --exit-code 1 .
+        run: |
+          jq -r '.runs[].results[] | "\(.ruleId): \(.message.text)"' "$RUNNER_TEMP/trivy.sarif"
+          jq -e '[.runs[].results[]] | length == 0' "$RUNNER_TEMP/trivy.sarif"

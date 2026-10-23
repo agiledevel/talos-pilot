@@ -4,6 +4,8 @@ Date: 2026-10-13. Status: accepted by owner decision; the hosted timings are
 recorded in the [automation record](../verification/automation.md) once the
 first cached runs complete.
 
+**Amended on 2026-10-22 by [decision 0018](0018-ci-feedback-and-cache-budgets.md).** The original timings and owner choices below are historical. The current implementation uses per-domain executed evidence, a merge-base safeguard, renderer/CodeQL documentation reuse, v2 fallback dependency caches with bounded maintenance, and parallel release asset compilation. The desktop platform matrix and native qualification tiers are unchanged.
+
 ## Context
 
 `Foundation checks` run 38309339162 (commit `1a4bbd0`, every job passing) took

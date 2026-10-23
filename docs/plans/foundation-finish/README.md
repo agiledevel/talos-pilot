@@ -2,6 +2,8 @@
 
 Date: 2026-10-12. Audience: an implementing model working one session at a time, with no memory of earlier sessions. Read this file completely before any packet document. It holds the rules every packet shares, so the packet documents do not repeat them.
 
+Workers must also read [FLASH pace](../../flash-pace.md): use coherent checkpoints, overlap independent work with CI, avoid rerunning unchanged aggregates, and keep native/fixture evidence distinct. [Decision 0018](../../decisions/0018-ci-feedback-and-cache-budgets.md) records change-aware analysis and bounded caches; it does not remove any packet acceptance gate.
+
 This series finishes milestone 1 (feasibility and foundation) on the Linux development host. It splits the remaining packets of the [foundation completion plan](../foundation-completion-flash.md) into one document each, with the context a fresh session needs. The plan stays the normative definition of each packet. Where a packet document and the plan disagree, stop and record the disagreement in the [ledger](ledger.md) instead of choosing one.
 
 ## The documents
@@ -137,7 +139,8 @@ Each push updates the pull request's foundation and security runs. Branch pushes
 - **At the start of a session**, read the hosted result for the branch head you start from and record it in your session entry. This is where the result of the previous session's last commit is recorded.
 - **A commit that changes anything besides the ledger**: read its result before your session ends, if it finishes in time, and record it in your session entry. If your entry is already committed, one further ledger-only commit may record it.
 - **A commit that changes only the ledger gets no follow-up commit.** Never commit only to record the hosted result of a ledger-only commit. The next working session records it under the first rule. The owner decided this on 2026-10-13, after five consecutive commits each recorded the result of the one before.
-- A ledger-only push runs `pnpm format:check` in the renderer job and skips the desktop matrix. Run `pnpm format` and `pnpm format:check` before every commit, so that this job cannot fail on the ledger's tables.
+- A ledger-only push with compatible executed ancestor evidence runs `pnpm format:check` and a fresh npm audit in the renderer job, skips the desktop matrix, and reuses unchanged CodeQL inputs; Trivy still scans the tree. Missing evidence or a changed base forces full checks. The scope summary labels reuse, never a fresh execution. Run `pnpm format` and `pnpm format:check` before every commit, so formatting cannot fail on the ledger's tables.
+- Use `pnpm check:ci` for one coverage-enabled final renderer aggregate rather than running the same unit suite with and without coverage. The usual `pnpm check` remains available. Follow the FLASH pace guide for final native evidence and avoiding shared build-output races.
 
 ## Commits
 

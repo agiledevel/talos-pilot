@@ -396,7 +396,7 @@ the cache behavior verified; the ledger entry names the run IDs and tiers.
 
 ### Session B — Document 05: F6 offline Monaco/YAML workers under the packaged CSP
 
-**Prerequisite:** Session A2. No fixture.
+**Prerequisite:** Session A2 and the owner-requested [CI feedback optimisation](../../decisions/0018-ci-feedback-and-cache-budgets.md). Read [FLASH pace](../../flash-pace.md) before executing. No fixture. Do not count a reused CodeQL check or a browser mock as native worker/CSP evidence; run the packet's final native tier and rebuild production afterwards.
 
 **Read:** [document 05](05-f6-editor-workers-csp.md), decisions 0008 and 0009,
 quality.md sections 3 and 6, `src-tauri/tauri.conf.json`, `PilotApp.svelte`,

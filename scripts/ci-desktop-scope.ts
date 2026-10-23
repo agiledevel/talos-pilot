@@ -2,17 +2,11 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import process from "node:process";
 
-import {
-  decideDesktopScope,
-  desktopJobsPassed,
-  isCommitSha,
-  parseWorkflowRuns,
-} from "./lib/ci-scope.ts";
-import type { DesktopScope } from "./lib/ci-scope.ts";
+import { decideDomain, domainExecuted } from "./lib/ci-domains.ts";
+import type { CiDomain, DomainDecision } from "./lib/ci-domains.ts";
+import { desktopJobsPassed, isCommitSha, parseWorkflowRuns } from "./lib/ci-scope.ts";
 
-/** Successful runs inspected, newest first; older evidence is treated as absent. */
 const MAX_RUNS = 50;
-/** Bound on per-run job lookups, so a long history cannot stall the job. */
 const MAX_JOB_LOOKUPS = 10;
 const API_TIMEOUT_MS = 20_000;
 
@@ -24,7 +18,6 @@ function required(name: string): string {
   return value;
 }
 
-/** Reads one repository-scoped GitHub API resource with the job's read-only token. */
 async function github(path: string): Promise<unknown> {
   const base = process.env.GITHUB_API_URL ?? "https://api.github.com";
   const response = await fetch(`${base}/repos/${required("GITHUB_REPOSITORY")}${path}`, {
@@ -41,18 +34,13 @@ async function github(path: string): Promise<unknown> {
   return (await response.json()) as unknown;
 }
 
-/**
- * Reports whether `candidate` is in the history of `head`. A commit missing
- * from the clone, such as one removed by a force-push, is not an ancestor.
- */
 function isAncestor(candidate: string, head: string): boolean {
-  const result = spawnSync("git", ["merge-base", "--is-ancestor", candidate, head], {
-    stdio: "ignore",
-  });
-  return result.status === 0;
+  return (
+    spawnSync("git", ["merge-base", "--is-ancestor", candidate, head], { stdio: "ignore" })
+      .status === 0
+  );
 }
 
-/** Lists every path that differs between two trees; a rename reports both names. */
 function changedPaths(base: string, head: string): string[] {
   return execFileSync("git", ["diff", "--no-renames", "--name-only", "-z", base, head], {
     encoding: "utf8",
@@ -62,58 +50,86 @@ function changedPaths(base: string, head: string): string[] {
     .filter((path) => path !== "");
 }
 
-/**
- * Finds the newest ancestor commit whose desktop jobs passed and compares the
- * pull request head against it. Comparing against the last passing commit, not
- * the previous push, keeps a cancelled or failed code run from being hidden by
- * a later documentation-only push.
- */
-async function decide(): Promise<DesktopScope> {
+/** Missing or unreadable evidence always requests fresh checks. */
+async function decide(domains: readonly CiDomain[]): Promise<Map<CiDomain, DomainDecision>> {
   const event = required("GITHUB_EVENT_NAME");
+  const decisions = new Map<CiDomain, DomainDecision>(
+    domains.map((domain) => [
+      domain,
+      {
+        run: true,
+        reason:
+          event === "pull_request"
+            ? "No compatible executed evidence found."
+            : `A ${event} run always executes every domain.`,
+      },
+    ]),
+  );
   if (event !== "pull_request") {
-    return { desktop: true, reason: `A ${event} run always executes the desktop matrix.` };
+    return decisions;
   }
   const head = process.env.PULL_REQUEST_HEAD_SHA;
-  if (!isCommitSha(head)) {
-    throw new Error("Set PULL_REQUEST_HEAD_SHA to the pull request's head commit.");
+  const base = process.env.PULL_REQUEST_BASE_SHA;
+  if (!isCommitSha(head) || !isCommitSha(base)) {
+    throw new Error("Set PULL_REQUEST_HEAD_SHA and PULL_REQUEST_BASE_SHA to full commit SHAs.");
   }
-  const currentRun = Number(required("GITHUB_RUN_ID"));
+  const workflow = required("CI_SCOPE_WORKFLOW");
+  if (workflow !== "check.yml" && workflow !== "security.yml") {
+    throw new Error("Unsupported scope workflow.");
+  }
   const runs = parseWorkflowRuns(
-    await github(`/actions/workflows/check.yml/runs?status=success&per_page=${String(MAX_RUNS)}`),
+    await github(`/actions/workflows/${workflow}/runs?status=success&per_page=${String(MAX_RUNS)}`),
   );
+  const pending = new Set(domains);
   let lookups = 0;
   for (const run of runs) {
-    if (run.id === currentRun || !isAncestor(run.headSha, head)) {
+    // The base must already be contained in the verified head. Otherwise a new
+    // base could affect the merge even when the PR head changed only Markdown.
+    if (
+      run.id === Number(required("GITHUB_RUN_ID")) ||
+      !isAncestor(run.headSha, head) ||
+      !isAncestor(base, run.headSha)
+    ) {
       continue;
     }
-    if (lookups === MAX_JOB_LOOKUPS) {
+    if (lookups === MAX_JOB_LOOKUPS || pending.size === 0) {
       break;
     }
     lookups += 1;
-    if (desktopJobsPassed(await github(`/actions/runs/${String(run.id)}/jobs?per_page=100`))) {
-      return decideDesktopScope(run.headSha, changedPaths(run.headSha, head));
+    const jobs = await github(`/actions/runs/${String(run.id)}/jobs?per_page=100`);
+    for (const domain of pending) {
+      if (domain === "desktop" ? desktopJobsPassed(jobs) : domainExecuted(domain, jobs)) {
+        decisions.set(domain, decideDomain(domain, run.headSha, changedPaths(run.headSha, head)));
+        pending.delete(domain);
+      }
     }
   }
-  return {
-    desktop: true,
-    reason: "No earlier run with passing desktop jobs is an ancestor of this commit.",
-  };
+  return decisions;
 }
 
-let scope: DesktopScope;
+const domains: readonly CiDomain[] =
+  process.env.CI_SCOPE_WORKFLOW === "security.yml"
+    ? ["actions", "javascript-typescript", "rust"]
+    : ["desktop", "renderer"];
+let decisions: Map<CiDomain, DomainDecision>;
 try {
-  scope = await decide();
+  decisions = await decide(domains);
 } catch (error: unknown) {
-  // Missing evidence must never skip the matrix, so an unreadable API or
-  // history runs it and says why in the run's annotations.
   const detail = (error instanceof Error ? error.message : String(error)).replace(/\s+/gu, " ");
   console.info(
-    `::warning title=Desktop scope::Earlier desktop evidence could not be read (${detail}); running the desktop matrix.`,
+    `::warning title=CI scope::Earlier evidence could not be read (${detail}); running every domain.`,
   );
-  scope = { desktop: true, reason: "Earlier desktop evidence could not be read." };
+  decisions = new Map(
+    domains.map((domain) => [domain, { run: true, reason: "Earlier evidence could not be read." }]),
+  );
 }
-
-if (process.env.GITHUB_OUTPUT !== undefined) {
-  appendFileSync(process.env.GITHUB_OUTPUT, `desktop=${String(scope.desktop)}\n`);
+for (const [domain, decision] of decisions) {
+  if (process.env.GITHUB_OUTPUT !== undefined) {
+    appendFileSync(process.env.GITHUB_OUTPUT, `${domain}=${String(decision.run)}\n`);
+  }
+  const message = `${domain}: ${decision.run ? "RUN" : "REUSE (not a fresh execution)"} — ${decision.reason}`;
+  console.info(message);
+  if (process.env.GITHUB_STEP_SUMMARY !== undefined) {
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${message}\n\n`);
+  }
 }
-console.info(`Desktop matrix ${scope.desktop ? "runs" : "is skipped"}: ${scope.reason}`);

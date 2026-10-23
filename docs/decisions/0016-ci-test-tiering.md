@@ -12,6 +12,8 @@
   explicit workflows. The cheap Playwright mock flows stay in required CI. The design and quality standards still require the same
   evidence before completion; only the trigger and required-check tier change.
 
+**Feedback amendment:** [decision 0018](0018-ci-feedback-and-cache-budgets.md) adds conservative PR evidence reuse, bounded provisioning/caches and non-duplicated renderer checks. The tiers and native/fixture acceptance obligations below remain unchanged; release assets now compile alongside qualification, with publication still gated on all results.
+
 ## Decision
 
 Use three tiers. The commands stay the same across tiers; the trigger, required

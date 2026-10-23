@@ -6,12 +6,6 @@ export interface WorkflowRunSummary {
   readonly headSha: string;
 }
 
-/** Whether the desktop matrix must run, with the reason printed in the job log. */
-export interface DesktopScope {
-  readonly desktop: boolean;
-  readonly reason: string;
-}
-
 const COMMIT_SHA = /^[0-9a-f]{40}$/u;
 
 /** Rejects anything but a full lowercase commit SHA before it reaches a Git argument. */
@@ -54,7 +48,9 @@ export function desktopJobsPassed(payload: unknown): boolean {
     (job) => isRecord(job) && typeof job.name === "string" && job.name.startsWith("desktop ("),
   );
   return (
-    desktop.length > 0 && desktop.every((job) => isRecord(job) && job.conclusion === "success")
+    ["ubuntu-22.04", "macos-15", "windows-2022"].every((os) =>
+      desktop.some((job) => isRecord(job) && job.name === `desktop (${os})`),
+    ) && desktop.every((job) => isRecord(job) && job.conclusion === "success")
   );
 }
 
@@ -73,28 +69,4 @@ export function isDocumentationPath(path: string): boolean {
     return false;
   }
   return path.startsWith("docs/") || !path.includes("/");
-}
-
-/**
- * Decides the desktop scope from the paths that differ from the last commit
- * whose desktop jobs passed.
- */
-export function decideDesktopScope(
-  verifiedSha: string,
-  changedPaths: readonly string[],
-): DesktopScope {
-  const code = changedPaths.filter((path) => !isDocumentationPath(path));
-  const base = verifiedSha.slice(0, 7);
-  if (code.length === 0) {
-    return {
-      desktop: false,
-      reason: `Only documentation differs from ${base}, whose desktop jobs passed (${String(changedPaths.length)} path(s)).`,
-    };
-  }
-  const shown = code.slice(0, 5).join(", ");
-  const more = code.length > 5 ? `, and ${String(code.length - 5)} more` : "";
-  return {
-    desktop: true,
-    reason: `${String(code.length)} non-documentation path(s) differ from ${base}: ${shown}${more}.`,
-  };
 }

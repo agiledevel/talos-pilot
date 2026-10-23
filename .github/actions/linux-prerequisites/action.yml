@@ -1,0 +1,14 @@
+name: Install bounded Ubuntu prerequisites
+description: Signed Ubuntu packages from isolated sources, with bounded downloads and one official-mirror fallback
+inputs:
+  mode:
+    description: security, native, release, or browser
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Install authenticated system dependencies
+      shell: bash
+      env:
+        PREREQUISITE_MODE: ${{ inputs.mode }}
+      run: bash scripts/ci-linux-prerequisites.sh "$PREREQUISITE_MODE"

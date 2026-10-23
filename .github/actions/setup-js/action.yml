@@ -1,0 +1,33 @@
+name: Set up pinned JavaScript tools
+description: Pinned Node and cached pnpm CLI; application dependencies remain frozen-lockfile installs
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version-file: .node-version
+        package-manager-cache: false
+    - name: Restore the pinned pnpm CLI
+      id: pnpm
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/talos-pnpm
+        key: pnpm-cli-v1-${{ runner.os }}-${{ runner.arch }}-12.15.0-${{ hashFiles('.node-version') }}
+    - name: Install the pinned pnpm CLI
+      if: steps.pnpm.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        NPM_CONFIG_PREFIX: ${{ runner.temp }}/talos-pnpm
+      run: npm install --global --ignore-scripts pnpm@12.15.0
+    - name: Select and verify pnpm
+      shell: bash
+      env:
+        PNPM_PREFIX: ${{ runner.temp }}/talos-pnpm
+      run: |
+        if [ "$RUNNER_OS" = Windows ]; then
+          echo "$PNPM_PREFIX" >> "$GITHUB_PATH"
+          node "$PNPM_PREFIX/node_modules/pnpm/bin/pnpm.cjs" --version | grep -Fx 12.15.0
+        else
+          echo "$PNPM_PREFIX/bin" >> "$GITHUB_PATH"
+          "$PNPM_PREFIX/bin/pnpm" --version | grep -Fx 12.15.0
+        fi

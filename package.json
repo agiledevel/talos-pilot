@@ -32,6 +32,7 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "check": "pnpm format:check && pnpm lint && pnpm lint:svelte && pnpm test:run && pnpm build",
+    "check:ci": "pnpm format:check && pnpm lint && pnpm lint:svelte && pnpm test:coverage && pnpm build",
     "icons:generate": "node scripts/icons.ts --write",
     "icons:check": "node scripts/icons.ts",
     "contracts:generate": "node scripts/contracts.ts --write",
