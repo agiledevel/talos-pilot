@@ -58,8 +58,6 @@ models, workers, and listeners, and release them when this surface unmounts.
     </button>
   </div>
 
-  <YamlEditor label="Synthetic release manifest YAML" {value} {onChange} autoFocus />
-
   <div class="flex flex-wrap gap-2">
     <button type="button" class="btn preset-primary-action" onclick={onCorrect}>
       Apply correction
@@ -68,6 +66,8 @@ models, workers, and listeners, and release them when this surface unmounts.
       Reset malformed sample
     </button>
   </div>
+
+  <YamlEditor label="Synthetic release manifest YAML" {value} {onChange} autoFocus />
 
   <YamlDiffView
     label="Synthetic release manifest comparison"

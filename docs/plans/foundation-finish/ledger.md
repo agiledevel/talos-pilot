@@ -1425,3 +1425,15 @@ Copy this block, fill every field, and append it to the session log. Write `none
 - **Failed or unexecuted:** the corrected Foundation rerun is not yet read at the time of this entry. The hosted result must be read after the push; do not claim it before then.
 - **Review findings:** the added focus assertions make the roving-focus path observable rather than loosening it; the longer reset wait is bounded and the suite timeout covers it.
 - **Next:** read the corrected Foundation run. If it passes, the hosted code gate is closed; otherwise fix the actionable failure before handoff.
+
+### 2026-10-23 — document 05, editor action placement under hosted load
+
+- **Document:** 05 F6 follow-up. Document 05 remains `done`.
+- **Session:** DeepSeek Flash; base revision `870b54e`; final revision: the commit carrying this entry.
+- **Finding:** the corrected Foundation run still timed out while Playwright tried to scroll to and click Reset malformed sample; the button was below the editor and diff while Monaco continued layout work on the two-worker runner.
+- **Correction:** the Apply correction and Reset malformed sample actions now sit directly below the surface header and above the editor and diff. They no longer require scrolling while Monaco lays out, and the placement matches a toolbar for the content beneath it. No behavior or assertion changed.
+- **Commands and results:** `pnpm lint`, `pnpm lint:svelte`, and `pnpm exec playwright test tests/e2e/editor.spec.ts --workers=2 --repeat-each=2` (16 passed) on the reordered surface.
+- **Evidence class:** deterministic browser tests. The native cleanup/diagnostic behavior is unchanged, but a final native rerun follows the last code change before handoff.
+- **Fixture:** none.
+- **Failed or unexecuted:** the corrected hosted rerun is not yet read.
+- **Next:** read the hosted run after pushing; if green, rerun the final native/production evidence for the final revision and close the handoff. If not, fix the actionable failure.
