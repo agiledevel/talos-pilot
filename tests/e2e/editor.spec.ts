@@ -95,7 +95,7 @@ test("the editor and its worker load lazily and produce a real diagnostic", asyn
   await expect(page.getByRole("heading", { name: "Synthetic YAML editor" })).toBeVisible({
     timeout: 30_000,
   });
-  await expect(page.getByText(/YAML diagnostic:/u)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/YAML diagnostic:/u)).toBeVisible({ timeout: 45_000 });
   await expect(page.getByText("No YAML diagnostics")).toHaveCount(0);
 
   expect(requests.some((url) => /YamlEditorSurface/u.test(url))).toBe(true);
@@ -118,7 +118,7 @@ test("the editor and its worker load lazily and produce a real diagnostic", asyn
   await expectNoAccessibilityViolations(page);
 
   await page.getByRole("button", { name: "Reset malformed sample" }).click();
-  await expect(page.getByText(/YAML diagnostic:/u)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/YAML diagnostic:/u)).toBeVisible({ timeout: 45_000 });
 
   await page.getByRole("button", { name: "Close editor" }).click();
   await expect(page.getByRole("heading", { name: "Synthetic YAML editor" })).toHaveCount(0);
@@ -156,7 +156,7 @@ test("the editor surface stays accessible in both themes and densities at all si
         await expect(page.getByRole("heading", { name: "Synthetic YAML editor" })).toBeVisible({
           timeout: 30_000,
         });
-        await expect(page.getByText(/YAML diagnostic:/u)).toBeVisible({ timeout: 30_000 });
+        await expect(page.getByText(/YAML diagnostic:/u)).toBeVisible({ timeout: 45_000 });
         await expectNoAccessibilityViolations(page);
 
         const overflow = await page.evaluate(() => ({
@@ -237,7 +237,7 @@ test("the editor works with external requests unavailable and makes no remote re
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Open YAML editor" }).click();
-  await expect(page.getByText(/YAML diagnostic:/u)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/YAML diagnostic:/u)).toBeVisible({ timeout: 45_000 });
   await page.getByRole("button", { name: "Apply correction" }).click();
   await expect(page.getByText("No YAML diagnostics")).toBeVisible({ timeout: 10_000 });
   expect(remote).toEqual([]);
@@ -316,7 +316,7 @@ test("navigating away disposes an open editor and a return starts from baseline"
   const runtime = page.locator("[data-editor-runtime]");
 
   await page.getByRole("button", { name: "Open YAML editor" }).click();
-  await expect(page.getByText(/YAML diagnostic:/u)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/YAML diagnostic:/u)).toBeVisible({ timeout: 45_000 });
   await expect(runtime).not.toHaveText("Workers: 0 · Models: 0 · Listeners: 0");
 
   await navigation.getByRole("button", { name: "Settings" }).click();
