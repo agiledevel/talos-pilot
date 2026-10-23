@@ -7,7 +7,7 @@
     "rustc": "1.99.1",
     "go": "1.27.3",
     "lockfiles": {
-      "pnpmLock": "7837e71f224f2a3e93bb66a8b87da9ac2365d8f4ce38c5e59e471d676fab1a05",
+      "pnpmLock": "2b4a3b3f946300e6272df02595b21eb1cec6191e7fab1ff19b7f554e7c79e5bb",
       "cargoLock": "3c936c54d89ff545ab05a9ab559920cc15671c4267da017d8665a4a838edc56f",
       "goSum": "ffb278d2583c3268a8ca81ca86449aa64e8e2f788deea074fbfee96032f7e00b"
     }
@@ -803,6 +803,14 @@
       "name": "@types/stack-utils",
       "versions": [
         "2.0.3"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@types/trusted-types",
+      "versions": [
+        "2.0.7"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -2112,6 +2120,14 @@
       "hasNotice": false
     },
     {
+      "name": "dompurify",
+      "versions": [
+        "3.4.17"
+      ],
+      "license": "(MPL-2.0 OR Apache-2.0)",
+      "hasNotice": false
+    },
+    {
       "name": "domutils",
       "versions": [
         "3.2.2"
@@ -3018,6 +3034,14 @@
       "hasNotice": false
     },
     {
+      "name": "marked",
+      "versions": [
+        "14.0.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
       "name": "mdn-data",
       "versions": [
         "2.27.1"
@@ -3072,6 +3096,14 @@
       "versions": [
         "0.7.7",
         "0.8.5"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "monaco-editor",
+      "versions": [
+        "0.57.0"
       ],
       "license": "MIT",
       "hasNotice": false

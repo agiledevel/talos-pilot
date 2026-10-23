@@ -7,5 +7,20 @@ export default defineConfig({
   plugins: [tailwindcss(), svelte()],
   clearScreen: false,
   server: { host: "127.0.0.1", port: 1420, strictPort: true },
-  build: { target: ["es2022", "chrome111", "safari16.4"] },
+  build: {
+    target: ["es2022", "chrome111", "safari16.4"],
+    rollupOptions: {
+      output: {
+        // Keep the lazy editor's third-party code in a named chunk so the
+        // initial shell cannot accidentally absorb it and tests can observe
+        // first-use loading by URL.
+        manualChunks(id) {
+          if (id.includes("node_modules/monaco-editor")) {
+            return "editor-monaco";
+          }
+          return undefined;
+        },
+      },
+    },
+  },
 });
