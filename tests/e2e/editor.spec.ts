@@ -118,7 +118,7 @@ test("the editor and its worker load lazily and produce a real diagnostic", asyn
   await expectNoAccessibilityViolations(page);
 
   await page.getByRole("button", { name: "Reset malformed sample" }).click();
-  await expect(page.getByText(/YAML diagnostic:/u)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/YAML diagnostic:/u)).toBeVisible({ timeout: 30_000 });
 
   await page.getByRole("button", { name: "Close editor" }).click();
   await expect(page.getByRole("heading", { name: "Synthetic YAML editor" })).toHaveCount(0);

@@ -1412,3 +1412,16 @@ Copy this block, fill every field, and append it to the session log. Write `none
 - **Failed or unexecuted:** the corrected Foundation rerun is not yet read at the time of this entry. It must be read after the push; if it has not finished, hand off as pending rather than claiming a hosted pass. No other check is weakened.
 - **Review findings:** the timeout increase is scoped to the editor browser spec and documented as latency tolerance; all observable assertions remain.
 - **Next:** read the corrected Foundation run. If it passes, document 05's hosted code gate is closed; otherwise fix the actionable failure before handing off.
+
+### 2026-10-23 — document 05, hosted browser stabilization
+
+- **Document:** 05 F6 follow-up. Document 05 remains `done`; this entry corrects two browser-test races observed on the hosted two-worker renderer.
+- **Session:** DeepSeek Flash; base revision `58209c7`; final revision: the commit carrying this entry.
+- **Finding:** Foundation run [39885978383](https://github.com/agiledevel/talos-pilot/actions/runs/39885978383) at `58209c7` still failed its renderer job: 14 of 16 flows passed. The existing View-menu keyboard flow lost focus between the two ArrowDown presses and did not find the Dark item. The editor flow cleared the diagnostic after correction but did not observe the reset diagnostic within 10 seconds. The three desktop jobs passed. This was browser-test timing under two-worker load, not a product or native failure.
+- **Correction:** the View-menu test now asserts trigger focus before Enter and the Light item's focus between the two ArrowDown presses. The editor reset expectation now allows 30 seconds for the worker response. The suite already has a 120-second editor timeout. No assertion, CSP check, cleanup check, application behavior or native evidence changed.
+- **Commands and results:** `pnpm lint`, `pnpm lint:svelte`, `pnpm test:e2e` (16 passed), and `pnpm exec playwright test --workers=2 --repeat-each=2` (32 passed) on the corrected tree.
+- **Evidence class:** deterministic browser tests plus the hosted failure record. The native release-executable run remains the document 05 row; a test-only timing correction needs no new native run.
+- **Fixture:** none.
+- **Failed or unexecuted:** the corrected Foundation rerun is not yet read at the time of this entry. The hosted result must be read after the push; do not claim it before then.
+- **Review findings:** the added focus assertions make the roving-focus path observable rather than loosening it; the longer reset wait is bounded and the suite timeout covers it.
+- **Next:** read the corrected Foundation run. If it passes, the hosted code gate is closed; otherwise fix the actionable failure before handoff.
