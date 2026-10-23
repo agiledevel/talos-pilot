@@ -16,7 +16,7 @@ For the final renderer tree, run `pnpm check:ci` (format, lint/types, Svelte dia
 
 Keep default and `native-test` Rust Clippy/test configurations, Go race checks, contract generation, inventory/advisory checks and affected production builds where required. Do not replace a platform-sensitive check with a Linux result. Use the same checked-in commands locally and in CI.
 
-CI owns its scope decision. Do not add skip labels, `continue-on-error`, broad path exclusions or scanner exceptions to hurry a change. A cache hit does not prove tests passed; a reused analysis is labelled **unchanged-input evidence**, not a fresh execution. Unknown paths, changed merge bases and missing evidence run checks conservatively. Main, manual, scheduled and release qualification remain full.
+CI owns its scope decision. If a change turns an ignored documentation/guidance path into a build or analysis input, update the scope rules and regression tests in that same change; otherwise force full verification. Do not add skip labels, `continue-on-error`, broad path exclusions or scanner exceptions to hurry a change. A cache hit does not prove tests passed; a reused analysis is labelled **unchanged-input evidence**, not a fresh execution. Unknown paths, changed merge bases and missing evidence run checks conservatively. Main, manual, scheduled and release qualification remain full.
 
 ## Overlap independent work; never race shared outputs
 

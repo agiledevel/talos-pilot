@@ -1278,6 +1278,17 @@ Entries are appended below, oldest first.
 - **Questions and blockers raised:** none requiring an owner decision. Maintenance and literal native dispatch remain post-merge verification rows.
 - **Next:** read the code checkpoint's Foundation/Security results, correct any finding, then make at most one documentation-only verification record and confirm its scope reuse. Do not create a ledger-follow-up loop. Session B/document 05 starts only after this CI handoff; apply FLASH pace and retain real native worker/CSP evidence.
 
+### 2026-10-23 — CI follow-up: pnpm 12 Windows native installation
+
+- **Document:** none (CI prerequisite to Session B).
+- **Session:** OpenAI coding assistant; base `e57edd1`; final revision is this correction's commit.
+- **Status:** hosted verification in progress; document 05 remains not started.
+- **Finding:** Foundation run `39877093775` failed Windows setup: the verification command assumed `bin/pnpm.cjs`, but the pinned pnpm 12 package exposes `bin/pnpm.mjs` and installs a native executable through its lifecycle hooks. Linux renderer passed; Linux/macOS desktop jobs and Rust CodeQL were still running when the finding was read. Trivy and Actions/JS CodeQL passed. This is a setup defect, not a product pass/failure.
+- **Correction and review:** inspected the actual pinned package's `package.json`, `install.js` and entry points. Allow only its reviewed pinned install hooks for this invocation (`--allow-scripts=pnpm`; npm 11.20 otherwise warns that they are blocked), verify the `.mjs` entry on Windows, and bump the CLI cache to v2 so the no-hooks installation cannot be restored. No source/test assertion or dependency pin was weakened.
+- **Verification:** pinned actionlint/ShellCheck and formatting on the corrected action; a private-prefix installation/CLI smoke locally, with actual Windows confirmation left to the corrected hosted run. The 175-test renderer suite, eight browser flows and 19 local native tests remain evidence for the unchanged application/test sources at the first checkpoint, not proof of Windows installation.
+- **Unexecuted:** corrected hosted Windows setup and final full workflow outcomes until read to completion. Native-dispatch and release rows remain as recorded above.
+- **Next:** finish/read the useful first-run jobs before superseding them where practical; push this correction, read the corrected full run, then record one documentation-only verification checkpoint and its scope decision. Do not begin Session B in this CI session.
+
 ## Entry template
 
 Copy this block, fill every field, and append it to the session log. Write `none` where a field does not apply; do not delete fields.
