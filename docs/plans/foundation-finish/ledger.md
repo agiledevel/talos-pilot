@@ -1437,3 +1437,21 @@ Copy this block, fill every field, and append it to the session log. Write `none
 - **Fixture:** none.
 - **Failed or unexecuted:** the corrected hosted rerun is not yet read.
 - **Next:** read the hosted run after pushing; if green, rerun the final native/production evidence for the final revision and close the handoff. If not, fix the actionable failure.
+
+### 2026-10-23 — document 05, final hosted and native evidence
+
+- **Document:** 05 F6 final evidence record. Document 05 is `done`; C6 remains `in progress` for documents 08 and 10. This is the single ledger-only follow-up for the final code revision's hosted result.
+- **Session:** DeepSeek Flash; final code revision `38c3549`; final documentation revision: the commit carrying this entry.
+- **Hosted results read to completion:**
+  - Foundation [39888171523](https://github.com/agiledevel/talos-pilot/actions/runs/39888171523) at `38c3549` **success**: `Decide desktop scope` passed, `renderer` passed in 2m02s (all 16 browser flows), `desktop (ubuntu-22.04)`, `desktop (macos-15)` and `desktop (windows-2022)` passed, and `Foundation checks result` passed.
+  - Security [39888171452](https://github.com/agiledevel/talos-pilot/actions/runs/39888171452) at `38c3549` **success**: scope, Trivy filesystem scan, CodeQL Actions, CodeQL JavaScript/TypeScript and CodeQL Rust all passed.
+  - The earlier renderer failures at `c204250` (39885045707) and `58209c7` (39885978383) are recorded above as test-timing failures. They were corrected by the suite timeout, explicit focus assertions, reset wait, and stable action placement; the final run is the pass.
+- **Final local reruns after the last application change:**
+  - `pnpm check:ci` passed: 191 tests in 26 files, format, type-aware Oxlint, zero Svelte errors/warnings, coverage (75.54% statements / 78.14% branches), production build.
+  - `pnpm test:e2e` passed 16 Playwright flows. `pnpm exec playwright test --workers=2 --repeat-each=2` also passed 32 editor/browser executions after the final focus/placement changes.
+  - `pnpm test:native` under private Xvfb and XDG directories passed 23 tests across 3 spec files: 4 editor/CSP/cleanup tests, 12 helper/shell tests, 7 Kubernetes session tests. No helper process or synthetic endpoint remained.
+  - `pnpm desktop:build`, `pnpm production:check`, and `pnpm advisories:check` passed on the ordinary rebuilt executable. `pnpm inventory:check` (535 npm/614 cargo/143 Go), `pnpm contracts:check`, `pnpm audit --audit-level=low`, `pnpm format:check` and `git diff --check` passed.
+- **Evidence class:** hosted deterministic/security CI, deterministic renderer/browser tests, and real local Linux Tauri release-executable runs. The hosted desktop matrix is not clean-OS/installed-package or macOS 13.3/Windows 11 qualification; native WebKitGTK remains the only actual WebView run in this packet.
+- **Fixture:** none. No host network, firewall, owner cluster, VM, container, or credential state changed.
+- **Failed or unexecuted:** no code failure remains in the final revision. Installed-package, macOS/Windows WebView, manual native-workflow dispatch before merge, physical link-down offline testing, and native resource-timing evidence remain unexecuted with the practical limits recorded in the F6 evidence. The hosted result for this ledger-only commit is not awaited, per the owner rule; the next session records it.
+- **Next:** document 06, F7 terminal and chart wrappers. Keep C6 in progress until document 08 supplies installed-package evidence and document 10 supplies the remaining WebView rows.
