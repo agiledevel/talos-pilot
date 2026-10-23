@@ -141,5 +141,10 @@ jobs:
           category: trivy
       - name: Require zero vulnerabilities, secrets, and misconfigurations
         run: |
-          jq -r '.runs[].results[] | "\(.ruleId): \(.message.text)"' "$RUNNER_TEMP/trivy.sarif"
-          jq -e '[.runs[].results[]] | length == 0' "$RUNNER_TEMP/trivy.sarif"
+          # Secret-result messages can contain matched values. Log only the
+          # count and bounded rule/location metadata, never messages or snippets.
+          jq -e '.version == "2.1.0" and (.runs | type == "array" and length > 0) and all(.runs[]; (.results | type) == "array")' "$RUNNER_TEMP/trivy.sarif" > /dev/null
+          count=$(jq '[.runs[].results[]] | length' "$RUNNER_TEMP/trivy.sarif")
+          echo "Trivy results: $count"
+          jq -r '[.runs[].results[]] | .[:50][] | "\(.ruleId): \(.locations[0].physicalLocation.artifactLocation.uri):\(.locations[0].physicalLocation.region.startLine)"' "$RUNNER_TEMP/trivy.sarif"
+          test "$count" -eq 0

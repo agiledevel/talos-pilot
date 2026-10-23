@@ -1289,6 +1289,17 @@ Entries are appended below, oldest first.
 - **Unexecuted:** corrected hosted Windows setup and final full workflow outcomes until read to completion. Native-dispatch and release rows remain as recorded above.
 - **Next:** finish/read the useful first-run jobs before superseding them where practical; push this correction, read the corrected full run, then record one documentation-only verification checkpoint and its scope decision. Do not begin Session B in this CI session.
 
+### 2026-10-23 — CI final review: redact the single-pass Trivy gate
+
+- **Document:** none (CI prerequisite to Session B).
+- **Session:** OpenAI coding assistant; base `98f3d08`; final revision is this safety correction's commit.
+- **Finding and correction:** separate review of Trivy v0.74.0's upstream SARIF writer confirmed secret-result messages include `secret.Match`. The new single-pass gate must not print those messages. It now logs only the count and up to 50 rule/location summaries (no messages/snippets), validates a nonempty SARIF 2.1.0 run/results structure, and fails on any finding or malformed report. Rule IDs and source locations remain actionable in release logs even when SARIF upload is intentionally disabled; matched values and detailed messages stay out of the job log. The actionlint download also has explicit retry/timeout bounds.
+- **Regression evidence:** a test executes the actual checked-in workflow shell block against zero findings, a synthetic secret-bearing finding, empty runs, null results and non-SARIF data. It verifies exit status and that the synthetic match never reaches stdout/stderr. The earlier message-printing gate would fail this regression. The gate is Ubuntu-specific; this test is explicitly Linux-only, while other shell-helper tests retain their existing platform coverage. Final-tree `pnpm check:ci` passed with 176 tests in 23 files, zero Svelte errors/warnings and a production build; pinned actionlint/ShellCheck and diff whitespace passed.
+- **Hosted evidence available during review:** `98f3d08` completed Foundation run `39877773791` successfully in 9m43s (all three desktop platforms, renderer and result gate) and Security run `39877773787` in 10m37s (all three CodeQL languages and Trivy). Rust prerequisite provisioning took 55s; CodeQL analysis itself took 7m39s, so static analysis remains the dominant full-code security cost. These results precede this final log-safety correction, whose hosted results must still be read separately. The superseded `e57edd1` workflows were automatically cancelled; its Windows setup failure remains a real finding, not a pass.
+- **Cache operation:** after both `98f3d08` workflows completed, reviewed a dry-run and removed the two remaining same-ref v1 desktop caches only after their v2 replacements had passed (Windows/macOS; Ubuntu v1 had already been evicted by GitHub). No active ref was cleared. API usage after deletion: 12 entries / 7,481,930,238 bytes. Unknown CLI/CodeQL namespaces were left alone.
+- **Status:** safety correction implemented; full final-tree hosted verification follows. No packet, fixture or minimum-OS row advanced; no release/tag was created.
+- **Next:** finish/read the useful current run, push this correction, verify its full Foundation/Security runs, then record one documentation-only checkpoint and confirm scope reuse. Document 05 remains not started.
+
 ## Entry template
 
 Copy this block, fill every field, and append it to the session log. Write `none` where a field does not apply; do not delete fields.

@@ -1,4 +1,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const script = "scripts/ci-linux-prerequisites.sh";
@@ -8,6 +11,58 @@ function run(body: string): string {
 }
 
 describe.skipIf(process.platform === "win32")("bounded Ubuntu provisioning", () => {
+  // This is an Ubuntu workflow command, not a cross-platform application API.
+  // Execute its actual checked-in shell block, rather than a duplicate gate.
+  it.skipIf(process.platform !== "linux")(
+    "rejects findings/malformed SARIF without logging matched secrets",
+    () => {
+      const workflow = readFileSync(".github/workflows/security.yml", "utf8");
+      const block =
+        /      - name: Require zero vulnerabilities, secrets, and misconfigurations\n        run: \|\n((?:          [^\n]*\n?)+)/u.exec(
+          workflow,
+        )?.[1];
+      if (block === undefined) {
+        throw new Error("The Trivy result gate must have a testable shell block.");
+      }
+      const directory = mkdtempSync(join(tmpdir(), "talos-trivy-gate-"));
+      const secret = "SYNTHETIC_MATCH_MUST_NOT_REACH_LOGS";
+      try {
+        for (const [payload, expected] of [
+          [{ version: "2.1.0", runs: [{ results: [] }] }, 0],
+          [
+            {
+              version: "2.1.0",
+              runs: [{ results: [{ ruleId: "synthetic-secret", message: { text: secret } }] }],
+            },
+            1,
+          ],
+          [{ version: "2.1.0", runs: [] }, 1],
+          [{ version: "2.1.0", runs: [{ results: null }] }, 1],
+          [{ message: "not SARIF" }, 1],
+        ] as const) {
+          writeFileSync(join(directory, "trivy.sarif"), JSON.stringify(payload));
+          const result = spawnSync(
+            "bash",
+            ["-e", "-o", "pipefail", "-c", block.replaceAll(/^          /gmu, "")],
+            {
+              encoding: "utf8",
+              env: { ...process.env, RUNNER_TEMP: directory },
+              timeout: 5_000,
+              maxBuffer: 64 * 1024,
+            },
+          );
+          expect(result.error).toBeUndefined();
+          expect(result.signal).toBeNull();
+          expect(result.status).not.toBeNull();
+          expect(result.status === 0 ? 0 : 1).toBe(expected);
+          expect(result.stdout + result.stderr).not.toContain(secret);
+        }
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("rejects use on the development host before invoking sudo", () => {
     const result = spawnSync("bash", [script, "native"], {
       encoding: "utf8",
