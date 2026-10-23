@@ -6,6 +6,8 @@ Acceptance criteria: the exact source commit must pass CodeQL (actions, JavaScri
 
 The pipeline produces draft prereleases during foundation development. This preserves the locked full v1 release criteria while allowing inspection of real preview packages. Production signing, helper packaging, full native/cluster qualification, and the existing upstream advisory tasks remain open.
 
+**CI tiering amendment (2026-10-22):** [decision 0016](../decisions/0016-ci-test-tiering.md) moves `pnpm test:native` from required CI to a manual/weekly reusable workflow and the release QA call. Live fixtures remain local or explicit. Historical runs below that include native tests in the desktop QA matrix remain accurate for their revisions.
+
 ## Executed verification
 
 Host: openSUSE Tumbleweed 20261007, Linux x86_64. Node 26.11.1, pnpm 12.10.1, Rust 1.99.0. Workflow/action versions and the AppImage runtime digest were researched from the upstream release APIs; links and exact pins are in [CI/release setup](../ci-release.md).

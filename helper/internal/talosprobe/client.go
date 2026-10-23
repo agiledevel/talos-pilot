@@ -129,6 +129,33 @@ func (session *Session) ReadVersion(ctx context.Context) (string, error) {
 	return version, nil
 }
 
+// CheckLiveness performs one bounded liveness read on the session's node-pinned
+// stream connection. The unary Version call is answered by the selected node's
+// own apid, the process that carries the MachineStatus watch, so a failed call
+// while an established watch is silent means the node stopped responding. The
+// call is read-only and adds no event, sequence, or generation state.
+//
+// # Errors
+//
+// Returns a Failure with the same stable classification as the other reads.
+// The caller bounds the call through ctx; decision 0013 fixes that bound at the
+// attempt deadline.
+func (session *Session) CheckLiveness(ctx context.Context) error {
+	if session == nil || session.stream == nil {
+		return Failure{code: "talos_probe_failed"}
+	}
+	response, err := session.stream.Version(ctx)
+	if err != nil || response == nil || len(response.GetMessages()) != 1 {
+		return failureFor(err)
+	}
+	message := response.GetMessages()[0]
+	if message == nil || message.GetVersion() == nil {
+		return Failure{code: "talos_probe_failed"}
+	}
+
+	return nil
+}
+
 // WatchMachineStatus subscribes to the official COSI MachineStatus resource on
 // the session's node-pinned connection. The event queue and projection are
 // bounded, and canceling ctx closes the upstream subscription owned by the Talos

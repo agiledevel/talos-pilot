@@ -1,6 +1,6 @@
 module github.com/agiledevel/talos-pilot/helper
 
-go 1.27.2
+go 1.27.3
 
 tool google.golang.org/protobuf/cmd/protoc-gen-go
 

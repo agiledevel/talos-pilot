@@ -12,6 +12,40 @@
   "allowedEndpoints": ["10.79.0.2", "10.79.0.3", "10.79.0.4"],
   "allowedNodes": ["10.79.0.2", "10.79.0.3", "10.79.0.4", "10.79.0.5"],
   "negativeEndpoint": "10.79.0.250",
+  "kubernetes": {
+    "endpoint": "https://10.79.0.1:6443",
+    "expectedServerVersion": "v1.36.5",
+    "certificateAuthoritySha256": "2b54ffa7a6297636b9bb2ea97730a6b2f1e4e48e621faf75c351edfaccb56364",
+    "contextName": "admin@talos-pilot-c4-20261009",
+    "namespace": "talos-pilot-list-probe",
+    "serviceAccount": "list-reader",
+    "role": "list-reader",
+    "roleBinding": "list-reader",
+    "podNamePrefix": "list-probe-",
+    "podCount": 201,
+    "setupScope": [
+      "get_named_namespace",
+      "create_namespace",
+      "create_service_account",
+      "create_namespaced_role",
+      "create_namespaced_role_binding",
+      "create_201_named_pods",
+      "request_service_account_token",
+      "create_watch_probe_primary",
+      "update_watch_probe_status",
+      "delete_watch_probe_primary",
+      "recreate_watch_probe_primary",
+      "create_watch_probe_after_resume"
+    ],
+    "cleanupScope": [
+      "delete_named_pods",
+      "delete_named_watch_probe_pods",
+      "delete_namespaced_role_binding",
+      "delete_namespaced_role",
+      "delete_service_account",
+      "delete_namespace_after_uid_match"
+    ]
+  },
   "topology": {
     "controlPlanes": 3,
     "workers": 1

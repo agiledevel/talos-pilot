@@ -9,6 +9,7 @@ These instructions apply to the entire repository and every human or automated c
 - Use Tauri 2, Rust, a bundled Go Talos/Helm helper, Svelte, strict TypeScript, Vite, pnpm, Oxc, Skeleton, and Bits UI as specified. Use the Rust Kubernetes adapter for ordinary Kubernetes management.
 - Keep cluster credentials and API clients in the backend/helper. The renderer uses typed application IPC and bounded projections.
 - Proceed autonomously with implementation, fixes, documentation, and verification within the agreed scope. Routine choices do not need renewed confirmation.
+- Read and follow [docs/flash-pace.md](docs/flash-pace.md) for checkpointing, overlapping independent work, avoiding duplicate gates, and truthful CI/native/fixture handoff. Pace never permits skipping applicable evidence.
 - Do not silently change the selected stack, release scope, security boundaries, or platform targets. For a material design change, prepare evidence and a concrete proposed resolution for the owner, then record the owner-directed decision in the design or a linked architecture decision record.
 - Establish exact compatible dependency/toolchain pins in the foundation milestone and commit lockfiles. Use upstream Talos APIs and libraries rather than reproducing their lifecycle or configuration semantics.
 

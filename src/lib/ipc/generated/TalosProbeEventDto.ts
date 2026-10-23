@@ -32,6 +32,22 @@ export type TalosProbeEventDto = {
   deleted: boolean;
   /**
    * Per-subscription sequence encoded as a decimal string.
+   *
+   * Data projections advance the sequence by exactly one and continue it
+   * across reconnect generations. A stale marker repeats the sequence of the
+   * projection it invalidates and carries no data fields.
    */
   sequence: string;
+  /**
+   * Snapshot generation encoded as a decimal string.
+   *
+   * Generation 1 is the authenticated bootstrap snapshot; every valid
+   * replacement snapshot after a reconnect advances the generation by one
+   * while the sequence stays continuous.
+   */
+  generation: string;
+  /**
+   * Whether this event is a snapshot (the bootstrap or a replacement).
+   */
+  snapshot: boolean;
 };

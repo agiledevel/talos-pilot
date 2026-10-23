@@ -5,6 +5,13 @@ import type { AppearanceSettingsDto } from "./generated/AppearanceSettingsDto";
 import type { CredentialImportResultDto } from "./generated/CredentialImportResultDto";
 import type { CredentialStorageStatusDto } from "./generated/CredentialStorageStatusDto";
 import type { HelperStatusDto } from "./generated/HelperStatusDto";
+import type { KubernetesCredentialSummaryDto } from "./generated/KubernetesCredentialSummaryDto";
+import type { KubernetesPodListDto } from "./generated/KubernetesPodListDto";
+import type { KubernetesPodWatchEndDto } from "./generated/KubernetesPodWatchEndDto";
+import type { KubernetesPodWatchEventDto } from "./generated/KubernetesPodWatchEventDto";
+import type { KubernetesPodWatchSubscriptionDto } from "./generated/KubernetesPodWatchSubscriptionDto";
+import type { KubernetesSessionDto } from "./generated/KubernetesSessionDto";
+import type { KubernetesVersionDto } from "./generated/KubernetesVersionDto";
 import type { TalosCredentialSessionDto } from "./generated/TalosCredentialSessionDto";
 import type { TalosProbeEventDto } from "./generated/TalosProbeEventDto";
 import {
@@ -14,6 +21,13 @@ import {
   parseAppearanceSettingsDto,
   parseCredentialImportResultDto,
   parseCredentialStorageStatusDto,
+  parseKubernetesCredentialList,
+  parseKubernetesPodListDto,
+  parseKubernetesPodWatchEndDto,
+  parseKubernetesPodWatchEventDto,
+  parseKubernetesPodWatchSubscriptionDto,
+  parseKubernetesSessionDto,
+  parseKubernetesVersionDto,
   parseTalosCredentialSessionDto,
   parseTalosProbeEventDto,
 } from "./validation";
@@ -174,6 +188,184 @@ export async function importTalosconfig(
 ): Promise<TalosCredentialSessionDto | null> {
   const response = await invokeValidated(transport, "import_talosconfig", (value) => value);
   return response === null ? null : parseTalosCredentialSessionDto(response);
+}
+
+/**
+ * Lists stored Kubernetes credentials for an explicit user action.
+ *
+ * The backend never lists credentials at startup, so this is called only from
+ * the flow that shows saved credentials. Each handle is opaque; possessing one
+ * is not authorization for any cluster operation.
+ */
+export function listKubernetesCredentials(
+  transport: IpcTransport,
+): Promise<KubernetesCredentialSummaryDto[]> {
+  return invokeValidated(transport, "list_kubernetes_credentials", parseKubernetesCredentialList);
+}
+
+/** Opens a Kubernetes credential session for one validated handle. */
+export function openKubernetesSession(
+  transport: IpcTransport,
+  credentialHandle: string,
+): Promise<KubernetesSessionDto> {
+  return invokeValidated(transport, "open_kubernetes_session", parseKubernetesSessionDto, {
+    credentialHandle,
+  });
+}
+
+/** Closes one Kubernetes session and confirms the backend released it. */
+export async function closeKubernetesSession(
+  transport: IpcTransport,
+  sessionId: string,
+): Promise<boolean> {
+  const result = await invokeValidated(transport, "close_kubernetes_session", (value) => value, {
+    sessionId,
+  });
+  if (typeof result !== "boolean") {
+    throw new IpcContractError();
+  }
+  return result;
+}
+
+/** Reads the API server version through one opened Kubernetes session. */
+export function readKubernetesVersion(
+  transport: IpcTransport,
+  sessionId: string,
+): Promise<KubernetesVersionDto> {
+  return invokeValidated(transport, "read_kubernetes_version", parseKubernetesVersionDto, {
+    sessionId,
+  });
+}
+
+/** Lists one bounded, resource-version-consistent namespaced Pod projection. */
+export function listKubernetesPods(
+  transport: IpcTransport,
+  sessionId: string,
+  namespace: string,
+  labelSelector: string | null = null,
+  fieldSelector: string | null = null,
+): Promise<KubernetesPodListDto> {
+  return invokeValidated(transport, "list_kubernetes_pods", parseKubernetesPodListDto, {
+    sessionId,
+    namespace,
+    labelSelector,
+    fieldSelector,
+  });
+}
+
+/** Opens one backend-owned watch and returns its cancelable identity before network establishment. */
+export function openKubernetesPodWatch(
+  transport: IpcTransport,
+  sessionId: string,
+  namespace: string,
+  labelSelector: string | null = null,
+  fieldSelector: string | null = null,
+): Promise<KubernetesPodWatchSubscriptionDto> {
+  return invokeValidated(
+    transport,
+    "open_kubernetes_pod_watch",
+    parseKubernetesPodWatchSubscriptionDto,
+    { sessionId, namespace, labelSelector, fieldSelector },
+  );
+}
+
+/** Streams validated ordered events and acknowledges each only after the consumer applies it. */
+export async function streamKubernetesPodWatch(
+  transport: IpcTransport,
+  sessionId: string,
+  subscriptionId: string,
+  onEvent: (event: KubernetesPodWatchEventDto) => void | Promise<void>,
+): Promise<KubernetesPodWatchEndDto> {
+  if (transport.invokeChannel === undefined) {
+    throw new IpcTransportUnavailableError();
+  }
+  let callbackError: unknown;
+  let callbackChain = Promise.resolve();
+  let response: unknown;
+  try {
+    response = await transport.invokeChannel(
+      "stream_kubernetes_pod_watch",
+      { sessionId, subscriptionId },
+      (message) => {
+        callbackChain = callbackChain.then(async () => {
+          if (callbackError !== undefined) {
+            return;
+          }
+          try {
+            const event = parseKubernetesPodWatchEventDto(message);
+            if (event.session_id !== sessionId || event.subscription_id !== subscriptionId) {
+              throw new IpcContractError();
+            }
+            await onEvent(event);
+            const acknowledged = await acknowledgeKubernetesPodWatch(
+              transport,
+              sessionId,
+              subscriptionId,
+              event.sequence,
+            );
+            if (!acknowledged) {
+              throw new IpcContractError();
+            }
+          } catch (cause: unknown) {
+            callbackError = cause;
+            await stopKubernetesPodWatch(transport, sessionId, subscriptionId).catch(() => false);
+          }
+        });
+      },
+    );
+  } catch (error: unknown) {
+    let detail: ApplicationErrorDto;
+    try {
+      detail = parseApplicationErrorDto(error);
+    } catch {
+      throw new IpcTransportError();
+    }
+    throw new IpcApplicationError(detail);
+  }
+  await callbackChain;
+  if (callbackError !== undefined) {
+    throw callbackError;
+  }
+  return parseKubernetesPodWatchEndDto(response);
+}
+
+/** Acknowledges the one event currently awaiting renderer application. */
+export async function acknowledgeKubernetesPodWatch(
+  transport: IpcTransport,
+  sessionId: string,
+  subscriptionId: string,
+  sequence: string,
+): Promise<boolean> {
+  const result = await invokeValidated(
+    transport,
+    "acknowledge_kubernetes_pod_watch",
+    (value) => value,
+    {
+      sessionId,
+      subscriptionId,
+      sequence,
+    },
+  );
+  if (typeof result !== "boolean") {
+    throw new IpcContractError();
+  }
+  return result;
+}
+
+/** Cancels only the named backend watch, leaving its credential session open. */
+export async function stopKubernetesPodWatch(
+  transport: IpcTransport,
+  sessionId: string,
+  subscriptionId: string,
+): Promise<boolean> {
+  const result = await invokeValidated(transport, "stop_kubernetes_pod_watch", (value) => value, {
+    sessionId,
+    subscriptionId,
+  });
+  if (typeof result !== "boolean") {
+    throw new IpcContractError();
+  }
+  return result;
 }
 
 /** Starts the bounded Talos read and validates every native channel event. */

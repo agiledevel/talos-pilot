@@ -2,6 +2,7 @@ node_modules/
 dist/
 dist-native-test/
 .svelte-check/
+.tools/
 coverage/
 playwright-report/
 test-results/

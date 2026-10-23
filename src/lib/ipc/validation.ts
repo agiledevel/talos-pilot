@@ -8,6 +8,16 @@ import type { CredentialStorageStatusDto } from "./generated/CredentialStorageSt
 import type { HelperCapability } from "./generated/HelperCapability";
 import type { HelperState } from "./generated/HelperState";
 import type { HelperStatusDto } from "./generated/HelperStatusDto";
+import type { KubernetesCredentialSummaryDto } from "./generated/KubernetesCredentialSummaryDto";
+import type { KubernetesPodDto } from "./generated/KubernetesPodDto";
+import type { KubernetesPodListDto } from "./generated/KubernetesPodListDto";
+import type { KubernetesPodReadinessDto } from "./generated/KubernetesPodReadinessDto";
+import type { KubernetesSessionDto } from "./generated/KubernetesSessionDto";
+import type { KubernetesPodWatchChangeDto } from "./generated/KubernetesPodWatchChangeDto";
+import type { KubernetesPodWatchEndDto } from "./generated/KubernetesPodWatchEndDto";
+import type { KubernetesPodWatchEventDto } from "./generated/KubernetesPodWatchEventDto";
+import type { KubernetesPodWatchSubscriptionDto } from "./generated/KubernetesPodWatchSubscriptionDto";
+import type { KubernetesVersionDto } from "./generated/KubernetesVersionDto";
 import type { TalosCredentialSessionDto } from "./generated/TalosCredentialSessionDto";
 import type { TalosProbeEventDto } from "./generated/TalosProbeEventDto";
 import type { TalosProbeState } from "./generated/TalosProbeState";
@@ -19,6 +29,34 @@ const MAX_ERROR_FIELD_LENGTH = 256;
 const MAX_ERROR_MESSAGE_LENGTH = 1024;
 const MAX_CAPABILITY_COUNT = 8;
 const MAX_CONTEXT_NAME_LENGTH = 128;
+const MAX_VERSION_FIELD_LENGTH = 64;
+/**
+ * Upper bound on one credential listing projection.
+ *
+ * The backend caps stored credentials and session-only credentials at 256 each,
+ * so no accepted response can exceed their sum.
+ */
+const MAX_CREDENTIAL_LIST_LENGTH = 512;
+const MAX_POD_LIST_LENGTH = 10_000;
+const MAX_POD_WATCH_BATCH_LENGTH = 200;
+const MAX_WATCH_U64 = 18_446_744_073_709_551_615n;
+const KUBERNETES_WATCH_CHANGES: ReadonlySet<string> = new Set([
+  "snapshot_begin",
+  "snapshot_batch",
+  "snapshot_complete",
+  "upsert",
+  "delete",
+  "stale",
+]);
+const KUBERNETES_WATCH_ENDS: ReadonlySet<string> = new Set([
+  "stopped",
+  "stale",
+  "failed",
+  "queue_overflow",
+  "acknowledgement_timeout",
+  "channel_closed",
+]);
+const UTF8_ENCODER = new TextEncoder();
 const TALOS_PROBE_STATES: ReadonlySet<string> = new Set([
   "connecting",
   "healthy",
@@ -156,6 +194,7 @@ export function parseCredentialStorageStatusDto(value: unknown): CredentialStora
 export function parseCredentialImportResultDto(value: unknown): CredentialImportResultDto {
   if (
     !isRecord(value) ||
+    !isCredentialHandle(value.credential_handle) ||
     !isSafeContextLabel(value.context_name) ||
     !isCredentialStorageMode(value.storage_mode) ||
     value.storage_mode === "vault_not_checked" ||
@@ -164,9 +203,246 @@ export function parseCredentialImportResultDto(value: unknown): CredentialImport
     throw new IpcContractError();
   }
   return {
+    credential_handle: value.credential_handle,
     context_name: value.context_name,
     storage_mode: value.storage_mode,
   };
+}
+
+/**
+ * Validates the bounded credential listing returned for an explicit user action.
+ *
+ * The backend never produces this projection at startup, so an empty list means
+ * "nothing stored", not "not yet loaded". Each entry carries an opaque handle
+ * and the mode the entry currently lives in; a handle is not an authorization
+ * grant, and this validator does not treat it as one.
+ *
+ * @throws {@link IpcContractError} for an oversized list, duplicate handles, or an entry that is not a stored credential identity.
+ */
+export function parseKubernetesCredentialList(value: unknown): KubernetesCredentialSummaryDto[] {
+  if (!Array.isArray(value) || value.length > MAX_CREDENTIAL_LIST_LENGTH) {
+    throw new IpcContractError();
+  }
+  const summaries = value.map((entry) => {
+    if (
+      !isRecord(entry) ||
+      !isCredentialHandle(entry.credential_handle) ||
+      !isSafeContextLabel(entry.context_label) ||
+      !isStoredCredentialMode(entry.storage_mode)
+    ) {
+      throw new IpcContractError();
+    }
+    return {
+      credential_handle: entry.credential_handle,
+      context_label: entry.context_label,
+      storage_mode: entry.storage_mode,
+    };
+  });
+  if (new Set(summaries.map((entry) => entry.credential_handle)).size !== summaries.length) {
+    throw new IpcContractError();
+  }
+  return summaries;
+}
+
+/** Validates safe metadata for one opened Kubernetes credential session. */
+export function parseKubernetesSessionDto(value: unknown): KubernetesSessionDto {
+  if (
+    !isRecord(value) ||
+    !isKubernetesSessionId(value.session_id) ||
+    !isSafeContextLabel(value.context_label) ||
+    !isStoredCredentialMode(value.storage_mode)
+  ) {
+    throw new IpcContractError();
+  }
+  return {
+    session_id: value.session_id,
+    context_label: value.context_label,
+    storage_mode: value.storage_mode,
+  };
+}
+
+/** Validates the nonsensitive API server version read through one session. */
+export function parseKubernetesVersionDto(value: unknown): KubernetesVersionDto {
+  if (
+    !isRecord(value) ||
+    !isKubernetesSessionId(value.session_id) ||
+    !isVersionField(value.version) ||
+    !isVersionField(value.major) ||
+    !isVersionField(value.minor)
+  ) {
+    throw new IpcContractError();
+  }
+  return {
+    session_id: value.session_id,
+    version: value.version,
+    major: value.major,
+    minor: value.minor,
+  };
+}
+
+/** Validates a bounded, namespaced Pod projection returned by native IPC. */
+export function parseKubernetesPodListDto(value: unknown): KubernetesPodListDto {
+  if (
+    !isRecord(value) ||
+    !isKubernetesSessionId(value.session_id) ||
+    !isKubernetesNamespace(value.namespace) ||
+    !isBoundedUtf8String(value.resource_version, 128) ||
+    typeof value.complete !== "boolean" ||
+    !Array.isArray(value.items) ||
+    value.items.length > MAX_POD_LIST_LENGTH
+  ) {
+    throw new IpcContractError();
+  }
+  const namespace = value.namespace;
+
+  const items = value.items.map((item): KubernetesPodListDto["items"][number] => {
+    if (
+      !isRecord(item) ||
+      !isKubernetesPodName(item.name) ||
+      !isKubernetesNamespace(item.namespace) ||
+      item.namespace !== namespace ||
+      !isBoundedUtf8String(item.uid, 64) ||
+      !isBoundedUtf8String(item.resource_version, 128) ||
+      !isBoundedUtf8String(item.phase, 32) ||
+      !isKubernetesPodReadiness(item.readiness)
+    ) {
+      throw new IpcContractError();
+    }
+    return {
+      name: item.name,
+      namespace: item.namespace,
+      uid: item.uid,
+      resource_version: item.resource_version,
+      phase: item.phase,
+      readiness: item.readiness,
+    };
+  });
+
+  return {
+    session_id: value.session_id,
+    namespace: value.namespace,
+    resource_version: value.resource_version,
+    complete: value.complete,
+    items,
+  };
+}
+
+/** Validates the identity returned before a watch begins its network request. */
+export function parseKubernetesPodWatchSubscriptionDto(
+  value: unknown,
+): KubernetesPodWatchSubscriptionDto {
+  if (
+    !isRecord(value) ||
+    !isKubernetesSessionId(value.session_id) ||
+    !isKubernetesWatchId(value.subscription_id)
+  ) {
+    throw new IpcContractError();
+  }
+  return { session_id: value.session_id, subscription_id: value.subscription_id };
+}
+
+/** Validates one ordered Pod watch event, including change-specific fields and batch limits. */
+export function parseKubernetesPodWatchEventDto(value: unknown): KubernetesPodWatchEventDto {
+  if (
+    !isRecord(value) ||
+    !isKubernetesSessionId(value.session_id) ||
+    !isKubernetesWatchId(value.subscription_id) ||
+    !isDecimalU64(value.generation, false) ||
+    !isDecimalU64(value.sequence, false) ||
+    !isKubernetesPodWatchChange(value.change) ||
+    !Array.isArray(value.items) ||
+    value.items.length > MAX_POD_WATCH_BATCH_LENGTH
+  ) {
+    throw new IpcContractError();
+  }
+  const change = value.change;
+  const items = value.items.map((item) => parseWatchPod(item));
+  const pod = value.pod === null ? null : parseWatchPod(value.pod);
+  const uid = value.uid;
+  const name = value.name;
+  const empty = items.length === 0 && pod === null && uid === null && name === null;
+  const hasPayload = change === "snapshot_batch" || change === "upsert" || change === "delete";
+  if (
+    (change === "snapshot_batch" &&
+      (items.length === 0 || pod !== null || uid !== null || name !== null)) ||
+    (change === "upsert" && (pod === null || items.length > 0 || uid !== null || name !== null)) ||
+    (change === "delete" &&
+      (items.length > 0 ||
+        pod !== null ||
+        !isBoundedUtf8String(uid, 64) ||
+        !isKubernetesPodName(name))) ||
+    (!hasPayload && !empty)
+  ) {
+    throw new IpcContractError();
+  }
+  return {
+    session_id: value.session_id,
+    subscription_id: value.subscription_id,
+    generation: value.generation,
+    sequence: value.sequence,
+    change,
+    items,
+    pod,
+    uid: typeof uid === "string" ? uid : null,
+    name: typeof name === "string" ? name : null,
+  };
+}
+
+/** Validates the bounded, nonsensitive terminal result for a Pod watch. */
+export function parseKubernetesPodWatchEndDto(value: unknown): KubernetesPodWatchEndDto {
+  if (!isKubernetesPodWatchEnd(value)) {
+    throw new IpcContractError();
+  }
+  return value;
+}
+
+function isKubernetesPodWatchChange(value: unknown): value is KubernetesPodWatchChangeDto {
+  return typeof value === "string" && KUBERNETES_WATCH_CHANGES.has(value);
+}
+
+function isKubernetesPodWatchEnd(value: unknown): value is KubernetesPodWatchEndDto {
+  return typeof value === "string" && KUBERNETES_WATCH_ENDS.has(value);
+}
+
+function parseWatchPod(value: unknown): KubernetesPodDto {
+  if (
+    !isRecord(value) ||
+    !isKubernetesPodName(value.name) ||
+    !isKubernetesNamespace(value.namespace) ||
+    !isBoundedUtf8String(value.uid, 64) ||
+    !isBoundedUtf8String(value.resource_version, 128) ||
+    !isBoundedUtf8String(value.phase, 32) ||
+    !isKubernetesPodReadiness(value.readiness)
+  ) {
+    throw new IpcContractError();
+  }
+  return {
+    name: value.name,
+    namespace: value.namespace,
+    uid: value.uid,
+    resource_version: value.resource_version,
+    phase: value.phase,
+    readiness: value.readiness,
+  };
+}
+
+function isDecimalU64(value: unknown, allowZero: boolean): value is string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 20) {
+    return false;
+  }
+  if (!/^(0|[1-9][0-9]*)$/u.test(value)) {
+    return false;
+  }
+  try {
+    const parsed = BigInt(value);
+    return parsed <= MAX_WATCH_U64 && (allowZero || parsed > 0n);
+  } catch {
+    return false;
+  }
+}
+
+function isKubernetesWatchId(value: unknown): value is string {
+  return typeof value === "string" && /^kube-watch-[1-9][0-9]{0,19}$/u.test(value);
 }
 
 /** Validates safe metadata returned after importing a native Talos context. */
@@ -200,13 +476,30 @@ export function parseTalosProbeEventDto(value: unknown): TalosProbeEventDto {
     !(value.stage === null || isSafeTalosStage(value.stage)) ||
     !(value.ready === null || typeof value.ready === "boolean") ||
     typeof value.deleted !== "boolean" ||
-    typeof value.sequence !== "string" ||
-    !/^(0|[1-9][0-9]{0,2})$/u.test(value.sequence) ||
-    Number(value.sequence) > 256
+    !isBoundedDecimal(value.sequence) ||
+    Number(value.sequence) > 256 ||
+    !isBoundedDecimal(value.generation) ||
+    Number(value.generation) < 1 ||
+    Number(value.generation) > 256 ||
+    typeof value.snapshot !== "boolean"
   ) {
     throw new IpcContractError();
   }
   if (value.state === "connecting" && (value.version !== null || value.stage !== null)) {
+    throw new IpcContractError();
+  }
+  if (
+    value.state === "stale" &&
+    (value.version !== null || value.stage !== null || value.ready !== null)
+  ) {
+    // A stale marker repeats the identity of the projection it invalidates and
+    // carries no data: the view keeps its retained values and marks them stale.
+    throw new IpcContractError();
+  }
+  if (value.state === "stale" && (value.snapshot || value.deleted)) {
+    throw new IpcContractError();
+  }
+  if (value.state === "healthy" && value.stage === null) {
     throw new IpcContractError();
   }
   return {
@@ -217,6 +510,8 @@ export function parseTalosProbeEventDto(value: unknown): TalosProbeEventDto {
     ready: value.ready,
     deleted: value.deleted,
     sequence: value.sequence,
+    generation: value.generation,
+    snapshot: value.snapshot,
   };
 }
 
@@ -235,6 +530,78 @@ function isCredentialStorageMode(value: unknown): value is CredentialStorageMode
     value === "persistent_with_session_only" ||
     value === "vault_unavailable" ||
     value === "session_only"
+  );
+}
+
+/**
+ * Narrows a value to a mode a single stored credential can live in.
+ *
+ * A listing entry is either encrypted and persistent or held in process
+ * memory; the runtime-wide modes describe what a *new* import would do and
+ * must not be reported for one already-stored credential.
+ */
+function isStoredCredentialMode(value: unknown): value is CredentialStorageModeDto {
+  return value === "persistent" || value === "session_only";
+}
+
+/**
+ * Narrows a value to an opaque Kubernetes credential handle.
+ *
+ * The backend issues `kubecred-` plus a 16-byte URL-safe base64 reference, so
+ * the shape is checkable without interpreting the handle. Possessing a
+ * well-formed handle is not authorization: the backend re-validates its kind,
+ * profile, and storage mode before use.
+ */
+function isCredentialHandle(value: unknown): value is string {
+  return typeof value === "string" && /^kubecred-[A-Za-z0-9_-]{22}$/u.test(value);
+}
+
+/** Narrows a value to a backend-issued Kubernetes session identifier. */
+function isKubernetesSessionId(value: unknown): value is string {
+  return typeof value === "string" && /^kube-session-[0-9]+$/u.test(value);
+}
+
+function isBoundedUtf8String(value: unknown, maxBytes: number): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= maxBytes &&
+    UTF8_ENCODER.encode(value).byteLength <= maxBytes &&
+    !Array.from(value).some((character) => {
+      const codePoint = character.codePointAt(0);
+      return (
+        codePoint === undefined ||
+        codePoint <= 0x1f ||
+        (codePoint >= 0x7f && codePoint <= 0x9f) ||
+        (codePoint >= 0x202a && codePoint <= 0x202e) ||
+        (codePoint >= 0x2066 && codePoint <= 0x2069)
+      );
+    })
+  );
+}
+
+function isKubernetesNamespace(value: unknown): value is string {
+  return isBoundedUtf8String(value, 63) && /^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$/u.test(value);
+}
+
+function isKubernetesPodName(value: unknown): value is string {
+  return (
+    isBoundedUtf8String(value, 253) &&
+    value.split(".").every((part) => /^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$/u.test(part))
+  );
+}
+
+function isKubernetesPodReadiness(value: unknown): value is KubernetesPodReadinessDto {
+  return value === "ready" || value === "not_ready" || value === "unknown";
+}
+
+/** Narrows a value to one bounded, nonsecret Kubernetes version field. */
+function isVersionField(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= MAX_VERSION_FIELD_LENGTH &&
+    /^[A-Za-z0-9._+-]+$/u.test(value)
   );
 }
 
@@ -266,6 +633,11 @@ function isSafeIdentityArray(value: unknown, maximum: number): value is string[]
 
 function isSafeTalosVersion(value: unknown): value is string {
   return typeof value === "string" && value.length <= 64 && /^[A-Za-z0-9._+-]+$/u.test(value);
+}
+
+/** Accepts a canonical decimal string for a sequence or generation bound to 256. */
+function isBoundedDecimal(value: unknown): value is string {
+  return typeof value === "string" && /^(0|[1-9][0-9]{0,2})$/u.test(value);
 }
 
 function isSafeTalosStage(value: unknown): value is string {

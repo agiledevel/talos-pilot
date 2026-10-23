@@ -91,6 +91,10 @@ pub fn validate_envelope(envelope: &Envelope) -> Result<MessageKind, EnvelopeErr
                 Some(envelope::Payload::TalosStreamEnded(_)),
                 MessageKind::TalosStreamEnded
             )
+            | (
+                Some(envelope::Payload::TalosStreamStale(_)),
+                MessageKind::TalosStreamStale
+            )
     );
     if !matches {
         return Err(EnvelopeError::PayloadMismatch);
@@ -124,12 +128,15 @@ fn validate_talos_payload(envelope: &Envelope, kind: MessageKind) -> Result<(), 
             Some(envelope::Payload::TalosProbeResponse(response)),
             MessageKind::TalosProbeResponse,
         ) => {
-            if !valid_label(&response.version, 64) || !valid_stage(&response.stage) {
+            if !valid_label(&response.version, 64)
+                || !valid_stage(&response.stage)
+                || response.generation != 1
+            {
                 return Err(EnvelopeError::InvalidTalosProjection);
             }
         }
         (Some(envelope::Payload::TalosStatusEvent(event)), MessageKind::TalosStatusEvent) => {
-            if envelope.sequence == 0 || !valid_stage(&event.stage) {
+            if envelope.sequence == 0 || event.generation == 0 || !valid_stage(&event.stage) {
                 return Err(EnvelopeError::InvalidTalosProjection);
             }
         }
@@ -321,6 +328,7 @@ mod tests {
                 version: "v1.14.1".to_owned(),
                 stage: "running".to_owned(),
                 ready: true,
+                generation: 1,
             })),
             ..Envelope::default()
         };
@@ -336,6 +344,16 @@ mod tests {
             validate_envelope(&response),
             Err(EnvelopeError::InvalidTalosProjection)
         );
+        let Some(envelope::Payload::TalosProbeResponse(payload)) = response.payload.as_mut() else {
+            panic!("Talos response payload must exist");
+        };
+        payload.version = "v1.14.1".to_owned();
+        payload.generation = 2;
+        assert_eq!(
+            validate_envelope(&response),
+            Err(EnvelopeError::InvalidTalosProjection),
+            "only the bootstrap snapshot is generation 1"
+        );
 
         let event = Envelope {
             protocol_major: 1,
@@ -345,12 +363,27 @@ mod tests {
                 stage: "running".to_owned(),
                 ready: true,
                 deleted: false,
+                generation: 1,
+                snapshot: false,
             })),
             ..Envelope::default()
         };
         assert_eq!(
             validate_envelope(&event),
-            Err(EnvelopeError::InvalidTalosProjection)
+            Err(EnvelopeError::InvalidTalosProjection),
+            "a status frame without a sequence is invalid"
+        );
+        let mut zero_generation = event.clone();
+        zero_generation.sequence = 1;
+        let Some(envelope::Payload::TalosStatusEvent(payload)) = zero_generation.payload.as_mut()
+        else {
+            panic!("Talos event payload must exist");
+        };
+        payload.generation = 0;
+        assert_eq!(
+            validate_envelope(&zero_generation),
+            Err(EnvelopeError::InvalidTalosProjection),
+            "a status frame without a generation is invalid"
         );
     }
 

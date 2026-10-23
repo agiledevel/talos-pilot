@@ -28,6 +28,7 @@ message Envelope {
     TalosCancelRequest talos_cancel_request = 20;
     TalosCancelResponse talos_cancel_response = 21;
     TalosStreamEnded talos_stream_ended = 22;
+    TalosStreamStale talos_stream_stale = 23;
   }
 }
 
@@ -46,6 +47,7 @@ enum MessageKind {
   MESSAGE_KIND_TALOS_CANCEL_REQUEST = 11;
   MESSAGE_KIND_TALOS_CANCEL_RESPONSE = 12;
   MESSAGE_KIND_TALOS_STREAM_ENDED = 13;
+  MESSAGE_KIND_TALOS_STREAM_STALE = 14;
 }
 
 message HandshakeRequest {
@@ -83,18 +85,29 @@ message TalosProbeRequest {
   string node = 3;
 }
 
-// TalosProbeResponse contains the authenticated version and bootstrap snapshot.
+// TalosProbeResponse contains the authenticated version and the bootstrap
+// snapshot of generation 1. Replacement snapshots after a mid-stream
+// reconnect are TalosStatusEvent frames with snapshot set, not probe
+// responses.
 message TalosProbeResponse {
   string version = 1;
   string stage = 2;
   bool ready = 3;
+  uint64 generation = 4;
 }
 
 // TalosStatusEvent is the bounded projection of one MachineStatus update.
+//
+// Sequence values are continuous across the whole subscription and are never
+// reset by a reconnect. Each event carries the snapshot generation it belongs
+// to; a replacement snapshot is the first frame of a new generation and is the
+// only frame allowed to advance the generation.
 message TalosStatusEvent {
   string stage = 1;
   bool ready = 2;
   bool deleted = 3;
+  uint64 generation = 4;
+  bool snapshot = 5;
 }
 
 // TalosCancelRequest stops the stream identified by subscription_request_id.
@@ -108,3 +121,11 @@ message TalosCancelResponse {}
 message TalosStreamEnded {
   string code = 1;
 }
+
+// TalosStreamStale marks the previously delivered projection stale when a
+// mid-stream failure begins a bounded reconnection. It carries no data and
+// consumes no sequence: its envelope sequence repeats the sequence of the
+// projection frame it invalidates, which is 0 when that projection is the
+// bootstrap probe response. Until a replacement snapshot arrives, no
+// projection on this stream may be presented as current.
+message TalosStreamStale {}

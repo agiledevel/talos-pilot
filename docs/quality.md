@@ -21,7 +21,7 @@ Pin tools and dependencies, commit lockfiles, and use reproducible installation 
 | Rust backend | rustfmt; Clippy with warnings denied; affected unit/integration tests; rustdoc checks and relevant examples; affected build |
 | Go helper | gofmt with empty difference; go vet; unit/integration tests; race checks on supported test targets; affected helper build |
 | IPC or generated contracts | Both producer and consumer gates; deterministic regeneration; malformed/versioned-message tests; actual Tauri/helper integration |
-| Tauri configuration, plugins, capabilities, sidecars, packaging | Affected native builds and runtime smoke tests; allowed and rejected IPC behavior; packaged resource/helper checks |
+| Tauri configuration, plugins, capabilities, sidecars, packaging | Affected native builds and runtime smoke tests through the manual/nightly native tier or a recorded local equivalent; allowed and rejected IPC behavior; packaged resource/helper checks |
 | Credential, encryption, migration, or operation engine | Explicit invariant and failure-path tests; restart/interruption coverage where relevant; redaction and persistence checks |
 | Talos/Kubernetes lifecycle behavior | Disposable real-cluster scenario for the affected action and its safety conditions; fault-injection coverage; appropriate version/topology fixture |
 | Dependency/toolchain changes | Reproducible install; affected builds/tests; advisory and license review; contract generation check when relevant |
@@ -39,7 +39,7 @@ The foundation milestone must provide the following scripts and document exact n
 | Svelte diagnostics | `pnpm lint:svelte` runs `svelte-check --tsgo --tsconfig ./tsconfig.svelte.json --fail-on-warnings`: types in Svelte scripts, templates, and component props, and Svelte compiler warnings including accessibility, all as errors |
 | Frontend tests | `pnpm test:run` runs Vitest once with Testing Library for Svelte where applicable; coverage collection is available for review |
 | Frontend build | `pnpm build` runs the production Vite build, including specialized editor workers |
-| Frontend aggregate | `pnpm check` executes format, lint/types, Svelte diagnostics, renderer tests, and build, failing on any failed command |
+| Frontend aggregate | `pnpm check` executes format, lint/types, Svelte diagnostics, renderer tests, and build, failing on any failed command. `pnpm check:ci` is the same aggregate with the one test execution collecting coverage; use it locally to reproduce CI without immediately rerunning the non-coverage suite |
 | Browser flows | `pnpm test:e2e` runs Playwright against the explicit mock-transport harness |
 | Native flows | `pnpm test:native` runs WebdriverIO with the Tauri service against an actual test-built application |
 | Rust format | `pnpm format:rust:check` runs `cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check` using `src-tauri/rustfmt.toml`; `pnpm format:rust` applies it |
@@ -54,6 +54,10 @@ The foundation milestone must provide the following scripts and document exact n
 | Advisory baseline | `pnpm advisories:check` compares the cargo-audit report, each recorded advisory's reverse dependency path, and the linked Linux executable against the accepted applicability record; a new, drifted, vanished, or newly linked finding fails, and a stripped or unreadable executable is an error rather than a pass |
 | Go vulnerabilities | `pnpm audit:go` installs the pinned `govulncheck` into a private `GOBIN`, runs it over `helper/`, and fails on any finding in the linked call graph |
 | Dependency inventory | `pnpm inventory:check` regenerates `docs/verification/dependency-inventory.json` from the lockfiles, `cargo metadata`, `pnpm licenses`, and the Go module graph, and fails on any difference; `pnpm inventory:generate` writes it. Generated inventories are never hand-edited |
+
+**CI tiers (decision 0016).** Required pull-request CI runs deterministic formatting, lint/type, Svelte, renderer unit, production-build, Playwright mock, Go, Rust, contract, inventory, advisory, and security checks. `pnpm test:native` is assigned to a manual and weekly reusable workflow on the desktop matrix and to release qualification; it is not a required pull-request check. The split is implementation work under the accepted decision, not a deletion of the gate. Live Talos and Kubernetes fixtures, clean-VM package smoke, and performance measurement run locally or in explicit manual workflows. A change that touches a native, fixture, packaging, or performance boundary is not complete until its tier has run and the result is recorded. Moving a gate out of required CI does not remove it or change its command.
+
+**Feedback and evidence reuse (decision 0018).** Only PRs may reuse unchanged inputs from compatible, actually executed ancestor evidence. Desktop scope remains documentation-only; full renderer/CodeQL executions are distinguished from format-only/reused green jobs. Trivy and npm advisories still refresh on documentation pushes. Missing/malformed evidence and unknown inputs request fresh checks; main, manual, scheduled and release runs remain full. This is not permission to omit applicable final native/fixture/package evidence. Follow [FLASH pace](flash-pace.md) to overlap independent work and avoid duplicate runs, without relabelling unexecuted checks as passes.
 
 The TypeScript compiler configuration is strict, including unchecked indexed access and exact optional-property behavior. Enable relevant Oxlint correctness, TypeScript, promise, import, and test rules supported by the pinned tools. Vite and Svelte compilation do not replace type checking. Oxlint's type-aware rules and type check apply to `.ts` and `.svelte.ts` files; inside `.svelte` files only its syntactic rules run, on the script block. `svelte-check` therefore owns type diagnostics for Svelte scripts, templates, and component props. It type-checks a separate program, `tsconfig.svelte.json`, that differs from `tsconfig.json` only by skipping third-party declaration files, whose mutual conflicts Oxlint never reported. Keep promise handling and other logic that depends on type-aware lint rules in `.svelte.ts` modules, and do not silence a Svelte compiler warning with `svelte-ignore` without the justification required for any local suppression. Do not add a parallel default ESLint/Prettier stack. Verify the selected Oxc engine's TypeScript requirements against its [official guide](https://oxc.rs/docs/guide/usage/linter/type-aware.html).
 
@@ -114,7 +118,7 @@ For each milestone, record its acceptance criteria and linked evidence under `do
 
 A release requires:
 
-1. All applicable static, type, unit, integration, renderer, native, and cluster gates pass on the final candidate.
+1. All applicable static, type, unit, integration, renderer, native, and cluster gates pass on the final candidate. This includes the manual/nightly native workflow result and the recorded local fixture evidence; a green required-CI run alone is not sufficient.
 2. Install, launch, helper handshake, secret storage, upgrade, and uninstall are exercised on clean declared targets: Linux x86_64, macOS Intel/Apple Silicon, and Windows x86_64. Runtime requirements and tested OS minimums are recorded.
 3. Each v1 feature is qualified on the declared version matrix; recovery and interrupted-operation handling have real fixture evidence.
 4. Accessibility and measured performance budgets pass; production artifacts exclude all test bypasses.

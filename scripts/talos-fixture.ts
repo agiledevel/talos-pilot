@@ -34,6 +34,16 @@ const manifestPath = reference("--manifest");
 const configPath = checkedConfig("--talosconfig");
 const readerConfigPath = checkedConfig("--reader-talosconfig");
 const deniedConfigPath = checkedConfig("--denied-talosconfig");
+const talosctlPath = toolReference("--talosctl");
+
+/** Reads one `--flag <path>` reference for a pinned tool binary. */
+function toolReference(flag: string): string {
+  const path = reference(flag);
+  if (!statSync(path).isFile()) {
+    throw new Error(`${flag} must reference a regular file.`);
+  }
+  return path;
+}
 
 /** Validates one credential reference: outside the repository, bounded, regular. */
 function checkedConfig(flag: string): string {
@@ -126,10 +136,11 @@ execFileSync(
       TALOS_PILOT_FIXTURE_READER_TALOSCONFIG: readerConfigPath,
       TALOS_PILOT_FIXTURE_DENIED_TALOSCONFIG: deniedConfigPath,
       TALOS_PILOT_FIXTURE_HELPER: helperPath,
+      TALOS_PILOT_FIXTURE_TALOSCTL: talosctlPath,
     },
   },
 );
 
 console.info(
-  "C4 fixture harness completed: authenticated read, bounded stream, cancellation, restricted identities, and failure classes.",
+  "C4 fixture harness completed: authenticated read, bounded stream, cancellation, restricted identities, failure classes, and mid-stream reconnect/resync evidence.",
 );

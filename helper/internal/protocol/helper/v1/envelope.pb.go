@@ -38,6 +38,7 @@ const (
 	MessageKind_MESSAGE_KIND_TALOS_CANCEL_REQUEST  MessageKind = 11
 	MessageKind_MESSAGE_KIND_TALOS_CANCEL_RESPONSE MessageKind = 12
 	MessageKind_MESSAGE_KIND_TALOS_STREAM_ENDED    MessageKind = 13
+	MessageKind_MESSAGE_KIND_TALOS_STREAM_STALE    MessageKind = 14
 )
 
 // Enum value maps for MessageKind.
@@ -57,6 +58,7 @@ var (
 		11: "MESSAGE_KIND_TALOS_CANCEL_REQUEST",
 		12: "MESSAGE_KIND_TALOS_CANCEL_RESPONSE",
 		13: "MESSAGE_KIND_TALOS_STREAM_ENDED",
+		14: "MESSAGE_KIND_TALOS_STREAM_STALE",
 	}
 	MessageKind_value = map[string]int32{
 		"MESSAGE_KIND_UNSPECIFIED":           0,
@@ -73,6 +75,7 @@ var (
 		"MESSAGE_KIND_TALOS_CANCEL_REQUEST":  11,
 		"MESSAGE_KIND_TALOS_CANCEL_RESPONSE": 12,
 		"MESSAGE_KIND_TALOS_STREAM_ENDED":    13,
+		"MESSAGE_KIND_TALOS_STREAM_STALE":    14,
 	}
 )
 
@@ -128,6 +131,7 @@ type Envelope struct {
 	//	*Envelope_TalosCancelRequest
 	//	*Envelope_TalosCancelResponse
 	//	*Envelope_TalosStreamEnded
+	//	*Envelope_TalosStreamStale
 	Payload       isEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -329,6 +333,15 @@ func (x *Envelope) GetTalosStreamEnded() *TalosStreamEnded {
 	return nil
 }
 
+func (x *Envelope) GetTalosStreamStale() *TalosStreamStale {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_TalosStreamStale); ok {
+			return x.TalosStreamStale
+		}
+	}
+	return nil
+}
+
 type isEnvelope_Payload interface {
 	isEnvelope_Payload()
 }
@@ -385,6 +398,10 @@ type Envelope_TalosStreamEnded struct {
 	TalosStreamEnded *TalosStreamEnded `protobuf:"bytes,22,opt,name=talos_stream_ended,json=talosStreamEnded,proto3,oneof"`
 }
 
+type Envelope_TalosStreamStale struct {
+	TalosStreamStale *TalosStreamStale `protobuf:"bytes,23,opt,name=talos_stream_stale,json=talosStreamStale,proto3,oneof"`
+}
+
 func (*Envelope_HandshakeRequest) isEnvelope_Payload() {}
 
 func (*Envelope_HandshakeResponse) isEnvelope_Payload() {}
@@ -410,6 +427,8 @@ func (*Envelope_TalosCancelRequest) isEnvelope_Payload() {}
 func (*Envelope_TalosCancelResponse) isEnvelope_Payload() {}
 
 func (*Envelope_TalosStreamEnded) isEnvelope_Payload() {}
+
+func (*Envelope_TalosStreamStale) isEnvelope_Payload() {}
 
 type HandshakeRequest struct {
 	state                 protoimpl.MessageState `protogen:"open.v1"`
@@ -804,12 +823,16 @@ func (x *TalosProbeRequest) GetNode() string {
 	return ""
 }
 
-// TalosProbeResponse contains the authenticated version and bootstrap snapshot.
+// TalosProbeResponse contains the authenticated version and the bootstrap
+// snapshot of generation 1. Replacement snapshots after a mid-stream
+// reconnect are TalosStatusEvent frames with snapshot set, not probe
+// responses.
 type TalosProbeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Version       string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
 	Stage         string                 `protobuf:"bytes,2,opt,name=stage,proto3" json:"stage,omitempty"`
 	Ready         bool                   `protobuf:"varint,3,opt,name=ready,proto3" json:"ready,omitempty"`
+	Generation    uint64                 `protobuf:"varint,4,opt,name=generation,proto3" json:"generation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -865,12 +888,26 @@ func (x *TalosProbeResponse) GetReady() bool {
 	return false
 }
 
+func (x *TalosProbeResponse) GetGeneration() uint64 {
+	if x != nil {
+		return x.Generation
+	}
+	return 0
+}
+
 // TalosStatusEvent is the bounded projection of one MachineStatus update.
+//
+// Sequence values are continuous across the whole subscription and are never
+// reset by a reconnect. Each event carries the snapshot generation it belongs
+// to; a replacement snapshot is the first frame of a new generation and is the
+// only frame allowed to advance the generation.
 type TalosStatusEvent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Stage         string                 `protobuf:"bytes,1,opt,name=stage,proto3" json:"stage,omitempty"`
 	Ready         bool                   `protobuf:"varint,2,opt,name=ready,proto3" json:"ready,omitempty"`
 	Deleted       bool                   `protobuf:"varint,3,opt,name=deleted,proto3" json:"deleted,omitempty"`
+	Generation    uint64                 `protobuf:"varint,4,opt,name=generation,proto3" json:"generation,omitempty"`
+	Snapshot      bool                   `protobuf:"varint,5,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -922,6 +959,20 @@ func (x *TalosStatusEvent) GetReady() bool {
 func (x *TalosStatusEvent) GetDeleted() bool {
 	if x != nil {
 		return x.Deleted
+	}
+	return false
+}
+
+func (x *TalosStatusEvent) GetGeneration() uint64 {
+	if x != nil {
+		return x.Generation
+	}
+	return 0
+}
+
+func (x *TalosStatusEvent) GetSnapshot() bool {
+	if x != nil {
+		return x.Snapshot
 	}
 	return false
 }
@@ -1052,11 +1103,53 @@ func (x *TalosStreamEnded) GetCode() string {
 	return ""
 }
 
+// TalosStreamStale marks the previously delivered projection stale when a
+// mid-stream failure begins a bounded reconnection. It carries no data and
+// consumes no sequence: its envelope sequence repeats the sequence of the
+// projection frame it invalidates, which is 0 when that projection is the
+// bootstrap probe response. Until a replacement snapshot arrives, no
+// projection on this stream may be presented as current.
+type TalosStreamStale struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TalosStreamStale) Reset() {
+	*x = TalosStreamStale{}
+	mi := &file_helper_v1_envelope_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TalosStreamStale) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TalosStreamStale) ProtoMessage() {}
+
+func (x *TalosStreamStale) ProtoReflect() protoreflect.Message {
+	mi := &file_helper_v1_envelope_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TalosStreamStale.ProtoReflect.Descriptor instead.
+func (*TalosStreamStale) Descriptor() ([]byte, []int) {
+	return file_helper_v1_envelope_proto_rawDescGZIP(), []int{14}
+}
+
 var File_helper_v1_envelope_proto protoreflect.FileDescriptor
 
 const file_helper_v1_envelope_proto_rawDesc = "" +
 	"\n" +
-	"\x18helper/v1/envelope.proto\x12\x15talos_pilot.helper.v1\"\x88\v\n" +
+	"\x18helper/v1/envelope.proto\x12\x15talos_pilot.helper.v1\"\xe1\v\n" +
 	"\bEnvelope\x12%\n" +
 	"\x0eprotocol_major\x18\x01 \x01(\rR\rprotocolMajor\x126\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\".talos_pilot.helper.v1.MessageKindR\x04kind\x12\x1d\n" +
@@ -1079,7 +1172,8 @@ const file_helper_v1_envelope_proto_rawDesc = "" +
 	"\x12talos_status_event\x18\x13 \x01(\v2'.talos_pilot.helper.v1.TalosStatusEventH\x00R\x10talosStatusEvent\x12]\n" +
 	"\x14talos_cancel_request\x18\x14 \x01(\v2).talos_pilot.helper.v1.TalosCancelRequestH\x00R\x12talosCancelRequest\x12`\n" +
 	"\x15talos_cancel_response\x18\x15 \x01(\v2*.talos_pilot.helper.v1.TalosCancelResponseH\x00R\x13talosCancelResponse\x12W\n" +
-	"\x12talos_stream_ended\x18\x16 \x01(\v2'.talos_pilot.helper.v1.TalosStreamEndedH\x00R\x10talosStreamEndedB\t\n" +
+	"\x12talos_stream_ended\x18\x16 \x01(\v2'.talos_pilot.helper.v1.TalosStreamEndedH\x00R\x10talosStreamEnded\x12W\n" +
+	"\x12talos_stream_stale\x18\x17 \x01(\v2'.talos_pilot.helper.v1.TalosStreamStaleH\x00R\x10talosStreamStaleB\t\n" +
 	"\apayloadB\r\n" +
 	"\v_session_idB\x0f\n" +
 	"\r_operation_id\"q\n" +
@@ -1103,20 +1197,28 @@ const file_helper_v1_envelope_proto_rawDesc = "" +
 	"\x11TalosProbeRequest\x12!\n" +
 	"\ftalos_config\x18\x01 \x01(\fR\vtalosConfig\x12\x1c\n" +
 	"\tendpoints\x18\x02 \x03(\tR\tendpoints\x12\x12\n" +
-	"\x04node\x18\x03 \x01(\tR\x04node\"Z\n" +
+	"\x04node\x18\x03 \x01(\tR\x04node\"z\n" +
 	"\x12TalosProbeResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x14\n" +
 	"\x05stage\x18\x02 \x01(\tR\x05stage\x12\x14\n" +
-	"\x05ready\x18\x03 \x01(\bR\x05ready\"X\n" +
+	"\x05ready\x18\x03 \x01(\bR\x05ready\x12\x1e\n" +
+	"\n" +
+	"generation\x18\x04 \x01(\x04R\n" +
+	"generation\"\x94\x01\n" +
 	"\x10TalosStatusEvent\x12\x14\n" +
 	"\x05stage\x18\x01 \x01(\tR\x05stage\x12\x14\n" +
 	"\x05ready\x18\x02 \x01(\bR\x05ready\x12\x18\n" +
-	"\adeleted\x18\x03 \x01(\bR\adeleted\"L\n" +
+	"\adeleted\x18\x03 \x01(\bR\adeleted\x12\x1e\n" +
+	"\n" +
+	"generation\x18\x04 \x01(\x04R\n" +
+	"generation\x12\x1a\n" +
+	"\bsnapshot\x18\x05 \x01(\bR\bsnapshot\"L\n" +
 	"\x12TalosCancelRequest\x126\n" +
 	"\x17subscription_request_id\x18\x01 \x01(\tR\x15subscriptionRequestId\"\x15\n" +
 	"\x13TalosCancelResponse\"&\n" +
 	"\x10TalosStreamEnded\x12\x12\n" +
-	"\x04code\x18\x01 \x01(\tR\x04code*\xfc\x03\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\"\x12\n" +
+	"\x10TalosStreamStale*\xa1\x04\n" +
 	"\vMessageKind\x12\x1c\n" +
 	"\x18MESSAGE_KIND_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eMESSAGE_KIND_HANDSHAKE_REQUEST\x10\x01\x12#\n" +
@@ -1132,7 +1234,8 @@ const file_helper_v1_envelope_proto_rawDesc = "" +
 	"\x12%\n" +
 	"!MESSAGE_KIND_TALOS_CANCEL_REQUEST\x10\v\x12&\n" +
 	"\"MESSAGE_KIND_TALOS_CANCEL_RESPONSE\x10\f\x12#\n" +
-	"\x1fMESSAGE_KIND_TALOS_STREAM_ENDED\x10\rBQZOgithub.com/agiledevel/talos-pilot/helper/internal/protocol/helper/v1;protocolv1b\x06proto3"
+	"\x1fMESSAGE_KIND_TALOS_STREAM_ENDED\x10\r\x12#\n" +
+	"\x1fMESSAGE_KIND_TALOS_STREAM_STALE\x10\x0eBQZOgithub.com/agiledevel/talos-pilot/helper/internal/protocol/helper/v1;protocolv1b\x06proto3"
 
 var (
 	file_helper_v1_envelope_proto_rawDescOnce sync.Once
@@ -1147,7 +1250,7 @@ func file_helper_v1_envelope_proto_rawDescGZIP() []byte {
 }
 
 var file_helper_v1_envelope_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_helper_v1_envelope_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_helper_v1_envelope_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_helper_v1_envelope_proto_goTypes = []any{
 	(MessageKind)(0),            // 0: talos_pilot.helper.v1.MessageKind
 	(*Envelope)(nil),            // 1: talos_pilot.helper.v1.Envelope
@@ -1164,6 +1267,7 @@ var file_helper_v1_envelope_proto_goTypes = []any{
 	(*TalosCancelRequest)(nil),  // 12: talos_pilot.helper.v1.TalosCancelRequest
 	(*TalosCancelResponse)(nil), // 13: talos_pilot.helper.v1.TalosCancelResponse
 	(*TalosStreamEnded)(nil),    // 14: talos_pilot.helper.v1.TalosStreamEnded
+	(*TalosStreamStale)(nil),    // 15: talos_pilot.helper.v1.TalosStreamStale
 }
 var file_helper_v1_envelope_proto_depIdxs = []int32{
 	0,  // 0: talos_pilot.helper.v1.Envelope.kind:type_name -> talos_pilot.helper.v1.MessageKind
@@ -1180,11 +1284,12 @@ var file_helper_v1_envelope_proto_depIdxs = []int32{
 	12, // 11: talos_pilot.helper.v1.Envelope.talos_cancel_request:type_name -> talos_pilot.helper.v1.TalosCancelRequest
 	13, // 12: talos_pilot.helper.v1.Envelope.talos_cancel_response:type_name -> talos_pilot.helper.v1.TalosCancelResponse
 	14, // 13: talos_pilot.helper.v1.Envelope.talos_stream_ended:type_name -> talos_pilot.helper.v1.TalosStreamEnded
-	14, // [14:14] is the sub-list for method output_type
-	14, // [14:14] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	15, // 14: talos_pilot.helper.v1.Envelope.talos_stream_stale:type_name -> talos_pilot.helper.v1.TalosStreamStale
+	15, // [15:15] is the sub-list for method output_type
+	15, // [15:15] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_helper_v1_envelope_proto_init() }
@@ -1206,6 +1311,7 @@ func file_helper_v1_envelope_proto_init() {
 		(*Envelope_TalosCancelRequest)(nil),
 		(*Envelope_TalosCancelResponse)(nil),
 		(*Envelope_TalosStreamEnded)(nil),
+		(*Envelope_TalosStreamStale)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1213,7 +1319,7 @@ func file_helper_v1_envelope_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_helper_v1_envelope_proto_rawDesc), len(file_helper_v1_envelope_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   14,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
