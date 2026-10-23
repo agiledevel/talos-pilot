@@ -1399,3 +1399,16 @@ Copy this block, fill every field, and append it to the session log. Write `none
 - **Assumptions confirmed or refuted:** confirmed that bundled same-origin Monaco/YAML workers run offline under the unchanged packaged CSP, produce a real diagnostic that clears on correction, render a real diff, and return worker/model/listener counts to baseline. Refuted the assumption that WebKitGTK exposes resource-timing entries for the custom protocol in this run.
 - **Questions and blockers raised:** none. The existing post-merge native-workflow, installed-package, release and platform rows remain as recorded, not skipped passes.
 - **Next:** document 06, F7 bounded terminal and chart wrappers, reusing the attachment/lazy-load/cleanup pattern. Keep C6 in progress until document 08 supplies installed-package rows and document 10 supplies the remaining WebView rows.
+
+### 2026-10-23 — document 05, hosted renderer timeout correction
+
+- **Document:** 05 F6 follow-up after the first hosted run of `c204250`. Document 05 remains `done`; this entry corrects the browser test's timeout only.
+- **Session:** DeepSeek Flash; base revision `c204250`; final revision: the commit carrying this entry.
+- **Finding:** Foundation run [39885045707](https://github.com/agiledevel/talos-pilot/actions/runs/39885045707) at `c204250` failed its renderer job: the first editor test reached the 30-second Playwright test timeout while waiting to click Reset malformed sample on the two-worker hosted runner; the other 15 browser flows passed. The three desktop jobs passed. Security run [39885045700](https://github.com/agiledevel/talos-pilot/actions/runs/39885045700) passed all scope, Trivy and three CodeQL jobs. The failure was a test timeout on real first-load latency, not a failed assertion or a product defect.
+- **Correction:** `tests/e2e/editor.spec.ts` now sets a 120-second suite timeout so Monaco's first load and diff settle on the slower two-worker runner. No assertion, wait condition, CSP, cleanup check or production behavior changed.
+- **Commands and results:** `pnpm lint`, `pnpm lint:svelte`, `pnpm exec playwright test tests/e2e/editor.spec.ts` (8 passed) and `pnpm test:e2e` (16 passed) on the corrected tree. The earlier final native, production, advisory, dependency and contract evidence remains valid for the unchanged application sources; the timeout change is test-only.
+- **Evidence class:** deterministic browser tests plus the hosted failure/security record above. No new native run is needed for a test timeout change; the last native release-executable run remains the document 05 row.
+- **Fixture:** none.
+- **Failed or unexecuted:** the corrected Foundation rerun is not yet read at the time of this entry. It must be read after the push; if it has not finished, hand off as pending rather than claiming a hosted pass. No other check is weakened.
+- **Review findings:** the timeout increase is scoped to the editor browser spec and documented as latency tolerance; all observable assertions remain.
+- **Next:** read the corrected Foundation run. If it passes, document 05's hosted code gate is closed; otherwise fix the actionable failure before handing off.

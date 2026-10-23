@@ -2,6 +2,12 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
+// Monaco and its workers take materially longer to settle on the two-worker
+// hosted runner than in a local single-worker run. The generous timeout covers
+// real first-load latency; every assertion still waits for its observable
+// state instead of sleeping.
+test.describe.configure({ timeout: 120_000 });
+
 /**
  * Scripts Tauri's IPC entry point before the renderer loads. The editor tests
  * need the appearance commands only; the session-only context is synthetic and
