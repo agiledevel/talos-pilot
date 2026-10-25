@@ -1,12 +1,14 @@
 <!--
 @component
 The Home view: saved clusters. Cluster connections are not implemented yet, so
-it shows the empty state and points to the Talos read probe. The editor
-feasibility panel is an existing working view, not a navigation destination; it
-lazy-loads the synthetic editor only when opened.
+it shows the empty state and points to the Talos read probe. The editor,
+terminal, and chart feasibility panels are existing working views, not
+navigation destinations; each lazy-loads its own synthetic surface only when
+opened, so Home itself imports no specialized library.
 -->
 <script lang="ts">
   import EditorFeasibilityPanel from "../editor/EditorFeasibilityPanel.svelte";
+  import TerminalFeasibilityPanel from "../terminal/TerminalFeasibilityPanel.svelte";
 </script>
 
 <section class="grid max-w-3xl gap-4" aria-labelledby="clusters-title">
@@ -21,3 +23,5 @@ lazy-loads the synthetic editor only when opened.
 </section>
 
 <EditorFeasibilityPanel />
+
+<TerminalFeasibilityPanel />
