@@ -70,7 +70,7 @@ Each expires on 2026-11-30. An exception is renewed only by repeating its applic
 
    Then renew the expiry with the new evidence date, or remove the exception. Record which, and why, in the ledger and in the decision record.
 
-6. **Hosted scans.** Read the CodeQL and Trivy results for the exact commit. The security workflow runs for pushes and pull requests to `main` and on a weekly schedule. The owner's pull request 2 makes it run for every push to this branch, so read the "Security scans" run for your commit with `gh pr checks 2`. If the pull request no longer exists, do not open another; record the exact-commit scans as unexecuted and add a question for the owner to the ledger.
+6. **Hosted scans.** Read the CodeQL and Trivy results for the exact commit. The security workflow runs for pushes and pull requests to `main` and on a weekly schedule. Do not assume an earlier session's branch, pull request or run applies: discover the owner-designated active branch first (`git status --short --branch`, `git branch --show-current`), then its open pull request and current check results (`gh pr list --state open --head "$(git branch --show-current)"`, `gh pr checks <number>`, `gh run view <run-id>`). Read the security run for your own commit, not a green run on an ancestor or on `main`. If no pull request exists for the branch, do not open one: record the exact-commit scans as unexecuted, add a question for the owner to the ledger, and stop before claiming hosted evidence.
 
 ## Acceptance cases
 

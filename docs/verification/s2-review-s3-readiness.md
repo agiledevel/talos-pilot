@@ -158,3 +158,29 @@ local repair.
   native tests and production rebuilds were not repeated because this is a
   review/documentation change; the exact-candidate hosted execution was read
   instead. No fresh native/platform/package/cluster/performance pass is claimed.
+
+## Correction status
+
+Recorded 2026-10-25 by the corrective session; the review body above stays as the
+point-in-time assessment at `114fbdbb`.
+
+- **S2-R1 is fixed** in `5e306a5` (`docs/s2-flash-readiness`): the chart
+  attachment has one drain for the shared coalesced frame, and the committed
+  browser regression
+  (`one coalesced chart frame applies a replacement and a resize in either
+  order`) fails on the unfixed attachment with `Expected: 292`, `Received: 726`
+  and passes after the fix. The affected renderer, browser, native,
+  trusted-input and ordered production gates were rerun on the corrective tree:
+  `pnpm check:ci` 319 tests / 43 files, `pnpm test:e2e` 31/31, Linux
+  WebKitGTK native 31/31 across five spec files, the X11 pass 1/1 with 64
+  trusted keys, then `pnpm desktop:build`, `pnpm production:check` and
+  `pnpm advisories:check`. See
+  [S2-R1 corrective evidence](s2-r1-chart-frame-coalescing.md).
+- **S2-R2 is reconciled:** [the F7 evidence record](f7-terminal-chart.md) now
+  carries the 319-test count and the three digests of the execution it
+  describes, with the superseded values identified as stale.
+- **Still open:** the corrective revision `5e306a5` has no hosted
+  Foundation/Security run; that needs owner-authorized push and completion.
+  Document 06 therefore stays in progress, S3 remains gated, and this session
+  did not merge, push or start S3. Document 07 step 6's obsolete PR #2 discovery
+  instructions were modernized as preparation, without starting that packet.

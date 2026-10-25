@@ -6,16 +6,19 @@ S2-A–D on `docs/s2-flash-readiness`. It does **not** close C6, C7, milestone 1
 the Q13 owner review or the M2 entry gate.
 
 **Current disposition:** the [implementation review and S3 readiness
-assessment](s2-review-s3-readiness.md) found S2-R1 (chart resize coalescing/F7-05)
-and S2-R2 (stale test count and artifact hashes in this record). F7 is **not
-accepted**; fix/requalify R1 and reconcile R2 before S3. PR #4 Foundation/Security
-passed for `114fbdb`; hosted CI is no longer the only outstanding gate.
+assessment](s2-review-s3-readiness.md) found S2-R1 (chart resize coalescing/
+F7-05) and S2-R2 (stale test count and artifact hashes in this record). S2-R1 is
+fixed and locally requalified, and S2-R2 is reconciled here; both are recorded in
+[S2-R1 corrective evidence](s2-r1-chart-frame-coalescing.md). F7 is still **not
+accepted**: the corrective revision has no hosted Foundation/Security run yet,
+and PR #4's green runs cover `114fbdb` only.
 
-The implementation-session evidence below is historical local Linux evidence,
-except where labelled unexecuted. Its no-PR/no-hosted-result statements describe
-that earlier session, not the current PR state. The review records the checked
-final artifact hashes separately; do not use the stale hashes below as final
-corrective-candidate evidence.
+The implementation-session evidence below is historical local Linux evidence of
+the S2-D execution, except where labelled unexecuted. Its no-PR/no-hosted-result
+statements describe that earlier session, not the current PR state. The counts
+and digests in the tables below were corrected on 2026-10-25 from that
+execution's retained logs and files; the superseded values identify no retained
+S2-D artifact and must not be used as final evidence.
 
 ## Source revision
 
@@ -36,6 +39,28 @@ corrective-candidate evidence.
   and Security
   [40226383015](https://github.com/agiledevel/talos-pilot/actions/runs/40226383015);
   those are unchanged-input entry evidence, not F7 execution.
+
+### Evidence attribution correction (2026-10-25)
+
+S2-R2: this record attributed 318 tests and three digests to the S2-D tree, but
+no retained S2-D artifact carried them. The table below reconciles each item
+from the execution this record describes. Every corrected value was read from
+the retained log or produced by hashing the retained file.
+
+| Item                        | Superseded value                                                   | Corrected value of this execution                                  |
+| --------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Unit tests                  | 318 / 43 files                                                     | **319 / 43 files** in `/tmp/tp-f7-check-ci.log`                    |
+| Ordinary executable SHA-256 | `3b26456fbb0ac560ff12d836807a20cb1d9c7e9a450ff6aecbf1dca1e7586e83` | `c6a4eeefd474d9dbee52a96295469667dcb841848f02add8745f997687494654` |
+| `terminal.png` SHA-256      | `bd94c99a7c247182c845a7c120e63fb5a8c688c45142597296d0e5cebdec377b` | `4f679ef10af2072d3f7e1ccf62d88f5ba7ddfc535b6391cece1ab8ec262a32fb` |
+| `chart.png` SHA-256         | `46139edac6e4baa2e660938b6cfe8572797a8e5a06df63c4761f3b7fbf84ed5f` | `8041ebf010c6fd3bd2c425897153c279ac3d3a2c04fffa1da9b9217ac54014b1` |
+
+The corrected values agree with the append-only S2-D ledger entry and with
+`/tmp/tp-f7-native-x11.log`. Rendered-window PNGs are not byte-stable between
+executions: the [corrective run](s2-r1-chart-frame-coalescing.md) produced
+different terminal pixels on the same fixture, so a digest identifies the
+artifact of the run that recorded it and is not comparable across executions.
+The corrective revision's gates and artifacts are recorded only in that separate
+record and are not attributed to this S2-D execution.
 
 ## Environment
 
@@ -86,6 +111,13 @@ trusted OS input (XTEST) plus rendered-window capture.
 | F7-07 | Pass                                           | **Browser:** no remote request, same-origin assets, CSP meta denial of inline/unauthorized scripts, real library rendering. **Native:** packaged-CSP denial of inline and unauthorized-origin scripts, no cross-origin `fetch` attempt, all observable stylesheets/scripts and recorded chunk URLs same-origin, no `blob:` asset, real xterm text and uPlot canvas pixels. WebKitGTK exposes no Resource Timing entries; the DOM asset lists and chunk diagnostics are used instead, and no remote-request claim rests on an empty list alone.                                                                                                                                                                                                                       |
 | F7-08 | Pass                                           | **Browser:** named synthetic surfaces and “offline, no cluster” identity; axe scans in light/dark and both densities; keyboard focus/selection/scroll, disclosure operation, focus return on close; no animation/`getAnimations` entries and no auto-producer under reduced motion; three viewport sizes with the fixed shell. **Native:** named surfaces, real rendered terminal/chart, numeric-summary disclosure, focus return and baseline counters. **X11:** 64 trusted XTEST keys (no script-dispatched events) opened the terminal, triggered the burst, scrolled with PageUp and returned with End, closed with focus return, opened the chart, collapsed/expanded the numeric summary with Return, closed with focus return, and captured rendered windows. |
 
+F7-05's shared-frame row was incomplete at this execution: the implementation
+review found that a data-first coalesced frame could drop a later resize. The
+replacement/size drain and its failing-before/passing-after browser regression
+are recorded in [S2-R1 corrective evidence](s2-r1-chart-frame-coalescing.md),
+which requalifies F7-05 on the corrective tree without relabelling this
+execution's evidence.
+
 ## Commands and results
 
 All commands ran from the repository root with the private pinned toolchain on
@@ -98,11 +130,11 @@ All commands ran from the repository root with the private pinned toolchain on
 | `pnpm inventory:check`                                                                        | Passed: 538 npm, 614 Cargo, 143 Go modules current.                                                                                                                                                                                                                               |
 | `pnpm audit --audit-level=low`                                                                | No known vulnerabilities.                                                                                                                                                                                                                                                         |
 | `pnpm audit:go`                                                                               | 0 vulnerabilities affecting the helper's call graph (1 module-only finding not called).                                                                                                                                                                                           |
-| `pnpm check:ci`                                                                               | Passed: format, type-aware Oxlint, `svelte-check` 0 errors/0 warnings, **318 tests / 43 files** with coverage (67.54% statements / 73.62% branches), production frontend build. Log: `/tmp/tp-f7-check-ci.log`.                                                                   |
+| `pnpm check:ci`                                                                               | Passed: format, type-aware Oxlint, `svelte-check` 0 errors/0 warnings, **319 tests / 43 files** with coverage (67.54% statements / 73.62% branches), production frontend build. Log: `/tmp/tp-f7-check-ci.log`.                                                                   |
 | `pnpm test:e2e`                                                                               | **30/30 passed** in 26.8 s at configured concurrency, including the seven new specialized-view flows and all existing editor/shell/workloads/appearance flows. Log: `/tmp/tp-f7-e2e.log`.                                                                                         |
 | `xvfb-run -a -s '-screen 0 1280x800x24 -nolisten tcp' env GDK_BACKEND=x11 … pnpm test:native` | **31/31 passed across 5 spec files** in 15 s: 4 chart, 5 editor, 12 helper/shell, 7 Kubernetes-session, 3 terminal. Private `XDG_DATA_HOME`/`XDG_CONFIG_HOME`/`XDG_CACHE_HOME`/`XDG_RUNTIME_DIR`; no helper process or synthetic endpoint remained. Log: `/tmp/tp-f7-native.log`. |
 | `… wdio run wdio.native.conf.ts --spec ./tests/native-x11/specialized-views.spec.ts`          | **1/1 passed** in 1.5 s with 64 trusted XTEST keys on a private `:99` display, one exact “Talos Pilot” window. Log: `/tmp/tp-f7-native-x11.log`.                                                                                                                                  |
-| `pnpm desktop:build`                                                                          | Passed; ordinary release executable SHA-256 `3b26456fbb0ac560ff12d836807a20cb1d9c7e9a450ff6aecbf1dca1e7586e83`. Log: `/tmp/tp-f7-desktop-build.log`.                                                                                                                              |
+| `pnpm desktop:build`                                                                          | Passed; ordinary release executable SHA-256 `c6a4eeefd474d9dbee52a96295469667dcb841848f02add8745f997687494654`. Log: `/tmp/tp-f7-desktop-build.log`.                                                                                                                              |
 | `pnpm production:check`                                                                       | Passed: production artifacts exclude WebDriver and expose no driver listener.                                                                                                                                                                                                     |
 | `pnpm advisories:check`                                                                       | Passed: 67,079 demangled symbols against the five recorded advisories.                                                                                                                                                                                                            |
 | `pnpm format:check`, `git diff --check`                                                       | Passed.                                                                                                                                                                                                                                                                           |
@@ -126,8 +158,8 @@ Rendered evidence was captured from the exact window with
 
 | Artifact                             | Size     | SHA-256                                                            |
 | ------------------------------------ | -------- | ------------------------------------------------------------------ |
-| `/tmp/tp-f7-native-x11/terminal.png` | 1200×800 | `bd94c99a7c247182c845a7c120e63fb5a8c688c45142597296d0e5cebdec377b` |
-| `/tmp/tp-f7-native-x11/chart.png`    | 1200×800 | `46139edac6e4baa2e660938b6cfe8572797a8e5a06df63c4761f3b7fbf84ed5f` |
+| `/tmp/tp-f7-native-x11/terminal.png` | 1200×800 | `4f679ef10af2072d3f7e1ccf62d88f5ba7ddfc535b6391cece1ab8ec262a32fb` |
+| `/tmp/tp-f7-native-x11/chart.png`    | 1200×800 | `8041ebf010c6fd3bd2c425897153c279ac3d3a2c04fffa1da9b9217ac54014b1` |
 
 The terminal capture shows the burst's newest rows (`line 011997`–`line 012000`)
 rendered by xterm with its scrollbar; the chart capture shows both series with
@@ -168,7 +200,11 @@ regions. No full-window visual-perfection claim is made.
    an admitted chart replacement also requested could leave the new window
    unrendered while the UI reported it admitted; `resize()` now re-drives the
    latest pending snapshot, and the browser suite replaces immediately after a
-   resize. (b) _Minor:_ `bounded()` in the chart rejection path materialised the
+   resize. (The later S2-R1 correction replaced that re-drive with one drain that
+   applies both the pending window and the measured size, because the reverse
+   request order still lost the resize; see the
+   [corrective record](s2-r1-chart-frame-coalescing.md).) (b) _Minor:_
+   `bounded()` in the chart rejection path materialised the
    whole oversized metadata string before truncating it; it now builds the
    prefix by iteration, with a rejection test using a 2,000,000-character label.
    The reviewer found no defect in terminal admission/eviction accounting,
@@ -179,10 +215,13 @@ regions. No full-window visual-perfection claim is made.
 
 ## Limits and unexecuted evidence
 
-- **Hosted CI was not executed.** The branch is local and has no pull request;
-  branch pushes do not start Foundation/Security runs. Packet acceptance is
-  pending owner-authorized push and PR, then the exact Foundation/Security run
-  results for this revision.
+- **Hosted CI was not executed for the S2-D execution itself.** At the time of
+  that execution the branch was local and had no pull request; branch pushes do
+  not start Foundation/Security runs. PR #4 was opened afterwards and its
+  Foundation/Security runs passed for the reviewed revision `114fbdb`, not for
+  the S2-D tree. The [review](s2-review-s3-readiness.md) records that state, and
+  the [S2-R1 corrective record](s2-r1-chart-frame-coalescing.md) records the
+  corrective revision, whose hosted run is still unexecuted.
 - No installed-package run (document 08/F9), no macOS/Windows WebView
   (document 10), no clean-VM package smoke and no measured performance budget.
 - The 5 s stall, duplicate/stale callback and disposal-mid-write paths are
