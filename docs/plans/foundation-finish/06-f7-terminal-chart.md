@@ -1,7 +1,14 @@
 # 06 — F7: bounded terminal and chart wrappers
 
-Status: **implemented and locally qualified on Linux; packet acceptance pending
-hosted CI**. Reviewed against `main` at `a7ada06` on 2026-10-25, after PR #3
+Status: **implemented; corrective review findings remain open, so F7 is not
+accepted and S3 is not ready on merge alone**. The [implementation
+review](../../verification/s2-review-s3-readiness.md) at `114fbdb` records S2-R1
+(chart resize coalescing/F7-05) and S2-R2 (final evidence attribution). PR #4's
+Foundation/Security runs passed for that revision. Fix and requalify the
+corrective candidate before closing this packet.
+
+The following is the historical implementation handoff, superseded by that
+review where it describes current acceptance or hosted status. Reviewed against `main` at `a7ada06` on 2026-10-25, after PR #3
 merged the accepted S1 corrections and normalized-model bounds fix. S2-A–D are
 complete on `docs/s2-flash-readiness`; the [F7 evidence
 record](../../verification/f7-terminal-chart.md) lists every F7-01–F7-08

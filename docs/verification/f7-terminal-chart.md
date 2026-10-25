@@ -5,12 +5,17 @@ mapped to C6.3 and FND-005. This record covers the implementation checkpoints
 S2-A–D on `docs/s2-flash-readiness`. It does **not** close C6, C7, milestone 1,
 the Q13 owner review or the M2 entry gate.
 
-**Disposition:** implementation and local Linux qualification are complete;
-packet acceptance is **pending hosted CI**. The branch was not pushed and has no
-pull request, because this session holds no push/PR authorization. Branch pushes
-do not start Foundation/Security runs, so no hosted result exists for this
-revision. Everything below is local Linux evidence except where explicitly
-labelled unexecuted.
+**Current disposition:** the [implementation review and S3 readiness
+assessment](s2-review-s3-readiness.md) found S2-R1 (chart resize coalescing/F7-05)
+and S2-R2 (stale test count and artifact hashes in this record). F7 is **not
+accepted**; fix/requalify R1 and reconcile R2 before S3. PR #4 Foundation/Security
+passed for `114fbdb`; hosted CI is no longer the only outstanding gate.
+
+The implementation-session evidence below is historical local Linux evidence,
+except where labelled unexecuted. Its no-PR/no-hosted-result statements describe
+that earlier session, not the current PR state. The review records the checked
+final artifact hashes separately; do not use the stale hashes below as final
+corrective-candidate evidence.
 
 ## Source revision
 

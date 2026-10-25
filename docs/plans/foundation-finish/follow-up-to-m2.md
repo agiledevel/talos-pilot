@@ -1,16 +1,19 @@
 # Foundation follow-up: stabilization through owner review and M2.0
 
 Date: 2026-10-25. Reviewed source: `889157f` on `ft-foundation-completion`.
-Status: **S2/F7 is implemented and locally qualified on Linux; packet acceptance
-is pending hosted CI.** S1's three P2 findings are corrected and accepted
+Status: **S2/F7 is implemented but not accepted: review findings S2-R1/S2-R2
+remain open.** PR #4 Foundation/Security passed at `114fbdb`; the [review and S3
+readiness assessment](../../verification/s2-review-s3-readiness.md) explains why
+merge alone does not unblock S3. S1's three P2 findings are corrected and accepted
 (S1-P2-1/2/3) and document 05 is done on Linux. The saved [S1 launch
 prompt](s1-launch-prompt.md) is now historical and must not be re-run. S0
 remains accepted under the [B11 owner
 exception](../../verification/s0-native-keyboard-acceptance.md); B11 is
 unresolved/not fixed. The [F7 evidence
 record](../../verification/f7-terminal-chart.md) holds every F7-01–F7-08
-outcome, bounds and limit; S3 and later steps are not started, and F7 is not
-accepted until an owner-authorized push/PR produces hosted results.
+outcome, bounds and limit, subject to the review's evidence corrections. S3 and
+later steps are not started; F7 needs corrective implementation and final
+qualification, not merely the now-completed hosted runs.
 Audience: an LLM starting with no conversation history.
 
 ## 1. Goal, authority, and stopping point
@@ -223,8 +226,13 @@ launch.**
 
 ### S2 — F7 synthetic terminal and chart feasibility
 
-**Implemented and locally qualified on Linux; acceptance pending hosted CI.**
-S2-A–D are complete on `docs/s2-flash-readiness` and [document
+**Implemented, but S2-R1/S2-R2 remain open; S3 is not ready on merge alone.**
+The [review](../../verification/s2-review-s3-readiness.md) supersedes the
+implementation handoff below for acceptance and hosted status. Fix the chart
+resize race, reconcile final-artifact attribution and requalify before closing
+F7. PR #4 Foundation/Security passed for `114fbdb`.
+
+Historical implementation handoff: S2-A–D were completed on `docs/s2-flash-readiness` and [document
 06](06-f7-terminal-chart.md) records the pins, admission/replay/chart contracts
 and checkpoint order; the [F7 evidence
 record](../../verification/f7-terminal-chart.md) records every F7-01–F7-08

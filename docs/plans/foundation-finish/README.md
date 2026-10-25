@@ -26,11 +26,17 @@ Two shared documents support them:
 - [ledger.md](ledger.md) is the progress record. **Every session must update it.** The rules are in its first section.
 - [fixture-runbook.md](fixture-runbook.md) is the procedure for provisioning, using, and destroying the disposable Talos fixture.
 
-**Current execution entry point (2026-10-25):** [follow-up-to-m2.md](follow-up-to-m2.md), whose step S1 is **done**: S1-P2-1/2/3 and document 05 are accepted on Linux, with the [S1 launch prompt](s1-launch-prompt.md) now historical. S0 is [accepted by owner exception after the real native keyboard pass](../../verification/s0-native-keyboard-acceptance.md), with B11 unresolved/not fixed and diagnostics retained. The plan next sequences [document 06](06-f7-terminal-chart.md) (S2/F7, ready but not started; use the [S2 launch prompt](s2-launch-prompt.md)), the remaining Linux packets, final technical evidence, the mandatory owner review, Linux close, and M2.0 only. It does not replace packet acceptance criteria or the ledger. Document 05 is closed on Linux but C6 stays in progress for terminal/chart wrappers, installed packages and deferred WebViews.
+**Current execution entry point (2026-10-25):** [follow-up-to-m2.md](follow-up-to-m2.md), whose step S1 is **done**: S1-P2-1/2/3 and document 05 are accepted on Linux, with the [S1 launch prompt](s1-launch-prompt.md) now historical. S0 is [accepted by owner exception after the real native keyboard pass](../../verification/s0-native-keyboard-acceptance.md), with B11 unresolved/not fixed and diagnostics retained. The plan next sequences the corrective follow-up to [document 06](06-f7-terminal-chart.md) (S2/F7 is implemented but [review findings S2-R1/S2-R2](../../verification/s2-review-s3-readiness.md) remain open; do not restart its launch or start S3), the remaining Linux packets, final technical evidence, the mandatory owner review, Linux close, and M2.0 only. It does not replace packet acceptance criteria or the ledger. Document 05 is closed on Linux but C6 stays in progress for terminal/chart wrappers, installed packages and deferred WebViews.
 
 The older [closeout-plan.md](closeout-plan.md) retains host setup, owner decisions and historical session detail; its starting snapshot and completed A/A1/A2/B instructions are not the next task. The saved [Session B launch prompt](session-b-prompt.md) is historical and must not be used to restart the editor implementation from scratch.
 
-**Branch/CI context for S2:** PR #3 merged into `main` at `a7ada06`, including
+**Current review/CI context:** [PR #4](https://github.com/agiledevel/talos-pilot/pull/4)
+is open at `114fbdb` and its Foundation/Security runs passed. F7 still needs the
+[review corrections and qualification](../../verification/s2-review-s3-readiness.md);
+merge alone does not make S3 ready. Document 07 step 6's PR #2 instructions are
+obsolete; discover the actual branch/PR and candidate runs before its launch.
+
+**Historical branch context for S2 preparation:** PR #3 merged into `main` at `a7ada06`, including
 the normalized editor-bounds correction. Old branch names, PR #2/#3 commands
 and push permissions below describe their original sessions, not authority to
 switch branches or push a new S2 branch. Inspect the actual owner-designated
