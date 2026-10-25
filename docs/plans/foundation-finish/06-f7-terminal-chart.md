@@ -1,16 +1,17 @@
 # 06 — F7: bounded terminal and chart wrappers
 
-Status: **implemented; S2-R1 is fixed and locally requalified, S2-R2 is
-reconciled, but the corrective revision has no hosted Foundation/Security result,
-so F7 is not accepted and S3 is not ready on merge alone**. The [implementation
+Status: **implemented; S2-R1 is fixed and requalified, S2-R2 is reconciled, and
+the corrective candidate's hosted Foundation/Security checks passed. Document 06
+is done on the development Linux WebView.** The [implementation
 review](../../verification/s2-review-s3-readiness.md) at `114fbdb` recorded S2-R1
 (chart resize coalescing/F7-05) and S2-R2 (final evidence attribution); the
 [S2-R1 corrective record](../../verification/s2-r1-chart-frame-coalescing.md)
 records the fix in `5e306a5`, the failing-before/passing-after browser
-regression and the rerun renderer, browser, native, trusted-input and ordered
-production gates. PR #4's Foundation/Security runs passed for `114fbdb`, not for
-that corrective revision. Read the hosted result for the corrective candidate,
-then the owner's merge revision, before closing this packet.
+regression, the rerun renderer, browser, native, trusted-input and ordered
+production gates, and the hosted runs for PR head `4fcc9d2`. PR #4's earlier runs
+covered `114fbdb` only. S3 waits for the owner's merge and that revision's `main`
+results; this packet does not close C6, C7, milestone 1, the Q13 owner review or
+the M2 entry gate.
 
 The following is the historical implementation handoff, superseded by that
 review where it describes current acceptance or hosted status. Reviewed against `main` at `a7ada06` on 2026-10-25, after PR #3

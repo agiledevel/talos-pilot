@@ -8,10 +8,12 @@ the Q13 owner review or the M2 entry gate.
 **Current disposition:** the [implementation review and S3 readiness
 assessment](s2-review-s3-readiness.md) found S2-R1 (chart resize coalescing/
 F7-05) and S2-R2 (stale test count and artifact hashes in this record). S2-R1 is
-fixed and locally requalified, and S2-R2 is reconciled here; both are recorded in
-[S2-R1 corrective evidence](s2-r1-chart-frame-coalescing.md). F7 is still **not
-accepted**: the corrective revision has no hosted Foundation/Security run yet,
-and PR #4's green runs cover `114fbdb` only.
+fixed and requalified, and S2-R2 is reconciled here; both are recorded in
+[S2-R1 corrective evidence](s2-r1-chart-frame-coalescing.md), whose hosted
+Foundation/Security checks also passed. **F7 is accepted on the development Linux
+WebView and document 06 is done on Linux.** S3 still waits for the owner's merge
+and a read of that revision's `main` results; PR #4's earlier green runs covered
+`114fbdb` only.
 
 The implementation-session evidence below is historical local Linux evidence of
 the S2-D execution, except where labelled unexecuted. Its no-PR/no-hosted-result
@@ -221,7 +223,7 @@ regions. No full-window visual-perfection claim is made.
   Foundation/Security runs passed for the reviewed revision `114fbdb`, not for
   the S2-D tree. The [review](s2-review-s3-readiness.md) records that state, and
   the [S2-R1 corrective record](s2-r1-chart-frame-coalescing.md) records the
-  corrective revision, whose hosted run is still unexecuted.
+  corrective revision together with its hosted Foundation/Security results.
 - No installed-package run (document 08/F9), no macOS/Windows WebView
   (document 10), no clean-VM package smoke and no measured performance budget.
 - The 5 s stall, duplicate/stale callback and disposal-mid-write paths are

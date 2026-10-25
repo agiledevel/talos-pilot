@@ -179,8 +179,16 @@ point-in-time assessment at `114fbdbb`.
 - **S2-R2 is reconciled:** [the F7 evidence record](f7-terminal-chart.md) now
   carries the 319-test count and the three digests of the execution it
   describes, with the superseded values identified as stale.
-- **Still open:** the corrective revision `5e306a5` has no hosted
-  Foundation/Security run; that needs owner-authorized push and completion.
-  Document 06 therefore stays in progress, S3 remains gated, and this session
-  did not merge, push or start S3. Document 07 step 6's obsolete PR #2 discovery
-  instructions were modernized as preparation, without starting that packet.
+- **Still open:** the owner's merge of PR
+  [#4](https://github.com/agiledevel/talos-pilot/pull/4) and a read of that
+  merged revision's `main` Foundation/Security results; the merge revision is not
+  assumed to equal the PR head. Hosted runs for the corrective candidate passed —
+  Foundation [40243673183](https://github.com/agiledevel/talos-pilot/actions/runs/40243673183)
+  and Security [40243673202](https://github.com/agiledevel/talos-pilot/actions/runs/40243673202)
+  at PR head `4fcc9d2`, with renderer, desktop and JavaScript/TypeScript freshly
+  executed and `actions`/`rust` reuse justified by the scope decision — so F7 is
+  accepted on the development Linux WebView and document 06 is done on Linux.
+  S3 remains gated on that merge and its results; this session did not merge or
+  push to `main`, and did not start S3. Document 07 step 6's obsolete PR #2
+  discovery instructions were modernized as preparation, without starting that
+  packet.

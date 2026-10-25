@@ -1,13 +1,12 @@
 # Foundation follow-up: stabilization through owner review and M2.0
 
 Date: 2026-10-25. Reviewed source: `889157f` on `ft-foundation-completion`.
-Status: **S2/F7 is implemented with S2-R1 fixed and locally requalified and
-S2-R2 reconciled; F7 is still not accepted because the corrective revision has no
-hosted Foundation/Security result.** PR #4 Foundation/Security passed at
-`114fbdb`; the [review and S3
+Status: **S2/F7 is accepted on the development Linux WebView and document 06 is
+done; S3 may start only after the owner merges PR #4 and a session reads that
+merged revision's `main` Foundation/Security results.** The [review and S3
 readiness assessment](../../verification/s2-review-s3-readiness.md) and the
 [S2-R1 corrective record](../../verification/s2-r1-chart-frame-coalescing.md)
-explain why merge alone does not unblock S3. S1's three P2 findings are corrected and accepted
+record the fix, the regression and the hosted candidate runs. S1's three P2 findings are corrected and accepted
 (S1-P2-1/2/3) and document 05 is done on Linux. The saved [S1 launch
 prompt](s1-launch-prompt.md) is now historical and must not be re-run. S0
 remains accepted under the [B11 owner
@@ -229,15 +228,15 @@ launch.**
 
 ### S2 — F7 synthetic terminal and chart feasibility
 
-**S2-R1 fixed and locally requalified; S2-R2 reconciled; still not accepted, and
-S3 is not ready on merge alone.** The [review](../../verification/s2-review-s3-readiness.md)
-supersedes the implementation handoff below for acceptance and hosted status,
-and the [S2-R1 corrective record](../../verification/s2-r1-chart-frame-coalescing.md)
-records the `5e306a5` fix, its failing-before/passing-after browser regression and
-the rerun renderer, browser, native, trusted-input and ordered production gates.
-The corrective revision has no hosted Foundation/Security result yet; PR #4's
-green runs cover `114fbdb` only. Close F7 only after that hosted result and the
-owner's merge revision are read.
+**S2/F7 accepted on Linux; document 06 done. S3 waits for the owner's merge and
+that revision's `main` results.** The [review](../../verification/s2-review-s3-readiness.md)
+supersedes the implementation handoff below for acceptance and hosted status;
+the [S2-R1 corrective record](../../verification/s2-r1-chart-frame-coalescing.md)
+records the `5e306a5` fix, its failing-before/passing-after browser regression,
+the rerun renderer, browser, native, trusted-input and ordered production gates,
+and the hosted Foundation/Security runs for PR head `4fcc9d2`. Do not assume the
+merge revision equals that head, and do not start S3 before reading the merged
+revision's results.
 
 Historical implementation handoff: S2-A–D were completed on `docs/s2-flash-readiness` and [document
 06](06-f7-terminal-chart.md) records the pins, admission/replay/chart contracts

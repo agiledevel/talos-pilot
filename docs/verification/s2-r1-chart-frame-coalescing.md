@@ -8,11 +8,11 @@ in [the F7 evidence record](f7-terminal-chart.md), which now carries the values
 of the execution it describes.
 
 **Disposition:** S2-R1 is fixed with a committed failing-before/passing-after
-regression, and the affected renderer, browser, native, trusted-input and ordered
-production gates were rerun on the corrective tree on Linux. F7 is **not** moved
-to accepted here: the corrective revision has no hosted Foundation/Security run
-yet (the branch push needs owner authorization), so document 06 stays in
-progress and S3 stays gated on that run and on the owner's merge.
+regression, the affected renderer, browser, native, trusted-input and ordered
+production gates were rerun on the corrective tree on Linux, and the corrective
+candidate's hosted Foundation/Security checks passed. F7 is therefore accepted on
+the development Linux WebView and document 06 is done on Linux; S3 still waits
+for the owner's merge and a read of that revision's `main` results.
 
 ## Defect and fix
 
@@ -96,6 +96,24 @@ window that contains a blinking cursor and pointer-dependent chrome. A capture
 digest identifies the artifact of the run that recorded it; adding it to a
 different run's record is what made S2-R2's attribution inconsistent.
 
+## Hosted evidence for the corrective candidate
+
+The corrective commits were pushed to the existing PR
+[#4](https://github.com/agiledevel/talos-pilot/pull/4) after owner authorization,
+with no merge, retarget, force-push or `main` push. PR head
+`4fcc9d2c9e1a14ee010bda143f0a14819a3fe15f` on base
+`a7ada06d6bdbca277a7eb0af7f32d61ccefa3aae` adds only documentation to the gated
+code tree `5e306a5`.
+
+| Workflow                                                                                     | Result                                       | Executed or reused                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Foundation [40243673183](https://github.com/agiledevel/talos-pilot/actions/runs/40243673183) | Passed, including `Foundation checks result` | Scope decided **RUN** for desktop and renderer with 2 affected paths since `114fbdb`. The renderer executed on synthetic merge `0bfb2f4`: `svelte-check` 0/0, **319 tests / 43 files**, coverage 67.54 % statements / 73.62 % branches, production build, and **31/31 browser flows** in 1.1 min. `desktop (ubuntu-22.04)`, `desktop (macos-15)` and `desktop (windows-2022)` all executed and passed |
+| Security [40243673202](https://github.com/agiledevel/talos-pilot/actions/runs/40243673202)   | Passed                                       | Scope decided **RUN** for `javascript-typescript` (the two affected paths) and gave explicit reasons for reusing `actions` and `rust` at `114fbdb`; Trivy's filesystem scan executed freshly in 24 s                                                                                                                                                                                                  |
+
+These are hosted candidate results, not native WebView, minimum-OS or
+installed-package qualification; the native, X11 and ordered production rows
+above remain this host's local evidence.
+
 ## S2-R2 reconciliation
 
 [The F7 evidence record](f7-terminal-chart.md) now states the test count and the
@@ -115,8 +133,11 @@ corrective revision's artifacts are recorded only here.
 - The native suite reruns the F7-05 appearance/resize/cleanup flow in WebKitGTK,
   but it does not control the native frame order, so it is corroboration rather
   than the ordering regression itself.
-- No hosted Foundation/Security result exists for `5e306a5`. Hosted desktop
-  builds are not native WebView, minimum-OS or installed-package qualification.
+- No hosted run exists for `5e306a5` itself; the recorded runs are for the
+  docs-only head `4fcc9d2` whose application source equals `5e306a5`, and CI
+  reused `actions`/`rust` analysis explicitly for unchanged inputs at `114fbdb`.
+  Hosted desktop builds are not native WebView, minimum-OS or installed-package
+  qualification.
 - No installed package, macOS/Windows WebView, clean-VM smoke, fixture, cluster
   or performance measurement was involved; the pinned dependency set is
   unchanged, so inventory/advisory-input regeneration was not repeated beyond
