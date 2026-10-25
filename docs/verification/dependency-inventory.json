@@ -7,8 +7,8 @@
     "rustc": "1.99.1",
     "go": "1.27.3",
     "lockfiles": {
-      "pnpmLock": "2b4a3b3f946300e6272df02595b21eb1cec6191e7fab1ff19b7f554e7c79e5bb",
-      "cargoLock": "3c936c54d89ff545ab05a9ab559920cc15671c4267da017d8665a4a838edc56f",
+      "pnpmLock": "4e0f33f12379d7ba8d37a5e2649981588177540cdfa538a6a6f485a43068e802",
+      "cargoLock": "9e3ae2f9e24b53dc17ec71a2076a635f5401f55310a95c8bc13d3974c97d1bea",
       "goSum": "ffb278d2583c3268a8ca81ca86449aa64e8e2f788deea074fbfee96032f7e00b"
     }
   },
@@ -3650,7 +3650,7 @@
     {
       "name": "serialize-javascript",
       "versions": [
-        "7.1.2"
+        "7.1.3"
       ],
       "license": "BSD-3-Clause",
       "hasNotice": false
@@ -4044,9 +4044,9 @@
     {
       "name": "undici",
       "versions": [
-        "6.29.0",
-        "7.30.0",
-        "8.11.2"
+        "6.29.1",
+        "7.30.1",
+        "8.12.2"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -4910,7 +4910,7 @@
     },
     {
       "name": "ctutils",
-      "version": "0.4.3",
+      "version": "0.4.4",
       "license": "Apache-2.0 OR MIT",
       "hasNotice": false
     },
@@ -7220,7 +7220,7 @@
     },
     {
       "name": "tokio",
-      "version": "1.53.2",
+      "version": "1.53.3",
       "license": "MIT",
       "hasNotice": false
     },

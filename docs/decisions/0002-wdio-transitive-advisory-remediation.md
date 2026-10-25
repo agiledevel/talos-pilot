@@ -22,13 +22,37 @@ remediations in `pnpm-workspace.yaml`:
 - `basic-ftp` 6.2.2 fixes GHSA-c475-qrg2-pj4r.
 - `chokidar` 4.0.3 removes the vulnerable `braces` 3.0.3 dependency from the
   watcher used by Mocha 10.8.2.
-- `serialize-javascript` 7.1.2 fixes the RCE and CPU exhaustion advisories
-  while retaining the CommonJS API Mocha uses.
+- `serialize-javascript` 7.1.3 fixes the RCE and CPU exhaustion advisories
+  while retaining the CommonJS API Mocha uses. The 7.1.2 pin initially fixed
+  those two; the 2026-10-25 refresh moved to the minimum release that also fixes
+  GHSA-m5mm-p8h7-m29v (see the amendment below).
 
 The installed WebdriverIO harness ran its two actual Tauri integration cases
 after these overrides, and `pnpm audit --audit-level=low` reported no known
 vulnerabilities. The override pins stay explicit in source and lockfile so a
 future compatibility change is reviewable.
+
+## Amendment 2026-10-25: second patch-level advisory refresh
+
+A fresh scan after the advisory database changed found nine npm findings and
+no application dependency involved: `undici` in the 6, 7, and 8 major lines
+(GHSA-xjj6-f33q-929c high, GHSA-4qv8-2p9j-2685 moderate, and
+GHSA-f72v-6w45-q472 moderate) plus `serialize-javascript`
+(GHSA-m5mm-p8h7-m29v low). Every parent declares a range the minimum patched
+release satisfies, so the change stays patch-level and keeps each major line:
+
+- `serialize-javascript` 7.1.2 to **7.1.3**, the minimum release that fixes the
+  remaining advisory; Mocha's CommonJS usage is unchanged.
+- `undici` **6.29.1** for the `webdriver` 9.31.9 path, **7.30.1** for
+  `cheerio` 1.2.0 through WebdriverIO, and **8.12.2** for `jsdom` 30.1.2 through
+  the Vitest/testing-library tree. The three pins are keyed by major in
+  `pnpm-workspace.yaml` so none of the parents is forced onto another line.
+
+All four paths remain development/test-only: the native harness and renderer
+tests use the embedded provider, not external browser downloads, so no shipped
+artifact links these packages. The pins stay explicit in source and lockfile,
+and the recorded consequences still apply: rerun the native harness and the
+audit after changing them. No advisory exception was added or renewed.
 
 ## Alternatives considered
 
@@ -51,3 +75,7 @@ Retest the native harness and audit after changing any of the pins.
 - [GHSA-7pqw-9j4j-h8q3](https://github.com/advisories/GHSA-7pqw-9j4j-h8q3)
 - [GHSA-c475-qrg2-pj4r](https://github.com/advisories/GHSA-c475-qrg2-pj4r)
 - [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)
+- [GHSA-xjj6-f33q-929c](https://github.com/advisories/GHSA-xjj6-f33q-929c)
+- [GHSA-4qv8-2p9j-2685](https://github.com/advisories/GHSA-4qv8-2p9j-2685)
+- [GHSA-f72v-6w45-q472](https://github.com/advisories/GHSA-f72v-6w45-q472)
+- [GHSA-m5mm-p8h7-m29v](https://github.com/advisories/GHSA-m5mm-p8h7-m29v)

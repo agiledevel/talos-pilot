@@ -50,7 +50,7 @@ tauri-plugin-wdio = { version = "=1.5.0", optional = true }
 tauri-plugin-wdio-webdriver = { version = "=1.5.0", optional = true }
 thiserror = "=2.0.21"
 tower = { version = "=0.5.3", default-features = false }
-tokio = { version = "=1.53.2", features = [
+tokio = { version = "=1.53.3", features = [
   "io-util",
   "macros",
   "net",
