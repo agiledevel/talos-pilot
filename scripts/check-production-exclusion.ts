@@ -154,6 +154,27 @@ function assertAssetsExcludeTestCode(): void {
   }
 }
 
+/**
+ * Requires the production shell document to stay a lazy-loading boundary.
+ *
+ * A `modulepreload` link means a dynamic import became a static dependency of
+ * the entry chunk, so the browser would download that chunk before first use.
+ * The removed Monaco `manualChunks` rule did this to the 2.7 MB editor chunk
+ * (F6-B12). A future static shared chunk needs a deliberate decision here
+ * rather than a silent eager download.
+ */
+function assertShellStaysLazy(): void {
+  const html = readFileSync(resolve(root, "dist", "index.html"), "utf8");
+  if (/<link[^>]+rel=["']modulepreload["']/iu.test(html)) {
+    throw new Error(
+      "The production shell preloads a static chunk; a lazy chunk became an entry dependency.",
+    );
+  }
+  if (html.includes("YamlEditorSurface")) {
+    throw new Error("The production shell document references the lazy editor entry.");
+  }
+}
+
 function assertExecutableExcludesTestCode(): void {
   const content = readFileSync(application).toString("latin1");
   if (forbiddenMarkers.some((marker) => content.includes(marker))) {
@@ -307,6 +328,7 @@ function waitForExit(
 assertProductionConfig();
 assertDefaultCargoGraph();
 assertAssetsExcludeTestCode();
+assertShellStaysLazy();
 assertExecutableExcludesTestCode();
 await assertNoDriverListener(await availablePort());
 process.stdout.write(

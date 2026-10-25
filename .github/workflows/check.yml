@@ -104,8 +104,34 @@ jobs:
           key: playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
       - if: needs.scope.outputs.renderer == 'true'
         run: pnpm exec playwright install chromium --only-shell
-      - if: needs.scope.outputs.renderer == 'true'
-        run: pnpm test:e2e
+      # Vite's dependency optimizer, dependency debug log and HMR watcher are the
+      # suspected source of the unexplained document reloads, so keep their
+      # output with the run. The job log shows it live; the uploaded copy below
+      # is bounded and only the browser/test-results evidence is retained.
+      - name: Run browser flows with dependency and watcher evidence
+        if: needs.scope.outputs.renderer == 'true'
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          mkdir -p test-results
+          DEBUG=vite:deps,vite:optimize-deps,vite:hmr pnpm test:e2e 2>&1 |
+            tee "$RUNNER_TEMP/browser-flows.log"
+          status=${PIPESTATUS[0]}
+          head -c 2097152 "$RUNNER_TEMP/browser-flows.log" > test-results/vite-evidence.log
+          exit "$status"
+      # Failure artifacts: Playwright keeps traces on failure, and the browser
+      # harness attaches bounded lifecycle (navigation/page error) and
+      # keyboard/focus evidence. Upload them so a hosted failure can be triaged
+      # without a reproduction run; keep the retention window short.
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: browser-failure-evidence
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
   desktop:
     needs: scope

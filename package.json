@@ -31,6 +31,7 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "test:e2e:preview": "playwright test --config=playwright.preview.config.ts",
     "check": "pnpm format:check && pnpm lint && pnpm lint:svelte && pnpm test:run && pnpm build",
     "check:ci": "pnpm format:check && pnpm lint && pnpm lint:svelte && pnpm test:coverage && pnpm build",
     "icons:generate": "node scripts/icons.ts --write",

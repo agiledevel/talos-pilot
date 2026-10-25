@@ -12,20 +12,12 @@ export default defineConfig({
   // loading behind the existing lazy editor boundary. This is dev-only.
   optimizeDeps: { include: ["monaco-editor/editor/editor.worker"] },
   server: { host: "127.0.0.1", port: 1420, strictPort: true },
+  // No `manualChunks` rule: forcing Monaco into a named chunk also captured the
+  // Vite preload helper, which the entry imports, so the built document
+  // preloaded the whole 2.7 MB editor before first use (F6-B12). Vite's default
+  // dynamic-import chunking keeps that boundary, and `pnpm production:check`
+  // fails if the shell document preloads or names a lazy chunk again.
   build: {
     target: ["es2022", "chrome111", "safari16.4"],
-    rollupOptions: {
-      output: {
-        // Keep the lazy editor's third-party code in a named chunk so the
-        // initial shell cannot accidentally absorb it and tests can observe
-        // first-use loading by URL.
-        manualChunks(id) {
-          if (id.includes("node_modules/monaco-editor")) {
-            return "editor-monaco";
-          }
-          return undefined;
-        },
-      },
-    },
   },
 });
