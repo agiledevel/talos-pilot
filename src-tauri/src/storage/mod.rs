@@ -15,6 +15,10 @@ pub use database::{Database, ProfileMetadata, StorageError};
 pub(crate) use encryption::{EncryptedEnvelope, decrypt, encrypt};
 pub use encryption::{EncryptionError, EncryptionKey};
 pub use kubeconfig::{KubeconfigError, KubeconfigMetadata, validate_kubeconfig};
-pub use runtime::{CredentialStorageMode, StorageRuntime};
+pub(crate) use kubeconfig::{KubeconfigIdentity, select_kubeconfig};
+pub use runtime::{
+    CredentialStorageMode, ResolvedCredential, StorageRuntime, StoredCredential,
+    StoredCredentialSummary,
+};
 pub use session::{SessionOnlyStore, SessionStoreError};
 pub use vault::{MasterKeyVault, PlatformVault, VaultError};

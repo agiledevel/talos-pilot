@@ -22,6 +22,13 @@ export interface AdvisoryExpectation {
   readonly forbiddenSymbols: readonly string[];
   /** Requires every reverse dependency to be a compile-time proc-macro crate. */
   readonly procMacroOnly: boolean;
+  /**
+   * Requires the crate to stay out of the resolved dependency graph for every
+   * declared target. Cargo locks inactive optional dependencies, so a crate in
+   * this position is never compiled or linked, and `cargo tree -i` prints no
+   * reverse path.
+   */
+  readonly absentFromResolvedGraph: boolean;
   readonly rationale: string;
 }
 
@@ -29,7 +36,8 @@ export interface AdvisoryExpectation {
  * Accepted foundation advisories with no compatible remediation. Any change to
  * this set is a deliberate contract revision, so an unlisted finding, a drifted
  * version, or a resolved entry all fail the gate. See
- * `docs/decisions/0006-gtk3-advisory-applicability.md`.
+ * `docs/decisions/0006-gtk3-advisory-applicability.md` and
+ * `docs/decisions/0017-keyring-zbus-advisory-applicability.md`.
  */
 export const FOUNDATION_ADVISORIES: readonly AdvisoryExpectation[] = [
   {
@@ -39,6 +47,7 @@ export const FOUNDATION_ADVISORIES: readonly AdvisoryExpectation[] = [
     kind: "unmaintained",
     forbiddenSymbols: ["proc_macro_error"],
     procMacroOnly: true,
+    absentFromResolvedGraph: false,
     rationale:
       "Compile-time-only dependency of glib-macros, pinned by Tauri's GTK3 stack; no patched release exists.",
   },
@@ -49,8 +58,42 @@ export const FOUNDATION_ADVISORIES: readonly AdvisoryExpectation[] = [
     kind: "unsound",
     forbiddenSymbols: ["VariantStrIter"],
     procMacroOnly: false,
+    absentFromResolvedGraph: false,
     rationale:
       "Affected only in glib::VariantStrIter iterator methods, which are not linked into the executable; the patched 0.20 line is incompatible with the gtk 0.18 bindings Tauri 2.12.1 requires.",
+  },
+  {
+    id: "RUSTSEC-2026-0370",
+    crate: "zvariant",
+    version: "4.2.0",
+    kind: "unmaintained",
+    forbiddenSymbols: [],
+    procMacroOnly: false,
+    absentFromResolvedGraph: true,
+    rationale:
+      "Locked only through keyring 3.6.3's unused async secret-service backend; the Linux build enables the synchronous dbus backend, so it is absent from the resolved graph on every declared target.",
+  },
+  {
+    id: "RUSTSEC-2026-0371",
+    crate: "zbus_names",
+    version: "3.0.0",
+    kind: "unmaintained",
+    forbiddenSymbols: [],
+    procMacroOnly: false,
+    absentFromResolvedGraph: true,
+    rationale:
+      "Locked only through keyring 3.6.3's unused async secret-service backend; it is absent from the resolved graph on every declared target, so no code is compiled or linked.",
+  },
+  {
+    id: "RUSTSEC-2026-0372",
+    crate: "zvariant_derive",
+    version: "4.2.0",
+    kind: "unmaintained",
+    forbiddenSymbols: [],
+    procMacroOnly: false,
+    absentFromResolvedGraph: true,
+    rationale:
+      "Locked only through keyring 3.6.3's unused async secret-service backend; it is absent from the resolved graph on every declared target, so no code is compiled or linked.",
   },
 ];
 
@@ -156,6 +199,28 @@ export function reviewProcMacroDependents(
   return dependents
     .filter((line) => !line.includes("(proc-macro)"))
     .map((line) => `${expectation.id} reaches runtime code through ${line}`);
+}
+
+/**
+ * Requires a recorded crate to stay out of the resolved dependency graph.
+ *
+ * Cargo locks inactive optional dependencies, so a crate can be present in
+ * `Cargo.lock` while no declared target compiles it. `cargo tree -i` then
+ * prints no reverse path; any printed path means the crate became reachable.
+ */
+export function reviewAbsentFromResolvedGraph(
+  reverseTreeOutput: string,
+  expectation: AdvisoryExpectation,
+): readonly string[] {
+  if (!expectation.absentFromResolvedGraph) {
+    return [];
+  }
+  const path = reverseTreeOutput.trim();
+  if (path.length === 0) {
+    return [];
+  }
+  const firstLine = path.split("\n")[0] ?? path;
+  return [`${expectation.id} arrives from the resolved dependency graph through ${firstLine}`];
 }
 
 /** Requires the advisory's affected symbols to stay absent from the binary. */

@@ -3,6 +3,7 @@ import type { AdvisoryExpectation } from "./advisories";
 import {
   FOUNDATION_ADVISORIES,
   parseAuditReport,
+  reviewAbsentFromResolvedGraph,
   reviewAdvisoryBaseline,
   reviewBinarySymbols,
   reviewProcMacroDependents,
@@ -18,10 +19,26 @@ const procMacroError = {
   package: { name: "proc-macro-error", version: "1.0.4" },
   advisory: { id: "RUSTSEC-2024-0370", title: "proc-macro-error is unmaintained" },
 };
+const zvariant = {
+  kind: "unmaintained",
+  package: { name: "zvariant", version: "4.2.0" },
+  advisory: { id: "RUSTSEC-2026-0370", title: "zvariant is unmaintained" },
+};
+const zbusNames = {
+  kind: "unmaintained",
+  package: { name: "zbus_names", version: "3.0.0" },
+  advisory: { id: "RUSTSEC-2026-0371", title: "zbus_names is unmaintained" },
+};
+const zvariantDerive = {
+  kind: "unmaintained",
+  package: { name: "zvariant_derive", version: "4.2.0" },
+  advisory: { id: "RUSTSEC-2026-0372", title: "zvariant_derive is unmaintained" },
+};
+const recordedWarnings = [procMacroError, zbusNames, zvariant, zvariantDerive];
 
 const recordedReport = {
   vulnerabilities: { found: false, count: 0, list: [] },
-  warnings: { unsound: [glib], unmaintained: [procMacroError] },
+  warnings: { unsound: [glib], unmaintained: recordedWarnings },
 };
 
 describe("advisory baseline review", () => {
@@ -32,6 +49,14 @@ describe("advisory baseline review", () => {
         id: "RUSTSEC-2024-0370",
         crate: "proc-macro-error",
         version: "1.0.4",
+        kind: "unmaintained",
+      },
+      { id: "RUSTSEC-2026-0371", crate: "zbus_names", version: "3.0.0", kind: "unmaintained" },
+      { id: "RUSTSEC-2026-0370", crate: "zvariant", version: "4.2.0", kind: "unmaintained" },
+      {
+        id: "RUSTSEC-2026-0372",
+        crate: "zvariant_derive",
+        version: "4.2.0",
         kind: "unmaintained",
       },
     ]);
@@ -74,6 +99,9 @@ describe("advisory baseline review", () => {
       ]),
     ).toEqual([
       "Recorded advisory RUSTSEC-2024-0370 (proc-macro-error 1.0.4) is no longer reported; revise the record deliberately.",
+      "Recorded advisory RUSTSEC-2026-0370 (zvariant 4.2.0) is no longer reported; revise the record deliberately.",
+      "Recorded advisory RUSTSEC-2026-0371 (zbus_names 3.0.0) is no longer reported; revise the record deliberately.",
+      "Recorded advisory RUSTSEC-2026-0372 (zvariant_derive 4.2.0) is no longer reported; revise the record deliberately.",
     ]);
   });
 
@@ -92,7 +120,7 @@ describe("advisory baseline review", () => {
           },
         ],
       },
-      warnings: { unsound: [glib], unmaintained: [procMacroError] },
+      warnings: { unsound: [glib], unmaintained: recordedWarnings },
     };
     expect(reviewAdvisoryBaseline(parseAuditReport(report))).toEqual([
       "Unrecorded advisory RUSTSEC-2099-0001 in openssl 0.10.0 (info).",
@@ -110,7 +138,7 @@ describe("advisory baseline review", () => {
             advisory: { id: "RUSTSEC-2024-0429" },
           },
         ],
-        unmaintained: [procMacroError],
+        unmaintained: recordedWarnings,
       },
     };
     expect(reviewAdvisoryBaseline(parseAuditReport(report))).toEqual([
@@ -129,6 +157,23 @@ describe("advisory baseline review", () => {
       "RUSTSEC-2024-0429 affected symbol VariantStrIter is linked into the executable; the recorded applicability decision no longer holds.",
       "RUSTSEC-2024-0370 affected symbol proc_macro_error is linked into the executable; the recorded applicability decision no longer holds.",
     ]);
+  });
+
+  it("requires an absent advisory crate to stay out of the resolved graph", () => {
+    const expectation = expectationFor("RUSTSEC-2026-0370");
+    expect(reviewAbsentFromResolvedGraph("", expectation)).toEqual([]);
+    expect(reviewAbsentFromResolvedGraph("  \n", expectation)).toEqual([]);
+    expect(
+      reviewAbsentFromResolvedGraph(
+        "zvariant v4.2.0\n└── secret-service v4.0.0\n    └── keyring v3.6.3",
+        expectation,
+      ),
+    ).toEqual([
+      "RUSTSEC-2026-0370 arrives from the resolved dependency graph through zvariant v4.2.0",
+    ]);
+    expect(
+      reviewAbsentFromResolvedGraph("glib v0.18.5", expectationFor("RUSTSEC-2024-0429")),
+    ).toEqual([]);
   });
 
   it("accepts a proc-macro-only path and rejects a runtime path", () => {

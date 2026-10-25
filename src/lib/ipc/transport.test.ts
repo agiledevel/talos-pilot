@@ -25,6 +25,7 @@ import {
   IpcApplicationError,
   IpcTransportError,
   IpcTransportUnavailableError,
+  closeKubernetesSession,
   closeTalosSession,
   createNativeIpcTransport,
   getAppearanceSettings,
@@ -32,8 +33,15 @@ import {
   getHelperStatus,
   importKubeconfig,
   importTalosconfig,
+  listKubernetesCredentials,
+  listKubernetesPods,
+  openKubernetesPodWatch,
+  openKubernetesSession,
+  readKubernetesVersion,
   setAppearanceSettings,
   startTalosProbe,
+  stopKubernetesPodWatch,
+  streamKubernetesPodWatch,
   stopTalosProbe,
   useSessionOnlyStorage,
 } from "./transport";
@@ -44,16 +52,25 @@ import {
   parseCredentialImportResultDto,
   parseCredentialStorageStatusDto,
   parseHelperStatusDto,
+  parseKubernetesCredentialList,
+  parseKubernetesPodWatchEventDto,
+  parseKubernetesSessionDto,
+  parseKubernetesVersionDto,
   parseTalosCredentialSessionDto,
   parseTalosProbeEventDto,
 } from "./validation";
+
+/** A well-formed opaque handle: `kubecred-` plus a 16-byte base64url reference. */
+const VALID_HANDLE = "kubecred-AAAAAAAAAAAAAAAAAAAAAA";
+/** A second well-formed handle, used where two entries must differ. */
+const OTHER_HANDLE = "kubecred-BBBBBBBBBBBBBBBBBBBBBB";
+const VALID_SESSION_ID = "kube-session-7";
 
 describe("runtime-validated IPC transport", () => {
   beforeEach(() => {
     tauriApi.invoke.mockReset();
     tauriApi.isTauri.mockReset();
   });
-
   it("accepts the named browser mock only when explicitly injected", async () => {
     const status = await getHelperStatus(createBrowserMockTransport());
     expect(status).toEqual({
@@ -62,6 +79,109 @@ describe("runtime-validated IPC transport", () => {
       protocol_major: 1,
       capabilities: ["status"],
     });
+  });
+
+  it("accepts a Pod list only from the explicitly injected browser mock", async () => {
+    const pods = await listKubernetesPods(
+      createBrowserMockTransport({
+        kind: "resolve",
+        value: {
+          session_id: VALID_SESSION_ID,
+          namespace: "workloads",
+          resource_version: "opaque-rv",
+          complete: false,
+          items: [
+            {
+              name: "web-0",
+              namespace: "workloads",
+              uid: "uid-web-0",
+              resource_version: "opaque-rv",
+              phase: "Pending",
+              readiness: "unknown",
+            },
+          ],
+        },
+      }),
+      VALID_SESSION_ID,
+      "workloads",
+    );
+    expect(pods.complete).toBe(false);
+    expect(pods.items[0]?.readiness).toBe("unknown");
+  });
+
+  it("validates watch identity and acknowledges ordered events after application", async () => {
+    const event = {
+      session_id: VALID_SESSION_ID,
+      subscription_id: "kube-watch-7",
+      generation: "1",
+      sequence: "1",
+      change: "snapshot_begin",
+      items: [],
+      pod: null,
+      uid: null,
+      name: null,
+    };
+    const received: unknown[] = [];
+    const invoke = vi.fn<IpcTransport["invoke"]>(async (command) => {
+      if (command === "open_kubernetes_pod_watch") {
+        return { session_id: VALID_SESSION_ID, subscription_id: "kube-watch-7" };
+      }
+      return true;
+    });
+    const transport: IpcTransport = {
+      invoke,
+      invokeChannel: async (_command, _args, onMessage) => {
+        onMessage(event);
+        return "stopped";
+      },
+    };
+    await expect(openKubernetesPodWatch(transport, VALID_SESSION_ID, "workloads")).resolves.toEqual(
+      { session_id: VALID_SESSION_ID, subscription_id: "kube-watch-7" },
+    );
+    await expect(
+      streamKubernetesPodWatch(transport, VALID_SESSION_ID, "kube-watch-7", (message) => {
+        received.push(message.change);
+      }),
+    ).resolves.toBe("stopped");
+    expect(received).toEqual(["snapshot_begin"]);
+    expect(invoke).toHaveBeenCalledWith(
+      "acknowledge_kubernetes_pod_watch",
+      expect.objectContaining({ subscriptionId: "kube-watch-7", sequence: "1" }),
+    );
+    await expect(stopKubernetesPodWatch(transport, VALID_SESSION_ID, "kube-watch-7")).resolves.toBe(
+      true,
+    );
+  });
+
+  it("rejects malformed watch identities, sequences, changes, and batch sizes", () => {
+    const event = {
+      session_id: VALID_SESSION_ID,
+      subscription_id: "kube-watch-7",
+      generation: "1",
+      sequence: "1",
+      change: "snapshot_begin",
+      items: [],
+      pod: null,
+      uid: null,
+      name: null,
+    };
+    expect(parseKubernetesPodWatchEventDto(event).sequence).toBe("1");
+    expect(() => parseKubernetesPodWatchEventDto({ ...event, sequence: "01" })).toThrow(
+      IpcContractError,
+    );
+    expect(() =>
+      parseKubernetesPodWatchEventDto({ ...event, generation: "18446744073709551616" }),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseKubernetesPodWatchEventDto({ ...event, change: "snapshot_batch", items: [] }),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseKubernetesPodWatchEventDto({
+        ...event,
+        change: "snapshot_batch",
+        items: Array.from({ length: 201 }, () => ({ invalid: true })),
+      }),
+    ).toThrow(IpcContractError);
   });
 
   it("rejects missing fields, unknown variants, and inconsistent readiness", () => {
@@ -96,14 +216,24 @@ describe("runtime-validated IPC transport", () => {
       mode: "persistent_with_session_only",
     });
     expect(
-      parseCredentialImportResultDto({ context_name: "synthetic", storage_mode: "session_only" }),
-    ).toEqual({ context_name: "synthetic", storage_mode: "session_only" });
+      parseCredentialImportResultDto({
+        credential_handle: VALID_HANDLE,
+        context_name: "synthetic",
+        storage_mode: "session_only",
+      }),
+    ).toEqual({
+      credential_handle: VALID_HANDLE,
+      context_name: "synthetic",
+      storage_mode: "session_only",
+    });
     expect(
       parseCredentialImportResultDto({
+        credential_handle: VALID_HANDLE,
         context_name: "synthetic",
         storage_mode: "persistent_with_session_only",
       }),
     ).toEqual({
+      credential_handle: VALID_HANDLE,
       context_name: "synthetic",
       storage_mode: "persistent_with_session_only",
     });
@@ -115,6 +245,7 @@ describe("runtime-validated IPC transport", () => {
     );
     expect(() =>
       parseCredentialImportResultDto({
+        credential_handle: VALID_HANDLE,
         context_name: "x".repeat(129),
         storage_mode: "persistent",
         secret: "must-not-be-returned",
@@ -122,14 +253,28 @@ describe("runtime-validated IPC transport", () => {
     ).toThrow(IpcContractError);
     expect(() =>
       parseCredentialImportResultDto({
+        credential_handle: VALID_HANDLE,
         context_name: "synthetic\nspoofed",
         storage_mode: "persistent",
       }),
     ).toThrow(IpcContractError);
     expect(() =>
       parseCredentialImportResultDto({
+        credential_handle: VALID_HANDLE,
         context_name: "synthetic",
         storage_mode: "vault_unavailable",
+      }),
+    ).toThrow(IpcContractError);
+    // A result without the opaque handle, or with a handle of the wrong shape,
+    // is a contract violation: the renderer must not invent one.
+    expect(() =>
+      parseCredentialImportResultDto({ context_name: "synthetic", storage_mode: "persistent" }),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseCredentialImportResultDto({
+        credential_handle: "synthetic-token",
+        context_name: "synthetic",
+        storage_mode: "persistent",
       }),
     ).toThrow(IpcContractError);
   });
@@ -237,7 +382,11 @@ describe("runtime-validated IPC transport", () => {
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ mode: "vault_unavailable" })
       .mockResolvedValueOnce({ mode: "session_only" })
-      .mockResolvedValueOnce({ context_name: "synthetic", storage_mode: "session_only" });
+      .mockResolvedValueOnce({
+        credential_handle: VALID_HANDLE,
+        context_name: "synthetic",
+        storage_mode: "session_only",
+      });
     const transport = createNativeIpcTransport();
 
     await expect(getAppearanceSettings(transport)).resolves.toEqual({
@@ -250,12 +399,234 @@ describe("runtime-validated IPC transport", () => {
     });
     await expect(useSessionOnlyStorage(transport)).resolves.toEqual({ mode: "session_only" });
     await expect(importKubeconfig(transport)).resolves.toEqual({
+      credential_handle: VALID_HANDLE,
       context_name: "synthetic",
       storage_mode: "session_only",
     });
     expect(tauriApi.invoke).toHaveBeenNthCalledWith(2, "set_appearance_settings", {
       settings: { theme: "dark", density: "comfortable" },
     });
+  });
+
+  it("validates the Kubernetes credential listing, session, and version projections", () => {
+    expect(
+      parseKubernetesCredentialList([
+        {
+          credential_handle: VALID_HANDLE,
+          context_label: "synthetic",
+          storage_mode: "persistent",
+        },
+        {
+          credential_handle: OTHER_HANDLE,
+          context_label: "synthetic-session",
+          storage_mode: "session_only",
+        },
+      ]),
+    ).toEqual([
+      { credential_handle: VALID_HANDLE, context_label: "synthetic", storage_mode: "persistent" },
+      {
+        credential_handle: OTHER_HANDLE,
+        context_label: "synthetic-session",
+        storage_mode: "session_only",
+      },
+    ]);
+    expect(parseKubernetesCredentialList([])).toEqual([]);
+
+    expect(
+      parseKubernetesSessionDto({
+        session_id: VALID_SESSION_ID,
+        context_label: "synthetic",
+        storage_mode: "persistent",
+      }),
+    ).toEqual({
+      session_id: VALID_SESSION_ID,
+      context_label: "synthetic",
+      storage_mode: "persistent",
+    });
+    expect(
+      parseKubernetesVersionDto({
+        session_id: VALID_SESSION_ID,
+        version: "v1.36.5",
+        major: "1",
+        minor: "36",
+      }),
+    ).toEqual({
+      session_id: VALID_SESSION_ID,
+      version: "v1.36.5",
+      major: "1",
+      minor: "36",
+    });
+
+    // A duplicate handle, a runtime-wide mode on one credential, a raw handle
+    // that is not opaque, and a credential field smuggled into a version read
+    // are all contract violations.
+    expect(() =>
+      parseKubernetesCredentialList([
+        { credential_handle: VALID_HANDLE, context_label: "a", storage_mode: "persistent" },
+        { credential_handle: VALID_HANDLE, context_label: "b", storage_mode: "persistent" },
+      ]),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseKubernetesCredentialList([
+        {
+          credential_handle: VALID_HANDLE,
+          context_label: "a",
+          storage_mode: "persistent_with_session_only",
+        },
+      ]),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseKubernetesCredentialList([
+        { credential_handle: "synthetic-token", context_label: "a", storage_mode: "persistent" },
+      ]),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseKubernetesSessionDto({
+        session_id: "session-1",
+        context_label: "synthetic",
+        storage_mode: "persistent",
+      }),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseKubernetesVersionDto({
+        session_id: VALID_SESSION_ID,
+        version: "v1.36.5\nkubeconfig: synthetic",
+        major: "1",
+        minor: "36",
+      }),
+    ).toThrow(IpcContractError);
+    expect(() =>
+      parseKubernetesVersionDto({
+        session_id: VALID_SESSION_ID,
+        version: "v1.36.5",
+        major: "1",
+        minor: "x".repeat(65),
+      }),
+    ).toThrow(IpcContractError);
+  });
+
+  it("invokes the Kubernetes session commands with validated responses", async () => {
+    tauriApi.isTauri.mockReturnValue(true);
+    tauriApi.invoke
+      .mockResolvedValueOnce([
+        {
+          credential_handle: VALID_HANDLE,
+          context_label: "synthetic",
+          storage_mode: "session_only",
+        },
+      ])
+      .mockResolvedValueOnce({
+        session_id: VALID_SESSION_ID,
+        context_label: "synthetic",
+        storage_mode: "session_only",
+      })
+      .mockResolvedValueOnce({
+        session_id: VALID_SESSION_ID,
+        version: "v1.36.5",
+        major: "1",
+        minor: "36",
+      })
+      .mockResolvedValueOnce({
+        session_id: VALID_SESSION_ID,
+        namespace: "workloads",
+        resource_version: "42",
+        complete: true,
+        items: [
+          {
+            name: "web-0",
+            namespace: "workloads",
+            uid: "uid-web-0",
+            resource_version: "42",
+            phase: "Running",
+            readiness: "ready",
+            spec: { containers: [{ env: [{ value: "must-not-be-retained" }] }] },
+          },
+        ],
+      })
+      .mockResolvedValueOnce(true);
+    const transport = createNativeIpcTransport();
+
+    await expect(listKubernetesCredentials(transport)).resolves.toEqual([
+      {
+        credential_handle: VALID_HANDLE,
+        context_label: "synthetic",
+        storage_mode: "session_only",
+      },
+    ]);
+    await expect(openKubernetesSession(transport, VALID_HANDLE)).resolves.toEqual({
+      session_id: VALID_SESSION_ID,
+      context_label: "synthetic",
+      storage_mode: "session_only",
+    });
+    await expect(readKubernetesVersion(transport, VALID_SESSION_ID)).resolves.toEqual({
+      session_id: VALID_SESSION_ID,
+      version: "v1.36.5",
+      major: "1",
+      minor: "36",
+    });
+    await expect(listKubernetesPods(transport, VALID_SESSION_ID, "workloads")).resolves.toEqual({
+      session_id: VALID_SESSION_ID,
+      namespace: "workloads",
+      resource_version: "42",
+      complete: true,
+      items: [
+        {
+          name: "web-0",
+          namespace: "workloads",
+          uid: "uid-web-0",
+          resource_version: "42",
+          phase: "Running",
+          readiness: "ready",
+        },
+      ],
+    });
+    await expect(closeKubernetesSession(transport, VALID_SESSION_ID)).resolves.toBe(true);
+
+    expect(tauriApi.invoke).toHaveBeenNthCalledWith(1, "list_kubernetes_credentials");
+    expect(tauriApi.invoke).toHaveBeenNthCalledWith(2, "open_kubernetes_session", {
+      credentialHandle: VALID_HANDLE,
+    });
+    expect(tauriApi.invoke).toHaveBeenNthCalledWith(3, "read_kubernetes_version", {
+      sessionId: VALID_SESSION_ID,
+    });
+    expect(tauriApi.invoke).toHaveBeenNthCalledWith(4, "list_kubernetes_pods", {
+      sessionId: VALID_SESSION_ID,
+      namespace: "workloads",
+      labelSelector: null,
+      fieldSelector: null,
+    });
+    expect(tauriApi.invoke).toHaveBeenNthCalledWith(5, "close_kubernetes_session", {
+      sessionId: VALID_SESSION_ID,
+    });
+  });
+
+  it("rejects Pod summaries that cross namespace, size, or readiness bounds", async () => {
+    const item = {
+      name: "web-0",
+      namespace: "other",
+      uid: "uid-web-0",
+      resource_version: "42",
+      phase: "Running",
+      readiness: "ready",
+    };
+    const response = {
+      session_id: VALID_SESSION_ID,
+      namespace: "workloads",
+      resource_version: "42",
+      complete: false,
+      items: [item],
+    };
+    const transport: IpcTransport = {
+      invoke: async () => response,
+    };
+    await expect(listKubernetesPods(transport, VALID_SESSION_ID, "workloads")).rejects.toThrow(
+      IpcContractError,
+    );
+    item.namespace = "workloads";
+    item.readiness = "future-state";
+    await expect(listKubernetesPods(transport, VALID_SESSION_ID, "workloads")).rejects.toThrow(
+      IpcContractError,
+    );
   });
 
   it("rejects missing and oversized application error fields", () => {

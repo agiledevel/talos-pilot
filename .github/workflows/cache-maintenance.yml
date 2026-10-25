@@ -1,0 +1,44 @@
+name: CI cache maintenance
+
+on:
+  schedule:
+    - cron: "43 2 * * *"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Delete the proposed obsolete caches (otherwise dry run)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-cache-maintenance
+  cancel-in-progress: false
+
+jobs:
+  maintain:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      # Always run reviewed default-branch code, never a PR artifact or head.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - name: Retain bounded dependency caches
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPLY: ${{ github.event_name == 'schedule' || inputs.apply }}
+        run: |
+          args=(--retire-probes)
+          if [ "$APPLY" = true ]; then args+=(--apply); fi
+          node scripts/ci-cache-maintenance.ts "${args[@]}"

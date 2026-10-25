@@ -6,6 +6,7 @@ import process from "node:process";
 import {
   FOUNDATION_ADVISORIES,
   parseAuditReport,
+  reviewAbsentFromResolvedGraph,
   reviewAdvisoryBaseline,
   reviewBinarySymbols,
   reviewProcMacroDependents,
@@ -58,20 +59,34 @@ console.log(
 const failures: string[] = [...reviewAdvisoryBaseline(findings)];
 
 for (const expectation of FOUNDATION_ADVISORIES) {
-  if (!expectation.procMacroOnly) {
-    continue;
+  if (expectation.procMacroOnly) {
+    const reverseTree = cargo([
+      "tree",
+      "--manifest-path",
+      manifest,
+      "--locked",
+      "-i",
+      `${expectation.crate}@${expectation.version}`,
+      "-e",
+      "normal",
+    ]);
+    failures.push(...reviewProcMacroDependents(reverseTree, expectation));
   }
-  const reverseTree = cargo([
-    "tree",
-    "--manifest-path",
-    manifest,
-    "--locked",
-    "-i",
-    `${expectation.crate}@${expectation.version}`,
-    "-e",
-    "normal",
-  ]);
-  failures.push(...reviewProcMacroDependents(reverseTree, expectation));
+  if (expectation.absentFromResolvedGraph) {
+    const reverseTree = cargo([
+      "tree",
+      "--manifest-path",
+      manifest,
+      "--locked",
+      "--target",
+      "all",
+      "-i",
+      `${expectation.crate}@${expectation.version}`,
+      "-e",
+      "normal",
+    ]);
+    failures.push(...reviewAbsentFromResolvedGraph(reverseTree, expectation));
+  }
 }
 
 if (process.platform === "linux") {
@@ -111,7 +126,7 @@ if (failures.length > 0) {
     process.stderr.write(`${failure}\n`);
   }
   process.stderr.write(
-    "The recorded advisory baseline no longer matches reality; revise the dependency path or docs/decisions/0006-gtk3-advisory-applicability.md deliberately.\n",
+    "The recorded advisory baseline no longer matches reality; revise the dependency path or the recorded applicability decision deliberately.\n",
   );
   process.exitCode = 1;
 } else {

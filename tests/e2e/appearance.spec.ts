@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
+import { test } from "./browser";
 import type { Locator, Page } from "@playwright/test";
 
 /**
@@ -116,11 +117,15 @@ test("the View menu works from the keyboard and returns focus to its trigger", a
     "Credentials: vault unavailable",
   );
 
-  // Open with the keyboard; focus lands on the first item, then moves down to "Dark".
+  // Open with the keyboard; focus lands on the first item, then moves down to
+  // "Dark". The intermediate assertions make the menu's roving focus observable
+  // on a slower two-worker hosted run instead of racing two key presses.
   await viewMenu(page).focus();
+  await expect(viewMenu(page)).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("menuitemradio", { name: "System" })).toBeFocused();
   await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("menuitemradio", { name: "Light" })).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await expect(page.getByRole("menuitemradio", { name: "Dark" })).toBeFocused();
   await page.keyboard.press("Enter");

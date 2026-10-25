@@ -2,6 +2,7 @@ name: Foundation checks
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_call:
     inputs:
@@ -13,8 +14,47 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request supersedes that pull request's running checks.
+# Every other event keys on its commit, so a main, release, or manual run is
+# never cancelled or replaced by a later one.
+concurrency:
+  group: foundation-checks-${{ inputs.revision && format('release-{0}', inputs.revision) || github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Decides whether a pull request's change can affect the desktop matrix. The
+  # rules and their limits are in docs/decisions/0014-ci-scope-and-caching.md.
+  scope:
+    name: Decide desktop scope
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      desktop: ${{ steps.scope.outputs.desktop }}
+      renderer: ${{ steps.scope.outputs.renderer }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.revision || github.event.pull_request.head.sha || github.sha }}
+          # The comparison needs the pull request's history; other events decide
+          # without reading it.
+          fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '1' }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - id: scope
+        run: node scripts/ci-desktop-scope.ts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PULL_REQUEST_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PULL_REQUEST_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_SCOPE_WORKFLOW: check.yml
+
   renderer:
+    needs: scope
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -22,44 +62,105 @@ jobs:
         with:
           ref: ${{ inputs.revision || github.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .node-version
-      - run: npm install --global pnpm@12.10.1
+      - uses: ./.github/actions/setup-js
       - run: pnpm install --frozen-lockfile
-      - name: Install pinned workflow validator
+      - name: Validate workflows and provisioning with pinned tools
         run: |
-          curl -fsSL https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz -o "$RUNNER_TEMP/actionlint.tar.gz"
+          curl -fsSL --retry 2 --max-time 60 https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz -o "$RUNNER_TEMP/actionlint.tar.gz"
           echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
           tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
-          "$RUNNER_TEMP/actionlint"
-      - run: pnpm check
-      - run: pnpm icons:check
+          curl -fsSL --retry 2 --max-time 60 https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz -o "$RUNNER_TEMP/shellcheck.tar.xz"
+          echo "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198  $RUNNER_TEMP/shellcheck.tar.xz" | sha256sum --check
+          tar -xJf "$RUNNER_TEMP/shellcheck.tar.xz" -C "$RUNNER_TEMP" --strip-components=1 shellcheck-v0.11.0/shellcheck
+          PATH="$RUNNER_TEMP:$PATH" "$RUNNER_TEMP/actionlint"
+          "$RUNNER_TEMP/shellcheck" scripts/ci-linux-prerequisites.sh
+      - name: Check documentation formatting
+        if: needs.scope.outputs.renderer == 'false'
+        run: pnpm format:check
+      - name: Verify renderer
+        if: needs.scope.outputs.renderer == 'true'
+        run: pnpm check:ci
+      - if: needs.scope.outputs.renderer == 'true'
+        run: pnpm icons:check
+      # Always refresh advisories, including on documentation-only pushes.
       - run: pnpm audit --audit-level=low
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
-      - run: pnpm test:coverage
+      - name: Install browser system prerequisites
+        if: needs.scope.outputs.renderer == 'true'
+        uses: ./.github/actions/linux-prerequisites
+        with:
+          mode: browser
+      - name: Resolve the pinned browser version
+        if: needs.scope.outputs.renderer == 'true'
+        id: playwright
+        shell: bash
+        run: |
+          version=$(node -p "require('@playwright/test/package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Cache pinned Chromium binaries
+        if: needs.scope.outputs.renderer == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
+      - if: needs.scope.outputs.renderer == 'true'
+        run: pnpm exec playwright install chromium --only-shell
+      # Vite's dependency optimizer, dependency debug log and HMR watcher are the
+      # suspected source of the unexplained document reloads, so keep their
+      # output with the run. The job log shows it live; the uploaded copy below
+      # is bounded and only the browser/test-results evidence is retained.
+      - name: Run browser flows with dependency and watcher evidence
+        if: needs.scope.outputs.renderer == 'true'
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          mkdir -p test-results
+          DEBUG=vite:deps,vite:optimize-deps,vite:hmr pnpm test:e2e 2>&1 |
+            tee "$RUNNER_TEMP/browser-flows.log"
+          status=${PIPESTATUS[0]}
+          head -c 2097152 "$RUNNER_TEMP/browser-flows.log" > test-results/vite-evidence.log
+          exit "$status"
+      # Failure artifacts: Playwright keeps traces on failure, and the browser
+      # harness attaches bounded lifecycle (navigation/page error) and
+      # keyboard/focus evidence. Upload them so a hosted failure can be triaged
+      # without a reproduction run; keep the retention window short.
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: browser-failure-evidence
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
   desktop:
+    needs: scope
+    if: needs.scope.outputs.desktop == 'true'
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-15, macos-15-intel, windows-2022]
+        # Pull requests leave out the slow macos-15-intel runner. Pushes to main,
+        # release qualification, and manual runs execute all four.
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-22.04", "macos-15", "windows-2022"]' || '["ubuntu-22.04", "macos-15", "macos-15-intel", "windows-2022"]') }}
     runs-on: ${{ matrix.os }}
     env:
       RUSTDOCFLAGS: -D warnings
       TALOS_PILOT_BUILD_ID: ${{ inputs.revision || github.sha }}
-    # The macos-15-intel runner needs up to about 50 minutes for a passing run.
+      # A clean runner recompiles every first-party crate, so incremental state
+      # is never reused. Line tables keep file and line in test backtraces while
+      # shrinking the cached dependency artifacts.
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+    # The macos-15-intel runner needed up to about 57 minutes without a
+    # dependency cache. New toolchains still require that cold-build allowance.
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.revision || github.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .node-version
-      - run: npm install --global pnpm@12.10.1
+      - uses: ./.github/actions/setup-js
       - run: pnpm install --frozen-lockfile
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
@@ -67,9 +168,26 @@ jobs:
           cache-dependency-path: helper/go.sum
       - name: Linux native prerequisites
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libdbus-1-dev libxdo-dev build-essential pkg-config xvfb
-      - run: rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
+        uses: ./.github/actions/linux-prerequisites
+        with:
+          mode: native
+      - run: rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
       - uses: ./.github/actions/install-protoc
+      # Dependency artifacts only. Fallback stays within the same runner and
+      # toolchain/configuration; Cargo revalidates fingerprints for the lockfile.
+      # First-party outputs are removed before saving a new exact entry.
+      - name: Restore the Cargo dependency cache
+        id: cargo-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            src-tauri/target
+          key: cargo-v2-${{ matrix.os }}-${{ hashFiles('rust-toolchain.toml', 'src-tauri/.cargo/config.toml') }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            cargo-v2-${{ matrix.os }}-${{ hashFiles('rust-toolchain.toml', 'src-tauri/.cargo/config.toml') }}-
+            ${{ hashFiles('src-tauri/.cargo/config.toml') == '' && format('cargo-v1-{0}-{1}', matrix.os, hashFiles('rust-toolchain.toml', 'src-tauri/Cargo.lock')) || '' }}
       - run: pnpm format:rust:check
       - name: Verify Go helper source and modules
         working-directory: helper
@@ -81,7 +199,7 @@ jobs:
           go test -race ./...
           go mod verify
           go build ./...
-      - run: pnpm build
+      # Tauri's beforeBuildCommand owns the frontend/helper production build.
       - name: Verify pinned Go vulnerability scan
         run: pnpm audit:go
       - name: Verify the generated dependency inventory
@@ -94,10 +212,11 @@ jobs:
       - run: cargo doc --manifest-path src-tauri/Cargo.toml --locked --no-deps
       - run: pnpm desktop:build
       - run: pnpm production:check
-      - name: Run actual Tauri IPC tests
-        run: pnpm test:native
-      - run: cargo install cargo-audit --version 0.22.2 --locked
-      - run: cargo audit --file src-tauri/Cargo.lock
+      # The audit reads only Cargo.lock, which is the same file on every runner.
+      - if: runner.os == 'Linux'
+        run: cargo install cargo-audit --version 0.22.2 --locked
+      - if: runner.os == 'Linux'
+        run: cargo audit --file src-tauri/Cargo.lock
       - name: Verify recorded advisory applicability
         if: runner.os == 'Linux'
         run: pnpm advisories:check
@@ -107,3 +226,54 @@ jobs:
       # them on windows-2022 in run 38155107982.
       - name: Verify generated contracts are current
         run: pnpm contracts:check
+      # Saved only by a job that missed the cache and completed its own last
+      # build (`pnpm desktop:build`), so the entry for a lockfile is one complete
+      # dependency build. Daily/manual maintenance bounds retained lockfile
+      # entries; a later failing audit or test does not
+      # make the next run compile from scratch, and the native suite's separate
+      # cache is owned by `.github/workflows/native.yml`.
+      - name: Drop first-party artifacts before the cache save
+        id: cargo-prune
+        if: ${{ !cancelled() && steps.cargo-cache.outputs.cache-hit != 'true' && hashFiles('src-tauri/target/release/talos-pilot*') != '' }}
+        shell: bash
+        run: |
+          cargo clean --manifest-path src-tauri/Cargo.toml --locked --package talos-pilot
+          cargo clean --manifest-path src-tauri/Cargo.toml --locked --package talos-pilot --release
+          rm -rf src-tauri/target/doc
+      - name: Save the Cargo dependency cache
+        if: ${{ !cancelled() && steps.cargo-prune.outcome == 'success' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            src-tauri/target
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
+
+  # The one check to require in branch protection: matrix job names differ
+  # between events, and a skipped matrix reports no per-runner check at all.
+  result:
+    name: Foundation checks result
+    if: always()
+    needs: [scope, renderer, desktop]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every executed job to pass
+        env:
+          SCOPE: ${{ needs.scope.result }}
+          DESKTOP_WANTED: ${{ needs.scope.outputs.desktop }}
+          RENDERER: ${{ needs.renderer.result }}
+          RENDERER_WANTED: ${{ needs.scope.outputs.renderer }}
+          DESKTOP: ${{ needs.desktop.result }}
+        run: |
+          echo "scope=$SCOPE desktop-wanted=$DESKTOP_WANTED renderer=$RENDERER desktop=$DESKTOP"
+          test "$SCOPE" = success
+          test "$RENDERER" = success
+          case "$RENDERER_WANTED" in true|false) ;; *) exit 1 ;; esac
+          if [ "$DESKTOP_WANTED" = true ]; then
+            test "$DESKTOP" = success
+          else
+            test "$DESKTOP_WANTED" = false
+            test "$DESKTOP" = skipped
+          fi

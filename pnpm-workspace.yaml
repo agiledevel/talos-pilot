@@ -6,7 +6,13 @@ overrides:
   "@puppeteer/browsers": 3.2.4
   basic-ftp: 6.2.2
   chokidar: 4.0.3
-  serialize-javascript: 7.1.2
+  dompurify: 3.4.17
+  serialize-javascript: 7.1.3
+  # Security refresh: minimum patched patch release per supported undici
+  # major, keyed by major so each dependent keeps its declared line.
+  undici@6: 6.29.1
+  undici@7: 7.30.1
+  undici@8: 8.12.2
 minimumReleaseAgeExclude:
   - "@playwright/test@1.64.0"
   - playwright-core@1.64.0

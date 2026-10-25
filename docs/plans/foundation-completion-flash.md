@@ -1,6 +1,8 @@
 # Foundation completion: FLASH implementation plan
 
-Date: 2026-10-11. Revision: 2 (same-day review corrections to packet order, fixture authority, and starting bounds). Status: ready for incremental implementation; milestone 1 remains incomplete.
+Date: 2026-10-11. Revision: 4 (2026-10-12: the owner deferred the macOS and Windows rows without blocking further work, and the remaining packets are worked through the [foundation finish series](foundation-finish/README.md). Revision 3, the same day: F1 closed and F2 accepted by owner decision; packet F1a added. Revision 2 made the same-day review corrections to packet order, fixture authority, and starting bounds). Status: ready for incremental implementation; milestone 1 remains incomplete.
+
+All implementing workers must follow [FLASH pace](../flash-pace.md) for short checkpoints and non-duplicated checks without losing final evidence. [Decision 0018](../decisions/0018-ci-feedback-and-cache-budgets.md) updates PR scope, provisioning, caches and release compilation; native/fixture qualification and packet acceptance are unchanged.
 
 Reviewed baseline: `main` at `11d4e192de0e3c7a36d68053572d66811142eb73`, with a clean working tree before this documentation change. This is the active execution plan for the remaining foundation work. The [original milestone plan](milestone-1-flash.md) supplies the full acceptance matrix; the [milestone ledger](../verification/milestone-1.md) remains the evidence authority. FLASH means small implementation packets for a fast implementing model, each with bounded context, observable acceptance criteria, checks, and a durable handoff.
 
@@ -13,6 +15,16 @@ The owner confirmed these choices on 2026-10-11:
 1. The next phase completes milestone 1; it does not start the connections/resource-browser milestone.
 2. Kubernetes 1.36 runs in an allowlisted disposable Talos fixture. Kubernetes-only disposable fixtures cover the affected 1.35 and 1.37 adapter scenarios. Those fixtures establish Kubernetes behavior only.
 3. Use the recommended qualification approach and available resources. Begin with the Linux development host and configured hosted CI, then clean Linux VMs and available target hardware/runners. Missing targets stay unexecuted; this instruction does not change the platform matrix.
+
+The owner added these on 2026-10-12:
+
+4. Milestone 1 may stay open without blocking further development. The owner has no macOS or Windows machine, so packets F9.2 and F9.3 and their share of F9.4 are deferred until those platforms are available. A deferred row is recorded as unexecuted, never as passed; hosted macOS 15 and Windows Server runners remain hosted evidence only. Milestone 2 feature work may start once the remaining packets are done on Linux.
+5. The remaining packets are executed through the [foundation finish series](foundation-finish/README.md): one document per packet, with a shared [ledger](foundation-finish/ledger.md) that every session updates. This plan stays the normative definition of each packet. Packet evidence for the series is written in that ledger; the [milestone ledger](../verification/milestone-1.md) keeps the checkpoint table and the earlier evidence.
+6. The fixture-scoped host firewall remediation may be applied in the session, the fixture may shadow the VPN route covering its network indefinitely, and pushing to `ft-foundation-completion` is permitted.
+
+On 2026-10-22 the owner directed the CI tiering recorded in [decision 0016](../decisions/0016-ci-test-tiering.md):
+
+7. Required CI keeps the deterministic gates and Playwright mock flows. Native WebdriverIO moves to a manual and weekly reusable workflow, which release qualification calls explicitly. Live Talos/Kubernetes fixtures, clean-VM package smoke, and performance measurement remain local or explicit manual runs. Synthetic Kubernetes/session tests and Playwright stay in required CI. The native and fixture gates are moved, not removed; a change is not complete until its tier has run and the result is recorded.
 
 The phase exposes read-only feasibility workflows. Cluster creation, resource mutation, configuration apply, upgrades, Helm, reset, recovery, and operation-history UX remain in their assigned milestones. Test-fixture setup may create synthetic resources only inside a verified disposable allowlist. No existing owner cluster is an implicit fixture.
 
@@ -42,11 +54,11 @@ Review entry points: [native commands](../../src-tauri/src/lib.rs), [storage run
 
 Read [AGENTS.md](../../AGENTS.md), [quality.md](../quality.md), the relevant design sections, and the packet's source before editing. Apply the mandatory [Rust](../../.agents/skills/talos-pilot-rust/SKILL.md), [Tauri](../../.agents/skills/talos-pilot-tauri/SKILL.md), [Svelte project](../../.agents/skills/talos-pilot-svelte/SKILL.md), [Svelte framework](../../.agents/skills/svelte/SKILL.md), and [TypeScript](../../.agents/skills/talos-pilot-typescript/SKILL.md) skills according to the changed domain. Use [Svelte tooling](../../.agents/skills/svelte-tooling/SKILL.md) when running framework diagnostics or changing its tooling.
 
-Sequence: **F0 → F1 → F2 → F3 → F4 → F5 → F6 → F7 → F8 → F9 → F10**. These packets map to existing C/FND identifiers; they do not replace their acceptance criteria. Dependency research and platform-resource discovery may proceed while an independent integration environment is unavailable. Do not accept a dependent checkpoint on mocked or unexecuted prerequisites.
+Sequence: **F0 → F1 → F2 → F1a → F3 → F4 → F5 → F6 → F7 → F8 → F9 → F10**. F0 and F1 are closed and F2 is accepted. F3/F4 now have accepted Linux evidence; F1a live rows and F5 remain open. Under the owner's Q11 sequencing, follow [the current follow-up plan](foundation-finish/follow-up-to-m2.md): S0/S1 restore F6 browser/bounds acceptance before F7–F9, fixture sessions run when prepared, and F10/owner review precede M2.0. These packets map to existing C/FND identifiers; they do not replace their acceptance criteria. Dependency research and platform-resource discovery may proceed while an independent integration environment is unavailable. Do not accept a dependent checkpoint on mocked or unexecuted prerequisites.
 
 Implement one packet, or its smallest coherent numbered subpacket, per session. State behavior and failure cases first; leave a runnable result; run relevant checks on the final changed code; review the final diff separately; update the ledger and next packet. An implementation without its required native/live evidence remains in progress. Do not repeat already proven C1–C3 implementation merely to refresh evidence.
 
-Research new dependency APIs and exact compatible pins from primary upstream sources before dependent code. Preserve Node 26.11.1, pnpm 12.10.1, Rust 1.99.0, Go 1.27.2, existing lockfiles, and generated-source ownership unless a tested compatibility/security change warrants an update. Talos machinery was pinned to 1.14.1 when this plan was written; the design's 1.14.2 research snapshot was not the installed module version. F0 settled it from the upstream release list and corrected the wrong record (the ledger's), and **F1 performed the coordinated refresh**: `pkg/machinery`, `talosctl`, the fixture image, and the fixture manifest are all v1.14.2 now, never a silent mix of versions.
+Research new dependency APIs and exact compatible pins from primary upstream sources before dependent code. Preserve Node 26.12.1, pnpm 12.15.0, Rust 1.99.1, Go 1.27.3, existing lockfiles, and generated-source ownership unless a tested compatibility/security change warrants an update. The Go patch moved from 1.27.2 to 1.27.3 on 2026-10-22 for GO-2026-6809 with the module graph unchanged; see the [ledger](foundation-finish/ledger.md) and [dependency record](../dependencies.md). Talos machinery was pinned to 1.14.1 when this plan was written; the design's 1.14.2 research snapshot was not the installed module version. F0 settled it from the upstream release list and corrected the wrong record (the ledger's), and **F1 performed the coordinated refresh**: `pkg/machinery`, `talosctl`, the fixture image, and the fixture manifest are all v1.14.2 now, never a silent mix of versions.
 
 **Fixture authority.** The [Talos fixture allowlist](../verification/fixtures/talos-c4-disposable.md) decides what may touch the fixture and the host. Amend it before the action it authorizes, never afterwards. The owner approved its firewalld zone and `iptables` rules for the 2026-10-09 run. Before the first reprovisioning, confirm with the owner that the same fixture-scoped remediation may be re-applied for this phase; one confirmation can cover F1–F5. Apply nothing broader. By default, destroy the fixture and complete the restoration checklist at the end of each session. Leaving a fixture or its host rules in place between sessions needs the owner's agreement and a ledger entry naming what remains.
 
@@ -105,6 +117,23 @@ Test at each bound and one beyond it. Retry clocks and transport faults should b
 
 **Exit:** C4 non-installer criteria have evidence, including a real denied-role result. If no pinned role denies the probe APIs, that row stays open with the evidence and F1 is not accepted for it. Packaged startup stays assigned to F9. R3 helper status/probe serialization remains explicitly deferred; do not introduce status polling during a probe without first delivering its queued child-owner contract and tests.
 
+**Closed on 2026-10-12 by owner decision.** Six of the seven live rows passed on the reprovisioned v1.14.2 fixture. The live retry-exhaustion evidence that step 5 asks for was not obtained: the owner re-scoped that row as not producible with the recorded fixture actions under [0011](../decisions/0011-talos-stream-reconnect-and-generations.md)'s policy, and assigned it to F1a. Exhaustion remains proven by the deterministic framed tests only. See the [closure entry](../verification/milestone-1.md#f1-closure-and-f2-acceptance--owner-decisions-2026-10-12).
+
+### F1a — Detect a stalled Talos stream
+
+**Maps to:** C4, FND-004, and the [0011 amendment](../decisions/0011-talos-stream-reconnect-and-generations.md#amendment--2026-10-12-live-evidence-and-owner-decision). **Prerequisite:** F1 closed. Steps 1–3 need no fixture and land before F3 starts. Step 4 needs the provisioned fixture and runs in the first fixture session afterwards. The [finish series](foundation-finish/01-f1a-live-stall-rows.md) gives step 4 its own session, ahead of F3's.
+
+**Behavior:** a subscription whose pinned node stops responding without breaking the connection becomes stale within a bounded, documented window, then follows the existing reconnect budget to a replacement snapshot or terminal `talos_unavailable`. An idle stream on a healthy node stays current.
+
+1. Decide the mechanism in a new decision record before writing code, and have it supersede 0011's stall-detection consequence. Read the pinned official client and the Talos API proxy behavior from primary sources first. State what is checked, over which path, the detection window, and why a `MachineStatus` watch that is merely idle is not taken for a stall. F1 part 3 measured the frozen-worker and reboot behavior with a throwaway driver whose output was not kept; reproduce any measurement the decision relies on.
+2. Implement it in the helper, on the subscription's node-pinned session from 0007. A detected stall is an interruption: emit the stale marker, then spend the same three-attempt budget, with no second budget and no change to the generation or sequence rules. Each check obeys section 4's 15-second attempt deadline, at most one check per subscription is in flight, and cancellation during a check ends promptly. A permission or TLS failure of a check is terminal and is not retried. Do not route a status request through the Rust supervisor during a probe; R3 stays deferred. Update [helper v1](../protocol/helper-v1.md) and [application IPC](../protocol/application-ipc.md) for the changed semantics, and the contract sources if the wire changes.
+3. Add deterministic framed tests with scripted sessions and an injected clock: silence with failing checks reaches stale and then exhaustion; silence with passing checks stays current across several windows; a stall that clears recovers under the next generation; cancellation during a check; a terminal check failure; helper exit with a check in flight.
+4. Add the live row. Suspend the worker's QEMU process with the already-authorized `SIGSTOP`, expect the stale marker and then `TALOS_UNAVAILABLE` inside the detection window plus the reconnect budget, and resume the worker on every exit path, including a panic; commit `ae67a9c` holds a guard written for that purpose. Observe an idle healthy stream for longer than the detection window as well. In the same change, stop the live cases from blocking the test runtime: `reboot_worker` runs `talosctl reboot` synchronously and waits for the machine to be ready, which took 9 and 16 minutes on 2026-10-12, so the stream under test is not polled for that long. Record any change to the reboot command's form in the allowlist before using it. Re-run every live row, because the harness changes. Pin each outcome, following [0013](../decisions/0013-talos-stream-stall-detection.md#unverified-until-step-4-live-fixture): a held suspend must end `TALOS_UNAVAILABLE`; a suspend released as soon as the stale marker is seen must recover under the next generation; and the reboot row must measure the outage and assert the outcome that length implies, which for a reboot outlasting the stale bound plus the budget is `TALOS_UNAVAILABLE`. Replace the F1 reboot row's either-outcome assertion accordingly.
+
+**Tests/evidence:** Go gates including race tests; Rust supervisor, contract, renderer, and native gates for each boundary whose behavior changes; the live stall, exhaustion, idle, and restoration rows on the allowlisted fixture.
+
+**Exit:** a frozen worker is observed live to go stale and end `talos_unavailable` within the documented bound, and an idle healthy stream is observed to stay current. Until then C4's live retry-exhaustion evidence stays recorded as absent.
+
 ### F2 — Establish the Kubernetes client and credential-session boundary
 
 **Maps to:** C5 step 1 (the credential-session boundary, which the original plan does not cut as its own packet), C3 contract extension, FND-003/004. **Prerequisite:** F1; pin/API research may begin earlier.
@@ -119,6 +148,8 @@ Test at each bound and one beyond it. Retry clocks and transport faults should b
 **Tests/evidence:** persistent import→restart→resolve; memory-only import→resolve→close and invalidation on restart; mixed mode; missing/wrong vault key preserves ciphertext; wrong credential kind/profile; unknown handles; unsafe/ignored kubeconfig fields never trigger execution, file access, proxy changes, or TLS downgrade; capacity, 401/403, wrong/expired TLS, redaction and plaintext-sentinel scans. Run producer/consumer, contract, native permission, and production-exclusion gates.
 
 **Exit:** the real backend client performs a nonsensitive version/discovery read against the injectable synthetic endpoint using a selected imported credential, with no ambient credential fallback. The first live cluster read belongs to F3. Record the exact new API names; this plan does not claim they already exist.
+
+**Accepted by the owner on 2026-10-12** on the evidence recorded at `279e4f5` and rechecked at `101d697`, once F1 closed. The rows that packet left unexecuted stay open with their owners; see the [closure entry](../verification/milestone-1.md#f1-closure-and-f2-acceptance--owner-decisions-2026-10-12).
 
 ### F3 — Deliver the bounded scoped Kubernetes list probe
 
@@ -159,7 +190,7 @@ Test at each bound and one beyond it. Retry clocks and transport faults should b
 1. Extend the F3 harness to the Kubernetes-only fixtures with one manifest and allowlist entry per fixture. Keep the same identity, version, endpoint, CA, namespace, and scope validation before dispatch.
 2. Run 1.36 in the Talos fixture. Provision pinned Kubernetes-only 1.35 and 1.37 fixtures through available local virtualization/container resources. Pin exact patch images/digests after primary-source verification. A container CLI used by development fixture setup is not a runtime dependency of the shipped application.
 3. Use synthetic namespaces and restricted identities; seed only allowlisted data to cause live add/change/delete and UID recreation. Separate setup authority from the read identity. A namespace resource UID or equivalent recorded anchor must match before cleanup. Never use an ambient current context.
-4. Wire a provisioned fixture job into CI or an explicit fixture workflow with the same harness command and evidence artifacts. Resource-unavailable versions remain pending; do not replace the fixture job with mock-only coverage.
+4. Wire a provisioned fixture job into required CI or an explicit fixture workflow with the same harness command and evidence artifacts. Per [decision 0016](../decisions/0016-ci-test-tiering.md), required CI does not run a live fixture: an explicit `workflow_dispatch` workflow or a documented local harness run with recorded evidence satisfies this step. A hosted kind fixture may cover the Kubernetes-only 1.35/1.37 rows; the Talos-hosted 1.36 run remains local unless a suitable runner exists. Resource-unavailable versions remain pending; do not replace the fixture job with mock-only coverage.
 
 **Tests/evidence:** real paginated list, valid/restricted reads, watch changes, cancellation and disconnect recovery across 1.35/1.36/1.37; deterministic TLS/410 faults where live generation is impractical; rejection of wrong identity/version/manifest; cleanup on partial setup/test failure. Store redacted revision/version/topology/results, never credentials or raw resource payloads.
 
@@ -225,7 +256,7 @@ Take the installers from F9.0's artifacts, built with the existing release confi
 
 Document and verify helper signing/integrity feasibility, target-specific notices, package hashes, and preview signing state. Production publisher signing/notarization and signed updates remain release gates with owner-supplied material; do not invent credentials or claim ad-hoc signing authenticates a publisher. Repeat production exclusion on default production artifacts after the test-feature build; the two builds share the executable path.
 
-**Exit:** every required C8 row has actual clean-target evidence. If any row is unavailable or fails, C8 and milestone 1 remain incomplete, even when the other packets are implemented.
+**Exit:** every required C8 row has actual clean-target evidence. If any row is unavailable or fails, C8 and milestone 1 remain incomplete, even when the other packets are implemented. By owner decision 4 of 2026-10-12, the macOS and Windows rows are deferred and that incompleteness does not block milestone 2.
 
 ### F10 — Measure budgets and close the milestone
 
@@ -235,13 +266,13 @@ Deliver a reproducible performance harness and numeric budget check with real fa
 
 Derive thresholds from the measured baseline, document their rationale, and prove an intentional overrun fails. Profile sizes are verification workloads, not claimed supported hard limits. Review the full original milestone acceptance matrix and FND tasks; rerun applicable final-candidate gates, validate documentation/contracts, and perform the separate correctness/security/ownership/maintainability review.
 
-**Exit:** all required rows have current evidence, measured budgets are enforced, and the owner receives the milestone UX/tradeoff review. Update README to milestone 2 only after milestone 1 is accepted. Unavailable platform/version/worker evidence keeps the milestone open; a development preview can still be reported accurately.
+**Exit:** all required rows have current evidence, measured budgets are enforced, and the owner receives the milestone UX/tradeoff review. Update README to milestone 2 only after milestone 1 is accepted. Unavailable platform/version/worker evidence keeps the milestone open; a development preview can still be reported accurately. With the macOS and Windows rows deferred by the owner, F10 closes the foundation on Linux and leaves milestone 1 open for those rows only; see [series document 09](foundation-finish/09-f10-budgets-and-linux-close.md).
 
 ## 6. Gate selection and evidence format
 
 Use the exact commands in [quality.md](../quality.md#3-required-command-contracts) and [CI/release setup](../ci-release.md). Each packet runs the gates for every changed boundary, including default and `native-test` Rust configurations, Go race tests where supported, contracts, browser/native flows, and affected production builds. New fixture/performance/notice commands must be implemented with their actual harness and wired into CI when introduced. Do not add stub commands to satisfy this plan.
 
-Native-test builds replace the shared release executable. Rebuild with `pnpm desktop:build` before `pnpm production:check` and the linked-artifact applicability gate. Installed-package smoke is separate from both commands. Development fixture provisioners may need CLIs; installed product feasibility must pass without them.
+Native-test builds replace the shared release executable. Rebuild with `pnpm desktop:build` before `pnpm production:check` and the linked-artifact applicability gate. Installed-package smoke is separate from both commands. Development fixture provisioners may need CLIs; installed product feasibility must pass without them. Per [decision 0016](../decisions/0016-ci-test-tiering.md), the final gate set combines required deterministic CI, the manual/nightly native workflow result, and the recorded local fixture and package evidence; a green required-CI run alone is not a final-candidate pass.
 
 Append a packet entry to the milestone ledger with:
 
@@ -283,6 +314,15 @@ target is Safari 16.4; see [0010](../decisions/0010-macos-minimum-webview.md).
 The fixture-scoped host firewall remediation from the 2026-10-09 run is
 approved for re-application across F1–F5.
 
+**Resolved on 2026-10-22.** The owner directed the CI tiering in [decision 0016](../decisions/0016-ci-test-tiering.md): required CI keeps deterministic gates and Playwright; native WebdriverIO moves to a manual/nightly reusable workflow that release qualification calls; live fixtures, clean-VM package smoke, and performance measurement remain local or explicit manual runs. The native and fixture gates are unchanged and are still required for completion.
+
+**Resolved on 2026-10-12.** The owner closed F1 with its live retry-exhaustion
+row re-scoped, added packet F1a for bounded stall detection ahead of F3, and
+accepted F2. The decisions and their evidence are in the
+[0011 amendment](../decisions/0011-talos-stream-reconnect-and-generations.md#amendment--2026-10-12-live-evidence-and-owner-decision)
+and the
+[closure entry](../verification/milestone-1.md#f1-closure-and-f2-acceptance--owner-decisions-2026-10-12).
+
 ## 8. First execution prompt
 
-> Read AGENTS.md, docs/plans/foundation-completion-flash.md, and docs/verification/milestone-1.md. Start with F0 on the current branch: provision the pinned tools, refresh baseline/native evidence, and enforce the existing contracts:check in provisioned CI with a deliberate drift failure check. Apply the relevant skills. State acceptance cases before edits, preserve the locked architecture and unrelated changes, run the applicable final-code gates, review the final diff separately, and append exact results plus the next packet to the ledger. Stop after F0's handoff; F1 starts in a new session. Do not jump to milestone 2 or count unavailable platforms as passes.
+> Read AGENTS.md, docs/design.md, docs/quality.md, docs/flash-pace.md, the foundation finish series README and ledger, and docs/plans/foundation-finish/follow-up-to-m2.md. Inspect the actual current tree and execute the next unaccepted step only, starting at S0 unless later evidence closes it. Read relevant skills, state acceptance before code, run affected final-tree gates and review the diff separately. Record exact commands, environments, results and limitations in the ledger. Do not redo closed F0/F1/F2 work, bypass missing Linux/fixture evidence or owner review, or implement milestone 2 features before their entry gate.

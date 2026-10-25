@@ -1,6 +1,14 @@
 # C4 disposable Talos fixture allowlist
 
-Status: **provisioned, exercised, and destroyed on 2026-10-09; no fixture exists now.**
+Status: **provisioned, exercised, and destroyed on 2026-10-09, 2026-10-12,
+and 2026-10-13; no fixture exists now.** The
+2026-10-12 run executed the full
+harness command with all four file references: six of the seven live rows
+passed and the live retry-exhaustion row stayed open, recorded in the
+[milestone ledger](../milestone-1.md#f1-packet-evidence-part-3-live-fixture-rows-on-the-unsandboxed-host--2026-10-12).
+The owner then re-scoped that row and removed it from the harness, which now
+holds six live rows; see the
+[closure entry](../milestone-1.md#f1-closure-and-f2-acceptance--owner-decisions-2026-10-12).
 The accounts of the first failed attempts below are historical. The diagnosis,
 applied remediation, and restoration sections supersede their "do not retry" and
 "no endpoint is allowlisted" statements.
@@ -29,6 +37,29 @@ unused. After provisioning, replace the pending network fields below with the
 reported endpoint, Kubernetes endpoint, and node addresses; those exact values
 are the only network identities the C4 integration harness may target. Do not
 use wildcard endpoint or node entries.
+
+### Client configuration scope (owner decision, 2026-10-13)
+
+No fixture session may let `talosctl` load the host's ambient configuration
+(`~/.talos/config`), whose contexts point at owner clusters. On 2026-10-13 an
+unqualified `talosctl version` loaded it and requested the version of the
+owner's node `10.0.10.79`; the session stopped before provisioning (ledger
+blocker B6). The owner approved these rules the same day:
+
+- the pinned binary is checked with `talosctl version --client` only;
+- every `talosctl` command that contacts a server names a fixture file with
+  `--talosconfig /tmp/tpc4/...`; `cluster create` and `cluster destroy` keep
+  the exact forms recorded below;
+- for the whole session, `TALOSCONFIG` names an existing, empty guard
+  configuration in the session's scratch directory, outside the repository.
+  With pinned `talosctl` v1.14.2 a `TALOSCONFIG` that names a missing file is
+  ignored in favour of the ambient configuration, so the guard file must exist
+  before the first command. The
+  [runbook](../../plans/foundation-finish/fixture-runbook.md#step-1-tools) holds
+  the exact commands and the check that the guard is in effect.
+
+Any `talosctl` output that names a node or endpoint outside this allowlist ends
+the session's fixture work: stop, restore the host, and record it.
 
 ## Provision and teardown
 
@@ -180,10 +211,11 @@ destroys the fixture, and completes the restoration checklist below before it
 ends, unless the owner separately agrees to leave something in place and the
 session's ledger entry names it.
 
-The Talos patch refresh that packet F1 must perform — `talosctl`, the image, the
-Go module, and this manifest together — is not covered by that confirmation and
-is not yet reflected in the identity table above, which still records the
-2026-10-09 `v1.14.1` run as executed.
+The Talos patch refresh that packet F1 had to perform — `talosctl`, the image,
+the Go module, and this manifest together — was executed with the pins in the
+identity table above; the [2026-10-12 identities below](#host-issued-identities-2026-10-12-run)
+record the first executed run on `v1.14.2`, and the 2026-10-09 `v1.14.1`
+section remains that run's historical record.
 
 ## F1 authorized fixture-local actions (2026-10-11)
 
@@ -264,6 +296,106 @@ lifecycle action, `/Reset` and `/Upgrade` remain forbidden, the three control
 planes stay untouched, and every live case ends by waiting for the worker to
 report `running` again before the next case starts.
 
+Since the 2026-10-12 closure the harness no longer suspends the worker: the live
+exhaustion row that did so was removed. The `SIGSTOP`/`SIGCONT` authority above
+is unchanged, and packet F1a's live stall row is its next user.
+
+## F3 Kubernetes list-probe actions (2026-10-13)
+
+Document 02 is the only packet authorized to use this Kubernetes API endpoint.
+The server endpoint `https://10.79.0.1:6443` and expected Kubernetes version
+`v1.36.5` were last reported on 2026-10-12; document 02 must re-confirm both
+against the current `/tmp/tpc4/kubeconfig` before its first live test. The
+current run's cluster CA fingerprint is recorded in the checked manifest after
+provisioning, then the harness verifies that it matches the kubeconfig before
+any API request. A fingerprint mismatch, endpoint mismatch, or version mismatch
+stops the run without setup or cleanup requests.
+The current kubeconfig context is `admin@talos-pilot-c4-20261009`; the harness
+checks this selected context before opening the Kubernetes session.
+
+The setup credential is the fixture's admin kubeconfig, passed only as an
+external file reference to `pnpm kubernetes:fixture`. It may perform only:
+
+- change ownership of exactly `/tmp/tpc4/kubeconfig` to the harness user and
+  keep its mode at `0600`, so the user-scoped harness can read it. This changes
+  no credential bytes; the file is removed with `/tmp/tpc4` during restoration.
+
+- `GET` the one named namespace `talos-pilot-list-probe` to prove it does not
+  already exist, then create that namespace;
+- create the `list-reader` ServiceAccount, the `list-reader` Role, and the
+  `list-reader` RoleBinding inside that namespace; the Role grants only
+  `get` and `list` on core `pods` in that namespace;
+- create exactly 201 minimal synthetic Pods named
+  `list-probe-000` through `list-probe-200` in that namespace, and request one
+  short-lived ServiceAccount token through the `serviceaccounts/token`
+  subresource for the restricted read test;
+- read the fixture server version at `/version` before any fixture test, as
+  directed by the owner on 2026-10-13.
+
+No cluster-scoped resource may be created or changed, no other namespace may be
+read or changed, and no Talos resource is changed. The generated ServiceAccount
+token is held only in zeroizing backend memory and in a temporary kubeconfig
+outside the repository; the harness removes that file on exit.
+
+Cleanup authority is limited to deleting those exact 201 generated Pod names,
+the named RoleBinding, Role, and ServiceAccount in the allowlisted namespace,
+and finally the namespace only if its UID still matches the UID recorded at
+creation. The harness verifies that the namespace is gone. It never cleans up a
+namespace it did not create, one whose UID changed, or an object outside these
+exact names. The runbook's fixture destroy-and-restore procedure remains
+mandatory whether setup, a list read, or cleanup succeeds or fails.
+
+### F3 preflight and namespace lifecycle (2026-10-13)
+
+The reprovisioned fixture reported Kubernetes `v1.36.5` at
+`https://10.79.0.1:6443`, with context `admin@talos-pilot-c4-20261009`. Before
+the first Kubernetes request, the inline CA fingerprint was refreshed in the
+checked manifest to
+`773779b50ec04f259cd88339b0dcffd52b312aa316dbee33d8371abc02c1d076`. The
+selected kubeconfig user contains inline client-certificate and client-key
+data, with no token or basic-auth fields. The successful admin `/version`
+request is the first recorded real mutual-TLS handshake against the Kubernetes
+API.
+
+The live native-test harness then created only the named namespace with the
+admin session, captured its server-issued UID, and deleted it with that UID as a
+Kubernetes delete precondition. The first run's immediate absence assertion
+observed the namespace in `Terminating`; a bounded 15-second verification was
+added, and the subsequent run passed. The fixture was destroyed immediately
+afterward and the namespace was verified gone before destroy.
+
+### F3 restricted-reader setup and read (2026-10-13, second cycle)
+
+The second provisioning cycle again reported endpoint
+`https://10.79.0.1:6443`, Kubernetes `v1.36.5`, and context
+`admin@talos-pilot-c4-20261009`. Its inline CA fingerprint was
+`f33619f91a6e1d2e4705576f500b7d798b2598ae465ba2d4c10406cbf3b45526`; this was
+written to the checked manifest before the first Kubernetes API request. The
+admin kubeconfig again used inline client certificate/key authentication, and
+the `/version` preflight succeeded before fixture setup.
+
+The live harness used that admin session to create the namespace, the
+`list-reader` ServiceAccount, a same-namespace Role limited to `get` and `list`
+on core Pods, and its RoleBinding. It created exactly the 201 names
+`list-probe-000` through `list-probe-200`, with image pulls disabled, then
+requested a 600-second ServiceAccount token. The token was kept in zeroizing
+memory and a private temporary kubeconfig outside the repository. That file
+contains only the fixture endpoint, CA, namespace, reader context, and token;
+it contains no admin certificate or key and was deleted when the harness
+finished. The normal Rust credential validation/import/session path opened
+that reader identity and successfully read `list-probe-000` from the named
+namespace.
+
+Cleanup deleted those exact Pod names, the named RoleBinding, Role, and
+ServiceAccount, then deleted the namespace with the UID from creation as a
+server-side precondition and verified it was gone. Two earlier runs failed at
+reader-kubeconfig validation after setup. The first used the admin context name
+where the fixture cluster name was required; the second omitted `apiVersion: v1`
+and `kind: Config`. After each failure, the temporary partial resources were
+removed by exact-name cleanup and UID-preconditioned namespace deletion, and
+namespace absence was verified before retrying. The corrected run passed. The
+fixture was then destroyed and host restoration completed per step 7.
+
 ## Host-issued identities (2026-10-09 run)
 
 - QEMU bridge: `talosb8c871e1` on `10.79.0.1/24`, four guests
@@ -282,6 +414,38 @@ report `running` again before the next case starts.
 These values are mirrored in machine-readable form in
 [`tests/fixtures/talos-c4.json`](../../../tests/fixtures/talos-c4.json), which
 the harness verifies.
+
+## Host-issued identities (2026-10-12 run)
+
+- Provisioned and destroyed on 2026-10-12 with the same fixture ID, CIDR,
+  topology, and commands as the sections above; no bootstrap timeout, so the
+  recorded fallback was not used.
+- QEMU bridge: `talosb8c871e1` on `10.79.0.1/24`, four guests, bound to the
+  `talos-pilot-c4` zone together with its four veths while the fixture existed.
+- Talos API endpoints: `10.79.0.2`, `10.79.0.3`, `10.79.0.4`; node targets
+  `10.79.0.2`–`10.79.0.5` (the worker is deliberately not an API endpoint);
+  unassigned in-CIDR address `10.79.0.250` used only by the failure cases.
+- Talos version reported by the API: `v1.14.2`; Kubernetes server version
+  `v1.36.5`; hostnames `talos-pilot-c4-20261009-controlplane-1..3` and
+  `...-worker-1`.
+- Contexts: `talos-pilot-c4-20261009` (admin, 1,775 bytes) plus
+  `reader@talos-pilot-c4-20261009` (1,789 bytes) and
+  `etcd:backup@talos-pilot-c4-20261009` (1,811 bytes); each lists the four
+  nodes. The three files were mode 600, readable by the unprivileged harness
+  user, and removed with `/tmp/tpc4`.
+- Kubernetes API endpoint: `https://10.79.0.1:6443`, unchanged from the
+  2026-10-11 recording.
+- Cached installer image: Image Factory ISO
+  `376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba`
+  (`v1.14.2` metal-amd64), SHA-256
+  `e230299bf831f3de962b66226a29b45ca185d23a390a7eb2bd889c9e522846cd`.
+- Pinned `talosctl` v1.14.2 SHA-256
+  `c6c9552b0e5f767352c595fa1c0af4f186f697488646872955057d23990a66c4`, matching
+  the release `sha256sum.txt` `talosctl-linux-amd64` entry.
+- Restoration: both `10.79.0` rule counters `0`; zone list, default zone, and
+  active zones back to the pre-provisioning baseline; `/tmp/tpc4` and any
+  `/tmp/talos-pilot-c4-*` removed; no `qemu-system` process, `talos*` bridge, or
+  fixture veth left; `10.79.0.0/24` routed through `tun0` again.
 
 ## Harness command
 
@@ -335,3 +499,66 @@ invariants that must hold.
 Executed on 2026-10-09 after the harness run: all four steps were verified, with
 zero fixture rules left, the zone list and active zones back to the state
 recorded above, and no QEMU process or bridge.
+
+Executed again on 2026-10-12 after both harness runs: all four steps were
+verified against a fresh pre-provisioning baseline, with zero fixture rules
+left, the zone list, default zone, and active zones restored exactly,
+`/tmp/tpc4` removed, and no QEMU process, `talos*` bridge, or fixture veth
+remaining.
+
+### F3 restricted paginated list (2026-10-13, third cycle)
+
+The fixture provisioned successfully with no bootstrap fallback. Talos reported
+v1.14.2 on nodes `10.79.0.2` through `10.79.0.5`. Before any Kubernetes API
+request, the kubeconfig was confirmed to select
+`admin@talos-pilot-c4-20261009` at `https://10.79.0.1:6443`; its CA SHA-256
+`4ab5ce013beccd2df2a84637355adb96db0d6696ed8e33a66645c7b6899fbc26` was
+recorded in `tests/fixtures/talos-c4.json`. The live harness then confirmed
+Kubernetes `v1.36.5`, created the allowlisted namespace and restricted reader,
+created exactly 201 named Pods, and called `KubernetesSessionStore::list_pods`
+with the reader identity. It returned 201 unique names across the 200-item page
+boundary, `complete=true`, and a non-empty resource version. The harness printed
+`fixture namespace gone: true` after UID-anchored cleanup.
+
+### F4 Pod watch qualification (authorized 2026-10-13)
+
+For F4 only, the same disposable fixture and namespace may be used to verify
+the Rust-owned Kubernetes Pod watch. The admin fixture identity may create the
+same namespace-scoped `list-reader` ServiceAccount, Role, RoleBinding, and 201
+`list-probe-000` through `list-probe-200` Pods already listed above. For this
+watch test, the Role may additionally grant `watch` on core Pods. The harness
+may create exactly one additional Pod named `watch-probe-primary`, change only
+its status phase from `Pending` to `Running`, delete it, and recreate the same
+name to verify a new server UID. To interrupt the live watch, the harness may
+run `sudo -n ss -K state established dst 10.79.0.1 dport = :6443`, which
+terminates only established host TCP sockets connected to this fixture's
+Kubernetes endpoint. It may then
+create exactly one `watch-probe-resumed` Pod and require its server UID to
+arrive through the recovered watch. No firewall rule or route is changed for
+this interruption.
+
+The watch test is read-only outside these named objects and the allowlisted
+namespace. Cleanup remains limited to the exact 201 list-probe names, the two
+watch-probe names, the named RoleBinding, Role, and ServiceAccount, then
+UID-preconditioned deletion of the namespace created by that test. No Talos
+configuration or cluster resource is changed. The normal fixture destroy and
+host restoration steps remain mandatory. This authority does not include any
+other Kubernetes cluster or namespace.
+
+Three scratch-manifest rejection invocations (wrong fixture ID, expected server
+version, and CA fingerprint) each exited before the Rust test process started.
+The CLI rejected each because manifests must resolve to the checked repository
+manifest. No Kubernetes request or resource creation occurred in those
+invocations; deterministic preflight tests separately reject each wrong value
+(and a wrong context) with zero synthetic-server requests. The namespace was
+absent at the fresh-fixture baseline and the rejection invocations could not
+create it.
+
+Runbook step 7 completed. `cluster destroy --name
+talos-pilot-c4-20261009 --force` succeeded while the empty `TALOSCONFIG` guard
+was set; it did not need a Talos context. The exact five iptables rules were
+removed (FORWARD and POSTROUTING fixture counts both `0`), and the temporary
+zone was deleted. The final default zone (`public`), zone list, and active
+zones matched the captured baseline; no QEMU process, fixture bridge, guest
+interface, or `10.79.0.x` address remained; route `10.79.0.2` again used `tun0`;
+`/tmp/tpc4` and `/tmp/talos-pilot-c4-20261009` were absent.

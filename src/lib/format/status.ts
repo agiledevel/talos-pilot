@@ -1,4 +1,5 @@
 import type { CredentialStorageModeDto } from "../ipc/generated/CredentialStorageModeDto";
+import type { KubernetesSessionDto } from "../ipc/generated/KubernetesSessionDto";
 import type { TalosCredentialSessionDto } from "../ipc/generated/TalosCredentialSessionDto";
 import type { TalosProbeEventDto } from "../ipc/generated/TalosProbeEventDto";
 
@@ -12,6 +13,23 @@ export interface TalosContextStatus {
   readonly probing: boolean;
   /** Latest probe projection, or `null` before the first probe. */
   readonly probeEvent: TalosProbeEventDto | null;
+}
+
+/** The Kubernetes session and namespace named by the persistent status bar. */
+export interface KubernetesContextStatus {
+  /** Open backend session, or `null` when no Kubernetes context is open. */
+  readonly session: KubernetesSessionDto | null;
+  /** Namespace currently selected for the next Pod list. */
+  readonly namespace: string;
+}
+
+/** Names the Kubernetes context, backend session, and current namespace. */
+export function kubernetesContextSummary(status: KubernetesContextStatus): string {
+  if (status.session === null) {
+    return "no session";
+  }
+  const namespace = status.namespace.trim() || "no namespace selected";
+  return `${status.session.context_label} · ${status.session.session_id} · namespace ${namespace}`;
 }
 
 /**

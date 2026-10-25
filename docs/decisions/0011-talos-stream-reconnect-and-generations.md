@@ -62,7 +62,10 @@ The helper protocol's generation/sequence invariants are enforced in one place
 so a confused or malicious frame cannot present old data as current. A long
 freeze of the target machine is not detected as a failure (TCP keepalive
 defaults are far above the probe's bounds), so staleness follows observed
-failures, not silence; stall detection is out of scope for the v1 probe. The
+failures, not silence. This consequence is **superseded on 2026-10-12 by
+[0013](0013-talos-stream-stall-detection.md)**: packet F1a detects a stalled
+node within a bounded, documented window on the node-pinned session and then
+uses this decision's failure policy unchanged. The
 256-event cap now counts replacement snapshots, which slightly shortens the
 usable window after a reconnect; the cap is never raised to compensate.
 Milestone 2 subscriptions must reuse these generation semantics rather than
@@ -78,3 +81,49 @@ scripted helper fixture; `src/lib/state/talosProbe.test.ts` proves the stale
 until replacement snapshot state machine. Live evidence against the
 allowlisted disposable fixture is recorded in the
 [milestone 1 ledger](../verification/milestone-1.md).
+
+## Amendment — 2026-10-12: live evidence and owner decision
+
+The 2026-10-12 fixture run
+([F1 part 3](../verification/milestone-1.md#f1-packet-evidence-part-3-live-fixture-rows-on-the-unsandboxed-host--2026-10-12))
+confirmed the consequence above on a real cluster and showed its cost. A
+suspended worker left the established watch silent with no failure for the
+whole observation window, and after a reboot the break surfaced only once the
+worker's API was reachable again, so the first reconnect attempt succeeded at
+once. Two things follow:
+
+- Under this decision's policy, no recorded fixture-local action can exhaust the
+  reconnect budget on the live fixture. Exhaustion is proven by the
+  deterministic framed tests named under Verification, not by a live row.
+- A node that freezes, loses power, or is partitioned keeps its last projection
+  presented as current. That conflicts with the design's honest-status
+  principle, which distinguishes healthy from unavailable and stale.
+
+The owner decided on 2026-10-12:
+
+1. F1's live retry-exhaustion row is re-scoped as not producible with the
+   recorded actions under this policy. F1 closes without it; the absence is
+   recorded in the ledger as absent evidence, not as a pass.
+2. "Stall detection is out of scope for the v1 probe" no longer stands as a
+   scope statement. Bounded stall detection is delivered by packet
+   [F1a](../plans/foundation-completion-flash.md#f1a--detect-a-stalled-talos-stream),
+   whose decision record
+   ([0013](0013-talos-stream-stall-detection.md), 2026-10-12) fixes the
+   mechanism and bounds and supersedes that
+   consequence. Until F1a is accepted, the live behavior described above is
+   the recorded behavior. F1a's own mechanism is implemented in the helper as
+   of 2026-10-12 under [0013](0013-talos-stream-stall-detection.md), with
+   deterministic framed tests; its live stall and exhaustion row remains
+   unexecuted in the milestone ledger.
+
+The retry policy, the generation and sequence invariants, and the helper's
+ownership of reconnection are unchanged.
+
+**Correction, same day.** The reboot observation above was recorded without its
+cause. [0013](0013-talos-stream-stall-detection.md#the-official-client-already-retries-a-broken-watch)
+gives the probable one from the pinned sources: the official client retries a
+broken watch by itself for up to 15 minutes and reports an error only when the
+server rejects its bookmark, which a restarted node does. The suspended-worker
+observation is a different case, a connection that stays open and silent. With
+0013's check in place a reboot is no longer invisible to the helper, so the
+first bullet above describes this decision's policy as it stood before 0013.

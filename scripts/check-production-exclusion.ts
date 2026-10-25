@@ -17,6 +17,11 @@ const forbiddenMarkers = [
   "window.wdioTauri",
   "__wdio_mocks__",
   "native-test-unauthorized",
+  // Synthetic Kubernetes test support must never reach a production artifact.
+  "TALOS_PILOT_NATIVE_TEST_KUBERNETES_DIR",
+  "kubernetes-synthetic-apiserver",
+  "synthetic-native-test",
+  "talos-pilot synthetic test CA",
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -66,6 +71,15 @@ const PRODUCTION_PERMISSIONS = [
   "allow-retry-persistent-storage",
   "allow-import-kubeconfig",
   "allow-import-talosconfig",
+  "allow-list-kubernetes-credentials",
+  "allow-open-kubernetes-session",
+  "allow-close-kubernetes-session",
+  "allow-read-kubernetes-version",
+  "allow-list-kubernetes-pods",
+  "allow-open-kubernetes-pod-watch",
+  "allow-stream-kubernetes-pod-watch",
+  "allow-acknowledge-kubernetes-pod-watch",
+  "allow-stop-kubernetes-pod-watch",
   "allow-start-talos-probe",
   "allow-stop-talos-probe",
   "allow-close-talos-session",
@@ -96,6 +110,11 @@ function assertDefaultCargoGraph(): void {
   if (tree.includes("tauri-plugin-wdio")) {
     throw new Error("The default Cargo feature graph contains a WebDriver plugin.");
   }
+  if (tree.includes("rcgen")) {
+    throw new Error(
+      "The default Cargo feature graph contains the synthetic test certificate generator.",
+    );
+  }
   const testTree = execFileSync(
     "cargo",
     [
@@ -116,6 +135,11 @@ function assertDefaultCargoGraph(): void {
   ) {
     throw new Error("The native-test feature does not include both WDIO plugins.");
   }
+  if (!testTree.includes("rcgen") || !testTree.includes("tokio-rustls")) {
+    throw new Error(
+      "The native-test feature does not include the synthetic Kubernetes test support.",
+    );
+  }
 }
 
 function assertAssetsExcludeTestCode(): void {
@@ -127,6 +151,27 @@ function assertAssetsExcludeTestCode(): void {
     .join("\n");
   if (forbiddenMarkers.some((marker) => content.includes(marker))) {
     throw new Error("The production renderer bundle contains native test code.");
+  }
+}
+
+/**
+ * Requires the production shell document to stay a lazy-loading boundary.
+ *
+ * A `modulepreload` link means a dynamic import became a static dependency of
+ * the entry chunk, so the browser would download that chunk before first use.
+ * The removed Monaco `manualChunks` rule did this to the 2.7 MB editor chunk
+ * (F6-B12). A future static shared chunk needs a deliberate decision here
+ * rather than a silent eager download.
+ */
+function assertShellStaysLazy(): void {
+  const html = readFileSync(resolve(root, "dist", "index.html"), "utf8");
+  if (/<link[^>]+rel=["']modulepreload["']/iu.test(html)) {
+    throw new Error(
+      "The production shell preloads a static chunk; a lazy chunk became an entry dependency.",
+    );
+  }
+  if (html.includes("YamlEditorSurface")) {
+    throw new Error("The production shell document references the lazy editor entry.");
   }
 }
 
@@ -283,6 +328,7 @@ function waitForExit(
 assertProductionConfig();
 assertDefaultCargoGraph();
 assertAssetsExcludeTestCode();
+assertShellStaysLazy();
 assertExecutableExcludesTestCode();
 await assertNoDriverListener(await availablePort());
 process.stdout.write(

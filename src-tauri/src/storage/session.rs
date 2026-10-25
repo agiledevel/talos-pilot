@@ -5,7 +5,7 @@ use std::sync::Mutex;
 
 use secrecy::{ExposeSecret, SecretBox};
 
-use super::database::{MAX_IDENTIFIER_BYTES, MAX_SECRET_BYTES};
+use super::database::{MAX_IDENTIFIER_BYTES, MAX_SECRET_BYTES, bounded_label};
 
 const MAX_SESSION_CREDENTIALS: usize = 256;
 const MAX_SESSION_BYTES: usize = 64 * 1024 * 1024;
@@ -19,6 +19,9 @@ pub enum SessionStoreError {
     /// The reference is empty or otherwise invalid.
     #[error("session credential identity is invalid")]
     InvalidIdentity,
+    /// The reference's label is missing, empty, or out of bounds.
+    #[error("session credential label is invalid")]
+    InvalidLabel,
     /// The in-memory store lock became poisoned after a panic.
     #[error("session credential store is unavailable")]
     Unavailable,
@@ -28,16 +31,27 @@ pub enum SessionStoreError {
 /// session-only operation.
 ///
 /// Construct this store only after the user chooses session-only operation
-/// when the OS vault is unavailable. It has no database handle and provides
-/// no serialization or persistence path. Dropping it releases its retained
-/// values, and each value is zeroized by `SecretBox`.
+/// when the OS vault is unavailable, or when the import cannot be persisted.
+/// It has no database handle and provides no serialization or persistence
+/// path. Dropping it releases its retained values, and each value is zeroized
+/// by `SecretBox`.
+///
+/// Each credential carries a bounded context label in memory only. The label
+/// is what an explicit credential listing shows for this entry; it is never
+/// written to the database, so a session-only import leaves no plaintext
+/// label behind and disappears with this store.
 pub struct SessionOnlyStore {
     values: Mutex<SessionValues>,
 }
 
 struct SessionValues {
-    credentials: HashMap<String, SecretBox<[u8]>>,
+    credentials: HashMap<String, SessionCredential>,
     total_bytes: usize,
+}
+
+struct SessionCredential {
+    label: String,
+    secret: SecretBox<[u8]>,
 }
 
 impl SessionOnlyStore {
@@ -52,19 +66,24 @@ impl SessionOnlyStore {
         }
     }
 
-    /// Inserts or replaces one bounded secret in process memory.
+    /// Inserts or replaces one bounded secret and its bounded label in memory.
     ///
     /// # Errors
     ///
-    /// Returns a safe error for invalid identities, oversized values, or a
-    /// poisoned internal lock. The supplied secret is dropped on error.
+    /// Returns a safe error for invalid identities, invalid labels, oversized
+    /// values, or a poisoned internal lock. The supplied secret is dropped on
+    /// error.
     pub fn insert(
         &self,
         reference_id: &str,
+        label: &str,
         secret: SecretBox<[u8]>,
     ) -> Result<(), SessionStoreError> {
         if reference_id.is_empty() {
             return Err(SessionStoreError::InvalidIdentity);
+        }
+        if !bounded_label(label) {
+            return Err(SessionStoreError::InvalidLabel);
         }
         if reference_id.len() > MAX_IDENTIFIER_BYTES
             || secret.expose_secret().len() > MAX_SECRET_BYTES
@@ -78,7 +97,7 @@ impl SessionOnlyStore {
         let existing_size = values
             .credentials
             .get(reference_id)
-            .map_or(0, |current| current.expose_secret().len());
+            .map_or(0, |current| current.secret.expose_secret().len());
         if !values.credentials.contains_key(reference_id)
             && values.credentials.len() >= MAX_SESSION_CREDENTIALS
         {
@@ -92,7 +111,13 @@ impl SessionOnlyStore {
         if new_total > MAX_SESSION_BYTES {
             return Err(SessionStoreError::TooLarge);
         }
-        values.credentials.insert(reference_id.to_owned(), secret);
+        values.credentials.insert(
+            reference_id.to_owned(),
+            SessionCredential {
+                label: label.to_owned(),
+                secret,
+            },
+        );
         values.total_bytes = new_total;
         Ok(())
     }
@@ -119,7 +144,49 @@ impl SessionOnlyStore {
         Ok(values
             .credentials
             .get(reference_id)
-            .map(|secret| use_secret(secret.expose_secret())))
+            .map(|credential| use_secret(credential.secret.expose_secret())))
+    }
+
+    /// Borrows a credential's bounded context label.
+    ///
+    /// # Errors
+    ///
+    /// Returns a safe error if the internal lock is poisoned.
+    pub fn with_label<R>(
+        &self,
+        reference_id: &str,
+        use_label: impl FnOnce(&str) -> R,
+    ) -> Result<Option<R>, SessionStoreError> {
+        let values = self
+            .values
+            .lock()
+            .map_err(|_| SessionStoreError::Unavailable)?;
+        Ok(values
+            .credentials
+            .get(reference_id)
+            .map(|credential| use_label(&credential.label)))
+    }
+
+    /// Lists this store's references and labels in a bounded projection.
+    ///
+    /// References are returned in identifier order so a listing is stable
+    /// between calls. The store's own bounds already cap the entry count.
+    ///
+    /// # Errors
+    ///
+    /// Returns a safe error if the internal lock is poisoned.
+    pub fn list(&self) -> Result<Vec<(String, String)>, SessionStoreError> {
+        let values = self
+            .values
+            .lock()
+            .map_err(|_| SessionStoreError::Unavailable)?;
+        let mut entries = values
+            .credentials
+            .iter()
+            .map(|(reference_id, credential)| (reference_id.clone(), credential.label.clone()))
+            .collect::<Vec<_>>();
+        entries.sort();
+        Ok(entries)
     }
 
     /// Removes a secret from this session, zeroizing it when no owner remains.
@@ -132,12 +199,12 @@ impl SessionOnlyStore {
             .values
             .lock()
             .map_err(|_| SessionStoreError::Unavailable)?;
-        if let Some(secret) = values.credentials.remove(reference_id) {
+        if let Some(credential) = values.credentials.remove(reference_id) {
             values.total_bytes = values
                 .total_bytes
-                .checked_sub(secret.expose_secret().len())
+                .checked_sub(credential.secret.expose_secret().len())
                 .ok_or(SessionStoreError::Unavailable)?;
-            drop(secret);
+            drop(credential);
             Ok(true)
         } else {
             Ok(false)
@@ -170,13 +237,25 @@ mod tests {
         let store = SessionOnlyStore::new();
         let secret = SecretBox::new(b"session-only-synthetic".to_vec().into_boxed_slice());
         store
-            .insert("reference", secret)
+            .insert("reference", "synthetic context", secret)
             .unwrap_or_else(|_| panic!("bounded secret should be accepted"));
         assert_eq!(
             store
                 .with_secret("reference", |bytes| bytes.to_vec())
                 .unwrap_or_else(|_| panic!("store should remain available")),
             Some(b"session-only-synthetic".to_vec())
+        );
+        assert_eq!(
+            store
+                .with_label("reference", str::to_owned)
+                .unwrap_or_else(|_| panic!("store should remain available")),
+            Some("synthetic context".to_owned())
+        );
+        assert_eq!(
+            store
+                .list()
+                .unwrap_or_else(|_| panic!("store should remain available")),
+            vec![("reference".to_owned(), "synthetic context".to_owned())]
         );
         assert!(
             store
@@ -192,14 +271,38 @@ mod tests {
     }
 
     #[test]
-    fn rejects_invalid_and_oversized_session_values() {
+    fn rejects_invalid_labels_and_oversized_session_values() {
         let store = SessionOnlyStore::new();
         assert_eq!(
-            store.insert("", SecretBox::new(Vec::new().into_boxed_slice())),
+            store.insert(
+                "",
+                "synthetic",
+                SecretBox::new(Vec::new().into_boxed_slice())
+            ),
             Err(SessionStoreError::InvalidIdentity)
         );
         assert_eq!(
-            store.insert("x".repeat(129).as_str(), SecretBox::new(Box::new([0_u8]))),
+            store.insert(
+                "reference",
+                "",
+                SecretBox::new(Vec::new().into_boxed_slice())
+            ),
+            Err(SessionStoreError::InvalidLabel)
+        );
+        assert_eq!(
+            store.insert(
+                "reference",
+                "unsafe\nlabel",
+                SecretBox::new(Vec::new().into_boxed_slice())
+            ),
+            Err(SessionStoreError::InvalidLabel)
+        );
+        assert_eq!(
+            store.insert(
+                "x".repeat(129).as_str(),
+                "synthetic",
+                SecretBox::new(Box::new([0_u8]))
+            ),
             Err(SessionStoreError::TooLarge)
         );
     }
@@ -211,6 +314,7 @@ mod tests {
             store
                 .insert(
                     &format!("reference-{index}"),
+                    &format!("context-{index}"),
                     SecretBox::new(vec![1_u8].into_boxed_slice()),
                 )
                 .unwrap_or_else(|_| panic!("session count should remain within its bound"));
@@ -218,6 +322,7 @@ mod tests {
         assert_eq!(
             store.insert(
                 "reference-overflow",
+                "overflow",
                 SecretBox::new(vec![1_u8].into_boxed_slice())
             ),
             Err(SessionStoreError::TooLarge)

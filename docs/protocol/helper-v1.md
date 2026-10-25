@@ -96,6 +96,35 @@ the sequence of the projection it invalidates, which is 0 when that projection
 is the bootstrap `TALOS_PROBE_RESPONSE`. Until a valid replacement snapshot
 arrives, no projection on the stream may be presented as current.
 
+Silence alone is not a failure: `MachineStatus` events are change-driven, so a
+healthy quiet node emits nothing. The helper measures silence from the last
+delivered data frame (the bootstrap `TALOS_PROBE_RESPONSE` is generation 1's
+projection) and, after 30 seconds without one, performs exactly one bounded
+liveness check: a unary `Version` read on the same node-pinned stream
+connection, answered by the selected node's own apid. The read connection is
+deliberately not used, because a control-plane endpoint could answer it and
+would say nothing about the node ([decision
+0013](../decisions/0013-talos-stream-stall-detection.md)). Any delivered data
+frame resets the window, the check is bounded by the same 15-second attempt
+deadline, at most one check runs at a time, and cancelling the subscription
+ends the check promptly. A failed check is an interruption exactly like a
+failed watch: the helper stops the watch, emits the stale marker, and spends
+the same three-attempt budget below. Stopping the watch is itself bounded by a
+5-second join window; a callback still blocked on an undrained output pipe
+after it means no frame can be delivered safely, so the helper emits nothing
+further and ends, the same disposition the existing cancellation join timeout
+uses. A check failing with `talos_unauthorized` or `talos_certificate_invalid`
+is terminal and is never retried. For a stream whose pipe is being drained, the
+documented bounds are a stale marker within 30 s + 15 s = 45 s of the last
+delivered projection and terminal `talos_unavailable` within about 92 s, while
+an idle healthy stream stays current across any number of windows. An outage
+that outlasts the stale bound plus the budget, which an ordinary node reboot
+usually does, ends the subscription with terminal `talos_unavailable`; the
+official client's own watch retry keeps a broken connection silent to the
+helper, so the check is what bounds it. Stall
+detection changes no message kind, field, sequence rule, generation rule, or
+event cap.
+
 The reconnection follows the foundation plan's bounded policy. One subscription
 allows **at most three reconnect attempts in total**: the first attempt starts
 immediately after the interruption, the helper waits 0.5 s before the second
@@ -127,7 +156,9 @@ endpoint allowlist with the node target applied, so the read keeps ordinary
 endpoint failover. The `MachineStatus` watch runs on a second connection whose
 only endpoint is the selected node, because Talos rejects a node-proxied watch
 (`one-2-many proxying is not supported for method /cosi.resource.State/Watch`)
-and an endpoint-wide watch cannot attribute an event to a machine. See
+and an endpoint-wide watch cannot attribute an event to a machine. The stall
+liveness check reissues `Version` on that same node-pinned connection, and is
+never a wire-visible exchange. See
 [decision 0007](../decisions/0007-pin-talos-streams-to-the-node-api.md).
 
 The Tauri command `get_helper_status` starts the helper lazily and returns only
@@ -149,13 +180,14 @@ the follow-up recorded in the milestone 1 ledger.
 
 The maximum frame payload is 1 MiB. Talos probe config is separately limited
 to 64 KiB, endpoint allowlists to eight unique IP identities, the helper's COSI
-event queue to 16, and each native channel to 256 status updates. Chunked data,
-when introduced, is limited to 64 KiB per chunk with transfer identity,
-sequence, and total bounds. The application owns the helper process and all
-pending requests and subscriptions. The helper event queue, configuration,
-endpoint identities, and projected event fields have explicit bounds before
-exposure. C1 transfers only the helper status identity; C4 adds only the
-bounded Talos probe response and events described above.
+event queue to 16, each native channel to 256 status updates, and stall
+detection to one in-flight liveness check per subscription after a 30-second
+silence window. Chunked data, when introduced, is limited to 64 KiB per chunk
+with transfer identity, sequence, and total bounds. The application owns the
+helper process and all pending requests and subscriptions. The helper event
+queue, configuration, endpoint identities, and projected event fields have
+explicit bounds before exposure. C1 transfers only the helper status identity;
+C4 adds only the bounded Talos probe response and events described above.
 
 ## Compatibility
 

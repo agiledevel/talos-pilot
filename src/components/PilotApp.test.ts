@@ -15,6 +15,29 @@ const TALOS_SESSION = {
   storage_mode: "session_only",
 };
 
+const KUBERNETES_SESSION = {
+  session_id: "kube-session-7",
+  context_label: "synthetic-kubernetes",
+  storage_mode: "session_only",
+};
+
+const KUBERNETES_PODS = {
+  session_id: KUBERNETES_SESSION.session_id,
+  namespace: "workloads",
+  resource_version: "rv-42",
+  complete: true,
+  items: [
+    {
+      name: "api-0",
+      namespace: "workloads",
+      uid: "uid-api-0",
+      resource_version: "rv-42",
+      phase: "Running",
+      readiness: "ready",
+    },
+  ],
+};
+
 function createTransport(): {
   readonly transport: IpcTransport;
   readonly invoke: MockedFunction<IpcTransport["invoke"]>;
@@ -38,7 +61,26 @@ function createTransport(): {
       if (command === "import_talosconfig") {
         return TALOS_SESSION;
       }
-      if (command === "stop_talos_probe" || command === "close_talos_session") {
+      if (command === "list_kubernetes_credentials") {
+        return [
+          {
+            credential_handle: "kubecred-AAAAAAAAAAAAAAAAAAAAAA",
+            context_label: "synthetic-kubernetes",
+            storage_mode: "session_only",
+          },
+        ];
+      }
+      if (command === "open_kubernetes_session") {
+        return KUBERNETES_SESSION;
+      }
+      if (command === "list_kubernetes_pods") {
+        return KUBERNETES_PODS;
+      }
+      if (
+        command === "close_kubernetes_session" ||
+        command === "stop_talos_probe" ||
+        command === "close_talos_session"
+      ) {
         return true;
       }
       return null;
@@ -187,6 +229,7 @@ describe("navigation and status bar", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeInTheDocument();
     expect(screen.getByText("No clusters connected")).toBeInTheDocument();
+    expect(statusBar()).toHaveTextContent("Kubernetes: no session");
     expect(within(navigation).getByRole("button", { name: "Home" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -266,6 +309,291 @@ describe("navigation and status bar", () => {
     await openView(user, "Talos");
     expect(screen.getByText("Talos: healthy")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Stop stream" })).toBeEnabled();
+  });
+
+  it("opens a saved Kubernetes context and lists Pods in the chosen namespace", async () => {
+    const user = userEvent.setup();
+    const { transport, invoke } = createTransport();
+    render(PilotApp, { props: { transport } });
+    await openView(user, "Workloads");
+
+    await user.click(screen.getByRole("button", { name: "Load saved contexts" }));
+    await screen.findByRole("option", { name: /synthetic-kubernetes/u });
+    await user.click(screen.getByRole("button", { name: "Open Kubernetes session" }));
+    expect(await screen.findByText("(kube-session-7)")).toBeInTheDocument();
+
+    const namespace = screen.getByRole("textbox", { name: "Namespace" });
+    await user.clear(namespace);
+    await user.type(namespace, "workloads");
+    await user.type(screen.getByRole("textbox", { name: "Label selector (optional)" }), "app=web");
+    await user.type(
+      screen.getByRole("textbox", { name: "Field selector (optional)" }),
+      "status.phase=Running",
+    );
+    await user.click(screen.getByRole("button", { name: "List Pods" }));
+
+    expect(await screen.findByRole("row", { name: /api-0 Running ready/u })).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith("list_kubernetes_pods", {
+      sessionId: KUBERNETES_SESSION.session_id,
+      namespace: "workloads",
+      labelSelector: "app=web",
+      fieldSelector: "status.phase=Running",
+    });
+    expect(statusBar()).toHaveTextContent(
+      "Kubernetes: synthetic-kubernetes · kube-session-7 · namespace workloads",
+    );
+  });
+
+  it("distinguishes unauthorized and forbidden Pod list results", async () => {
+    const user = userEvent.setup();
+    const { transport, invoke } = createTransport();
+    render(PilotApp, { props: { transport } });
+    await openView(user, "Workloads");
+    await user.click(screen.getByRole("button", { name: "Load saved contexts" }));
+    await user.click(await screen.findByRole("button", { name: "Open Kubernetes session" }));
+
+    invoke.mockRejectedValueOnce({
+      code: "KUBERNETES_UNAUTHORIZED",
+      action: "list_kubernetes_pods",
+      target: null,
+      retryable: false,
+      message: "The Kubernetes API server rejected the credential.",
+    });
+    await user.click(screen.getByRole("button", { name: "List Pods" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Unauthorized: The Kubernetes API server rejected the credential.",
+    );
+
+    invoke.mockRejectedValueOnce({
+      code: "KUBERNETES_FORBIDDEN",
+      action: "list_kubernetes_pods",
+      target: null,
+      retryable: false,
+      message: "The Kubernetes API server denied the request for this credential.",
+    });
+    await user.click(screen.getByRole("button", { name: "List Pods" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Forbidden: The Kubernetes API server denied the request for this credential.",
+    );
+  });
+
+  it("renders empty and unsupported Pod list outcomes as separate states", async () => {
+    const user = userEvent.setup();
+    const { transport, invoke } = createTransport();
+    let returnEmpty = true;
+    let returnUnsupported = false;
+    const defaultInvoke = invoke.getMockImplementation();
+    invoke.mockImplementation(async (command, args) => {
+      if (command === "list_kubernetes_pods" && returnEmpty) {
+        return { ...KUBERNETES_PODS, namespace: "default", items: [] };
+      }
+      if (command === "list_kubernetes_pods" && returnUnsupported) {
+        throw {
+          code: "KUBERNETES_API_UNSUPPORTED",
+          action: "list_kubernetes_pods",
+          target: null,
+          retryable: false,
+          message: "This Kubernetes API server does not provide the Pod list API.",
+        };
+      }
+      return await defaultInvoke?.(command, args);
+    });
+    render(PilotApp, { props: { transport } });
+    await openView(user, "Workloads");
+    await user.click(screen.getByRole("button", { name: "Load saved contexts" }));
+    await user.click(await screen.findByRole("button", { name: "Open Kubernetes session" }));
+
+    await user.click(screen.getByRole("button", { name: "List Pods" }));
+    expect(await screen.findByText("No Pods were found in this namespace.")).toBeInTheDocument();
+
+    returnEmpty = false;
+    returnUnsupported = true;
+    await user.click(screen.getByRole("button", { name: "List Pods" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Pod API unsupported: This Kubernetes API server does not provide the Pod list API.",
+    );
+  });
+
+  it("does not display a late response after a Kubernetes session is replaced", async () => {
+    const user = userEvent.setup();
+    let finishOldRequest: ((value: typeof KUBERNETES_PODS) => void) | undefined;
+    let openedSessions = 0;
+    const invoke = vi.fn<(command: string, args?: Record<string, unknown>) => Promise<unknown>>(
+      async (command, args) => {
+        if (command === "get_appearance_settings") {
+          return { theme: "system", density: "comfortable" };
+        }
+        if (command === "get_credential_storage_status") {
+          return { mode: "session_only" };
+        }
+        if (command === "list_kubernetes_credentials") {
+          return [
+            {
+              credential_handle: "kubecred-AAAAAAAAAAAAAAAAAAAAAA",
+              context_label: "first-context",
+              storage_mode: "session_only",
+            },
+            {
+              credential_handle: "kubecred-BBBBBBBBBBBBBBBBBBBBBB",
+              context_label: "second-context",
+              storage_mode: "session_only",
+            },
+          ];
+        }
+        if (command === "open_kubernetes_session") {
+          openedSessions += 1;
+          return {
+            session_id: `kube-session-${openedSessions}`,
+            context_label: openedSessions === 1 ? "first-context" : "second-context",
+            storage_mode: "session_only",
+          };
+        }
+        if (command === "list_kubernetes_pods") {
+          if (args?.sessionId === "kube-session-1") {
+            return await new Promise<typeof KUBERNETES_PODS>((resolve) => {
+              finishOldRequest = resolve;
+            });
+          }
+          return {
+            ...KUBERNETES_PODS,
+            session_id: "kube-session-2",
+            namespace: "default",
+            items: [
+              {
+                name: "second-session-pod",
+                namespace: "default",
+                uid: "uid-second-session-pod",
+                resource_version: "rv-42",
+                phase: "Running",
+                readiness: "ready",
+              },
+            ],
+          };
+        }
+        return true;
+      },
+    );
+    const transport: IpcTransport = { invoke };
+    render(PilotApp, { props: { transport } });
+    await openView(user, "Workloads");
+    await user.click(screen.getByRole("button", { name: "Load saved contexts" }));
+    await user.click(await screen.findByRole("button", { name: "Open Kubernetes session" }));
+    await user.click(screen.getByRole("button", { name: "List Pods" }));
+    await vi.waitFor(() => {
+      expect(finishOldRequest).toBeTypeOf("function");
+    });
+
+    await user.click(screen.getByRole("button", { name: "Close Kubernetes session" }));
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Saved Kubernetes context" }),
+      "kubecred-BBBBBBBBBBBBBBBBBBBBBB",
+    );
+    await user.click(screen.getByRole("button", { name: "Open Kubernetes session" }));
+    await user.click(screen.getByRole("button", { name: "List Pods" }));
+    expect(await screen.findByText("second-session-pod")).toBeInTheDocument();
+
+    finishOldRequest?.({
+      ...KUBERNETES_PODS,
+      session_id: "kube-session-1",
+      items: [
+        {
+          name: "late-first-session-pod",
+          namespace: "workloads",
+          uid: "uid-late-first-session-pod",
+          resource_version: "rv-42",
+          phase: "Running",
+          readiness: "ready",
+        },
+      ],
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("late-first-session-pod")).not.toBeInTheDocument();
+      expect(screen.getByText("second-session-pod")).toBeInTheDocument();
+      expect(statusBar()).toHaveTextContent("second-context · kube-session-2 · namespace default");
+    });
+  });
+
+  it("discards a late Pod snapshot after the namespace query changes", async () => {
+    const user = userEvent.setup();
+    let finishFirst: ((value: typeof KUBERNETES_PODS) => void) | undefined;
+    const { transport, invoke } = createTransport();
+    invoke.mockImplementation(async (command, args) => {
+      if (command === "get_appearance_settings") {
+        return { theme: "system", density: "comfortable" };
+      }
+      if (command === "get_credential_storage_status") {
+        return { mode: "vault_unavailable" };
+      }
+      if (command === "list_kubernetes_credentials") {
+        return [
+          {
+            credential_handle: "kubecred-AAAAAAAAAAAAAAAAAAAAAA",
+            context_label: "synthetic-kubernetes",
+            storage_mode: "session_only",
+          },
+        ];
+      }
+      if (command === "open_kubernetes_session") {
+        return KUBERNETES_SESSION;
+      }
+      if (command === "list_kubernetes_pods") {
+        const request = args as { namespace: string } | undefined;
+        if (request?.namespace === "first") {
+          return await new Promise<typeof KUBERNETES_PODS>((resolve) => {
+            finishFirst = resolve;
+          });
+        }
+        return {
+          ...KUBERNETES_PODS,
+          namespace: "second",
+          items: [
+            {
+              name: "second-context-pod",
+              namespace: "second",
+              uid: "uid-second-context-pod",
+              resource_version: "rv-42",
+              phase: "Running",
+              readiness: "ready",
+            },
+          ],
+        };
+      }
+      return true;
+    });
+    render(PilotApp, { props: { transport } });
+    await openView(user, "Workloads");
+    await user.click(screen.getByRole("button", { name: "Load saved contexts" }));
+    await user.click(await screen.findByRole("button", { name: "Open Kubernetes session" }));
+
+    const namespace = screen.getByRole("textbox", { name: "Namespace" });
+    await user.clear(namespace);
+    await user.type(namespace, "first");
+    await user.click(screen.getByRole("button", { name: "List Pods" }));
+    await vi.waitFor(() => expect(finishFirst).toBeTypeOf("function"));
+
+    await user.clear(namespace);
+    await user.type(namespace, "second");
+    await user.click(screen.getByRole("button", { name: "List Pods" }));
+    expect(await screen.findByText("second-context-pod")).toBeInTheDocument();
+
+    finishFirst?.({
+      ...KUBERNETES_PODS,
+      namespace: "first",
+      items: [
+        {
+          name: "late-first-pod",
+          namespace: "first",
+          uid: "uid-late-first-pod",
+          resource_version: "rv-42",
+          phase: "Running",
+          readiness: "ready",
+        },
+      ],
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("late-first-pod")).not.toBeInTheDocument();
+      expect(screen.getByText("second-context-pod")).toBeInTheDocument();
+    });
   });
 
   it("cancels the probe and closes the Talos session when the shell unmounts", async () => {

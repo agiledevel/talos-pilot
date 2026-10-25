@@ -59,6 +59,20 @@ pub struct ProfileMetadata {
     pub created_at_unix: i64,
 }
 
+/// One encrypted value written together with its reference and profile.
+///
+/// Grouping values in one spec list is what keeps a credential and the small
+/// encrypted label that describes it in a single transaction: a crash or a
+/// constraint failure cannot leave one without the other.
+pub(crate) struct EncryptedValueSpec<'a> {
+    /// Backend-generated bounded reference identity.
+    pub(crate) reference_id: &'a str,
+    /// Bounded credential kind, bound into the envelope's associated data.
+    pub(crate) value_kind: &'a str,
+    /// Plaintext to encrypt; never stored directly.
+    pub(crate) plaintext: &'a SecretBox<[u8]>,
+}
+
 /// Errors returned by the local metadata database and encrypted-value adapter.
 #[derive(Debug, thiserror::Error)]
 pub enum StorageError {
@@ -74,6 +88,9 @@ pub enum StorageError {
     /// The requested encrypted value does not exist.
     #[error("encrypted value is missing")]
     MissingValue,
+    /// The requested credential handle is unknown or not a supported kind.
+    #[error("credential handle is unknown")]
+    UnknownCredential,
     /// Encryption, parsing, or authentication failed.
     #[error(transparent)]
     Encryption(#[from] EncryptionError),
@@ -143,6 +160,24 @@ impl Database {
         let key = vault.load_or_create_key()?;
         transaction.commit()?;
         Ok(key)
+    }
+
+    /// Loads the existing master key without creating one.
+    ///
+    /// Opening an already-stored credential uses this path. It deliberately
+    /// does not take a write transaction, because it must never create a key:
+    /// a newly generated key cannot decrypt earlier ciphertext, and presenting
+    /// it as that record's key would be unsafe.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the vault is inaccessible, holds no key, or holds
+    /// invalid key data.
+    pub fn load_master_key(
+        &self,
+        vault: &dyn MasterKeyVault,
+    ) -> Result<EncryptionKey, StorageError> {
+        Ok(vault.load_key()?)
     }
 
     /// Persists nonsensitive profile metadata using parameterized SQL.
@@ -286,21 +321,61 @@ impl Database {
         key: &EncryptionKey,
         plaintext: &SecretBox<[u8]>,
     ) -> Result<(), StorageError> {
+        self.store_profile_encrypted_values(
+            profile,
+            &[EncryptedValueSpec {
+                reference_id,
+                value_kind,
+                plaintext,
+            }],
+            key,
+        )
+    }
+
+    /// Inserts a new profile and several encrypted values in one transaction.
+    ///
+    /// Every value is encrypted before the transaction opens, so an oversized
+    /// or unencryptable value cannot leave a partial write behind. Profile,
+    /// references, and envelopes then commit together: importing a credential
+    /// and its small encrypted label either both persist or neither does.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for invalid metadata or identities, oversized
+    /// plaintext, random source failure, database constraints, or
+    /// cryptographic failure. Nothing is written when any value fails.
+    pub(crate) fn store_profile_encrypted_values(
+        &mut self,
+        profile: &ProfileMetadata,
+        values: &[EncryptedValueSpec<'_>],
+        key: &EncryptionKey,
+    ) -> Result<(), StorageError> {
         if !bounded_text(&profile.profile_id, MAX_IDENTIFIER_BYTES)
             || !bounded_text(&profile.display_name, MAX_DISPLAY_NAME_BYTES)
             || profile.created_at_unix < 0
-            || !bounded_text(reference_id, MAX_IDENTIFIER_BYTES)
-            || !bounded_text(value_kind, MAX_IDENTIFIER_BYTES)
+            || values.is_empty()
         {
             return Err(StorageError::InvalidMetadata);
         }
-        let envelope = encrypt(
-            key,
-            &profile.profile_id,
-            reference_id,
-            value_kind,
-            plaintext,
-        )?;
+        let mut envelopes = Vec::with_capacity(values.len());
+        for value in values {
+            if !bounded_text(value.reference_id, MAX_IDENTIFIER_BYTES)
+                || !bounded_text(value.value_kind, MAX_IDENTIFIER_BYTES)
+            {
+                return Err(StorageError::InvalidMetadata);
+            }
+            envelopes.push((
+                value.reference_id,
+                value.value_kind,
+                encrypt(
+                    key,
+                    &profile.profile_id,
+                    value.reference_id,
+                    value.value_kind,
+                    value.plaintext,
+                )?,
+            ));
+        }
         let transaction = self.connection.transaction()?;
         transaction.execute(
             "INSERT INTO profiles(profile_id, display_name, created_at_unix) \
@@ -311,15 +386,89 @@ impl Database {
                 profile.created_at_unix
             ],
         )?;
-        store_envelope_rows(
-            &transaction,
-            &profile.profile_id,
-            reference_id,
-            value_kind,
-            &envelope,
-        )?;
+        for (reference_id, value_kind, envelope) in envelopes {
+            store_envelope_rows(
+                &transaction,
+                &profile.profile_id,
+                reference_id,
+                value_kind,
+                &envelope,
+            )?;
+        }
         transaction.commit()?;
         Ok(())
+    }
+
+    /// Reads the owning profile and kind of one credential reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns a safe SQLite error when the lookup cannot be executed.
+    pub(crate) fn reference_owner(
+        &self,
+        reference_id: &str,
+    ) -> Result<Option<(String, String)>, StorageError> {
+        Ok(self
+            .connection
+            .query_row(
+                "SELECT profile_id, value_kind FROM credential_references \
+                 WHERE reference_id = ?1",
+                [reference_id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()?)
+    }
+
+    /// Finds one profile's reference for a kind, if that kind is stored.
+    ///
+    /// # Errors
+    ///
+    /// Returns a safe SQLite error when the lookup cannot be executed.
+    pub(crate) fn reference_for_kind(
+        &self,
+        profile_id: &str,
+        value_kind: &str,
+    ) -> Result<Option<String>, StorageError> {
+        Ok(self
+            .connection
+            .query_row(
+                "SELECT reference_id FROM credential_references \
+                 WHERE profile_id = ?1 AND value_kind = ?2",
+                params![profile_id, value_kind],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?)
+    }
+
+    /// Lists credential references of one kind, bounded and creation-ordered.
+    ///
+    /// The bound is applied in SQL, so a database holding more references than
+    /// the caller lists can never grow the returned projection past it.
+    ///
+    /// # Errors
+    ///
+    /// Returns a safe SQLite error when the query cannot be executed.
+    pub(crate) fn list_references_by_kind(
+        &self,
+        value_kind: &str,
+        limit: usize,
+    ) -> Result<Vec<(String, String)>, StorageError> {
+        let limit = i64::try_from(limit).map_err(|_| StorageError::InvalidMetadata)?;
+        let mut statement = self.connection.prepare(
+            "SELECT r.reference_id, r.profile_id FROM credential_references r \
+             JOIN profiles p ON p.profile_id = r.profile_id \
+             WHERE r.value_kind = ?1 \
+             ORDER BY p.created_at_unix ASC, r.reference_id ASC \
+             LIMIT ?2",
+        )?;
+        let rows = statement.query_map(params![value_kind, limit], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        let mut references = Vec::new();
+        for row in rows {
+            references.push(row?);
+        }
+        Ok(references)
     }
 
     /// Loads and authenticates an encrypted value for its original identity.
@@ -367,6 +516,21 @@ impl Database {
             value_kind,
             &envelope,
         )?)
+    }
+
+    /// Removes one reference of a kind, used to reproduce a row written before
+    /// a given value kind existed.
+    #[cfg(test)]
+    pub(super) fn test_delete_reference_for_kind(
+        &self,
+        profile_id: &str,
+        value_kind: &str,
+    ) -> Result<(), StorageError> {
+        self.connection.execute(
+            "DELETE FROM credential_references WHERE profile_id = ?1 AND value_kind = ?2",
+            params![profile_id, value_kind],
+        )?;
+        Ok(())
     }
 
     #[cfg(test)]
@@ -466,6 +630,23 @@ fn bounded_text(value: &str, maximum_bytes: usize) -> bool {
     !value.is_empty() && value.len() <= maximum_bytes
 }
 
+/// Reports whether a bounded, non-control credential label is acceptable.
+///
+/// Labels derived from a kubeconfig context are shown in a bounded listing, so
+/// they are length-bounded and may not carry control characters or the Unicode
+/// bidirectional overrides that can make one label render as another.
+pub(crate) fn bounded_label(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= MAX_IDENTIFIER_BYTES
+        && !value.chars().any(|character| {
+            character.is_control()
+                || matches!(
+                    character,
+                    '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'
+                )
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -531,12 +712,27 @@ mod tests {
                 candidate,
             ))))
         }
+
+        fn load_key(&self) -> Result<EncryptionKey, VaultError> {
+            let existing = self
+                .key
+                .lock()
+                .map_err(|_| VaultError::Unavailable)?
+                .ok_or(VaultError::Unavailable)?;
+            Ok(EncryptionKey::from_secret(SecretBox::new(Box::new(
+                existing,
+            ))))
+        }
     }
 
     struct UnavailableVault;
 
     impl MasterKeyVault for UnavailableVault {
         fn load_or_create_key(&self) -> Result<EncryptionKey, VaultError> {
+            Err(VaultError::Unavailable)
+        }
+
+        fn load_key(&self) -> Result<EncryptionKey, VaultError> {
             Err(VaultError::Unavailable)
         }
     }

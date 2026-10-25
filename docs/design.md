@@ -174,7 +174,7 @@ Planned package scripts:
 | `contracts:check` | Deterministic regeneration and comparison of DTO/Protobuf artifacts |
 | `check` | Formatting check, lint/type diagnostics, Svelte diagnostics, renderer tests, and frontend build |
 
-Configure the same checks for local development and CI from milestone 1. Verify the pinned tools against Svelte, Skeleton, Bits UI, Monaco workers, and the generated IPC types before accepting the foundation milestone.
+Configure the same checks for local development and CI from milestone 1. Verify the pinned tools against Svelte, Skeleton, Bits UI, Monaco workers, and the generated IPC types before accepting the foundation milestone. [Decision 0016](decisions/0016-ci-test-tiering.md) assigns deterministic checks and Playwright mock flows to required CI, native WebdriverIO to a manual/nightly reusable workflow and release qualification, and live fixtures, clean-VM package smoke, and performance measurement to local or explicit manual runs. The commands remain identical; only the required-check tier and trigger differ. [Decision 0018](decisions/0018-ci-feedback-and-cache-budgets.md) additionally permits fail-closed PR reuse of unchanged executed evidence, bounded dependency caches, and parallel release compilation without relaxing the final publication or native/fixture gates. Workers follow [FLASH pace](flash-pace.md) to avoid idle time and duplicate checks.
 
 ### Skeleton and Bits UI component foundation
 
@@ -413,7 +413,7 @@ Linux ARM64 and Windows ARM64 follow the initial targets. Windows 11 is the v1 r
 
 The five requested areas are defined: tech stack (section 3), development course (section 9), frontend technology (section 4), supported features (section 5), and design guidelines (section 7).
 
-The owner has locked the design, including the name, Kubernetes 1.36 development baseline with 1.35–1.37 core tests, local credential model, Rust Kubernetes adapter plus Go Talos/Helm workflows, initial platform targets, and milestone order. Milestone 0 is complete. Milestone 1 is the next development step.
+The owner has locked the design, including the name, Kubernetes 1.36 development baseline with 1.35–1.37 core tests, local credential model, Rust Kubernetes adapter plus Go Talos/Helm workflows, initial platform targets, and milestone order. Milestone 0 is complete. Milestone 1 is in progress; the current Linux completion path is the [foundation follow-up plan](plans/foundation-finish/follow-up-to-m2.md), with acceptance tracked in the [ledger](plans/foundation-finish/ledger.md).
 
 Milestone 1 resolves exact compatible toolchain/library pins, cross-platform secret-vault support, Skeleton and Bits UI styles and Monaco workers under the packaged CSP, helper packaging/signing, and native test harness integration. Implement and verify these within the selected architecture. The full lifecycle remains a release requirement.
 
@@ -421,4 +421,4 @@ Routine implementation decisions, dependency patch updates, fixes, and verificat
 
 All contributors must follow [AGENTS.md](../AGENTS.md), the [quality standards](quality.md), and the relevant [Rust](../.agents/skills/talos-pilot-rust/SKILL.md), [Svelte](../.agents/skills/talos-pilot-svelte/SKILL.md), [Tauri](../.agents/skills/talos-pilot-tauri/SKILL.md), and [TypeScript](../.agents/skills/talos-pilot-typescript/SKILL.md) skills.
 
-This document is a researched design. No application implementation, live-cluster integration, performance result, or platform build has been validated yet.
+This document is the locked design, not an implementation acceptance record. Foundation code, hosted builds, Linux native runs, and disposable-cluster evidence now exist; milestone 1 remains incomplete. See the [current stage](../README.md), [milestone checkpoint table](verification/milestone-1.md#checkpoint-status-and-acceptance-criteria), and [foundation ledger](plans/foundation-finish/ledger.md) for executed, failed, deferred, and unexecuted rows. No complete v1, installed-package matrix, or measured performance qualification is claimed.

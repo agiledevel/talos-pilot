@@ -4,8 +4,16 @@ import type { CredentialStorageModeDto } from "./CredentialStorageModeDto";
 
 /**
  * Safe metadata returned after a kubeconfig import.
+ *
+ * The handle is an opaque backend reference. It is not an authorization
+ * grant, and it never contains credential bytes, a file path, or the raw
+ * kubeconfig.
  */
 export type CredentialImportResultDto = {
+  /**
+   * Opaque handle for the stored credential.
+   */
+  credential_handle: string;
   /**
    * Bounded current-context label from the imported kubeconfig.
    */
