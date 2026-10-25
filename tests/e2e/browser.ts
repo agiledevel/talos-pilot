@@ -43,6 +43,13 @@ export const test = base.extend<{ browserEvidence: void }>({
       await page.addInitScript(() => {
         const input: string[] = [];
         Reflect.set(globalThis, "__browserInputEvidence", input);
+        const identity = (element: Element | null): string =>
+          element === null
+            ? "none"
+            : `${element.tagName}#${element.id}[${element.getAttribute("role")}]`;
+        const record = (event: string): void => {
+          if (input.length < 256) input.push(`${performance.now()}: ${event}`.slice(0, 2048));
+        };
         for (const name of ["focusin", "keydown", "keyup"] as const) {
           document.addEventListener(
             name,
@@ -50,17 +57,19 @@ export const test = base.extend<{ browserEvidence: void }>({
               if (input.length >= 256) return;
               const target = event.target;
               if (target instanceof HTMLElement) {
-                input.push(
-                  `${performance.now()}: ${name} ${event instanceof KeyboardEvent ? event.key : ""} ${target.id} ${target.getAttribute("role")}`.slice(
-                    0,
-                    2048,
-                  ),
+                record(
+                  `${name} ${event instanceof KeyboardEvent ? event.key : ""} target=${identity(target)} active=${identity(document.activeElement)} documentFocused=${document.hasFocus()} prevented=${event.defaultPrevented}`,
                 );
               }
             },
             true,
           );
         }
+        document.addEventListener("keydown", (event) => {
+          record(
+            `keydown-bubble ${event.key} active=${identity(document.activeElement)} prevented=${event.defaultPrevented}`,
+          );
+        });
       });
       try {
         await use();
