@@ -5,6 +5,7 @@ import { syntheticChartProposal } from "../../features/charts/chartSamples";
 import type { ChartSampleKind } from "../../features/charts/chartSamples";
 import { ChartSurfaceState } from "../../features/charts/chartSurfaceState.svelte";
 import type { ChartProposal } from "../../features/charts/chartSnapshot";
+import { withSupportedNavigatorLanguage } from "../../features/charts/chartLocale";
 
 /** Identity shown beside the synthetic chart. */
 export const CHART_TARGET_LABEL = "Synthetic metric series (offline, no cluster)";
@@ -31,8 +32,13 @@ export interface ChartSurfaceProps {
 export type ChartSurfaceComponent = Component<ChartSurfaceProps>;
 
 async function loadChartSurface(): Promise<ChartSurfaceComponent> {
-  const module = await import("../../features/charts/ChartSurface.svelte");
-  return module.default;
+  // uPlot reads navigator.language while its module body runs; a POSIX "C"
+  // locale is rejected by WebKit's ICU. See chartLocale.ts for the bounded
+  // workaround and its rationale.
+  return withSupportedNavigatorLanguage(async () => {
+    const module = await import("../../features/charts/ChartSurface.svelte");
+    return module.default;
+  });
 }
 
 /**

@@ -1,9 +1,15 @@
 # 06 — F7: bounded terminal and chart wrappers
 
-Status: **ready for implementation; not started**. Reviewed against `main` at
-`a7ada06` on 2026-10-25, after PR #3 merged the accepted S1 corrections and
-normalized-model bounds fix. Preparation of this document is not F7 evidence.
-Use the [S2 launch prompt](s2-launch-prompt.md) for a fresh FLASH worker.
+Status: **implemented and locally qualified on Linux; packet acceptance pending
+hosted CI**. Reviewed against `main` at `a7ada06` on 2026-10-25, after PR #3
+merged the accepted S1 corrections and normalized-model bounds fix. S2-A–D are
+complete on `docs/s2-flash-readiness`; the [F7 evidence
+record](../../verification/f7-terminal-chart.md) lists every F7-01–F7-08
+outcome, bounds, native/X11 evidence and limits. The branch is local without a
+pull request, so no hosted Foundation/Security run exists for this revision and
+F7 is **not yet accepted**; document 06 closes only after those results are read.
+Use the [S2 launch prompt](s2-launch-prompt.md) only to continue this packet,
+not to restart it.
 
 Read the series [README](README.md) and current [ledger](ledger.md) status first.
 Plan packet: [F7](../foundation-completion-flash.md#f7--qualify-bounded-terminal-and-chart-wrappers).

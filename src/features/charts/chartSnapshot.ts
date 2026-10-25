@@ -249,13 +249,24 @@ function metadataRejection(text: string): ChartRejection {
   };
 }
 
-/** Truncates display/diagnostic text to a small printable bound. */
+/**
+ * Truncates display/diagnostic text to a small printable bound.
+ *
+ * The prefix is built by iteration rather than by materialising the caller's
+ * string, so rejecting an unbounded ID or label does not allocate a copy
+ * proportional to its size.
+ */
 function bounded(text: string): string {
-  const codePoints = Array.from(text);
-  if (codePoints.length <= CHART_METADATA_LIMIT) {
-    return text;
+  let prefix = "";
+  let length = 0;
+  for (const codePoint of text) {
+    if (length === CHART_METADATA_LIMIT) {
+      return `${prefix}…`;
+    }
+    prefix += codePoint;
+    length += 1;
   }
-  return `${codePoints.slice(0, CHART_METADATA_LIMIT).join("")}…`;
+  return prefix;
 }
 
 /**

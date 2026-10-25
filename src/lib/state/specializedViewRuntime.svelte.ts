@@ -28,10 +28,25 @@ export class SpecializedViewDiagnostics {
   inFlightBytes = $state(0);
   /** Replacements coalesced into the single pending slot. */
   queueDepth = $state(0);
+  /** Same-origin URL of the evaluated lazy surface chunk, or `null`. */
+  chunkUrl = $state<string | null>(null);
 
   #instanceCount = 0;
   #listenerCount = 0;
   #observerCount = 0;
+
+  /**
+   * Records that the lazily imported surface chunk evaluated and where it is.
+   *
+   * The surface module itself calls this, so it is an observation of first use,
+   * not a test hook. It is the only asset-URL evidence available in WebKitGTK,
+   * whose Resource Timing buffer is empty.
+   *
+   * @param url `import.meta.url` of the evaluated surface module.
+   */
+  recordChunk(url: string): void {
+    this.chunkUrl = url;
+  }
 
   /** Records one created library instance. */
   instanceOpened(): void {

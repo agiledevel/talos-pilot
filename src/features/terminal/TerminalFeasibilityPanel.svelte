@@ -85,6 +85,12 @@ toggle button.
     </p>
   </div>
 
+  <p class="text-xs break-all text-surface-700-300" data-terminal-chunk>
+    Chunk: {terminalRuntime.chunkUrl === null
+      ? "not loaded"
+      : `loaded (${terminalRuntime.chunkUrl})`}
+  </p>
+
   <p class="text-xs break-all text-surface-700-300" data-terminal-buffers>
     Retained: {formatBytes(terminalRuntime.retainedBytes)} · Pending: {formatBytes(
       terminalRuntime.pendingBytes,

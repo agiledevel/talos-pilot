@@ -15,7 +15,13 @@ describe("terminal surface state", () => {
     expect(state.status).toBe("idle");
     state.accepted(admitted("line\n"));
     state.progress(true);
-    state.observeEmulator({ rows: 2, firstLine: "line", lastLine: "line" });
+    state.observeEmulator({
+      rows: 2,
+      firstLine: "line",
+      lastLine: "line",
+      viewportRow: 1,
+      baseRow: 1,
+    });
     state.rejected("no");
     state.reset();
     expect(state.status).toBe("idle");
@@ -28,6 +34,8 @@ describe("terminal surface state", () => {
     expect(state.emulatorRows).toBe(0);
     expect(state.emulatorFirstLine).toBe("");
     expect(state.emulatorLastLine).toBe("");
+    expect(state.emulatorViewportRow).toBe(0);
+    expect(state.emulatorBaseRow).toBe(0);
   });
 
   it("publishes admitted size and an eviction notice only when data was dropped", () => {
@@ -69,11 +77,19 @@ describe("terminal surface state", () => {
     expect(state.replaying).toBe(false);
   });
 
-  it("bounds emulator boundary text", () => {
+  it("bounds emulator boundary text and reports viewport rows", () => {
     const state = new TerminalSurfaceState();
-    state.observeEmulator({ rows: 1050, firstLine: "a".repeat(500), lastLine: "b".repeat(500) });
+    state.observeEmulator({
+      rows: 1050,
+      firstLine: "a".repeat(500),
+      lastLine: "b".repeat(500),
+      viewportRow: 25,
+      baseRow: 40,
+    });
     expect(state.emulatorRows).toBe(1050);
     expect(state.emulatorFirstLine).toHaveLength(120);
     expect(state.emulatorLastLine).toHaveLength(120);
+    expect(state.emulatorViewportRow).toBe(25);
+    expect(state.emulatorBaseRow).toBe(40);
   });
 });

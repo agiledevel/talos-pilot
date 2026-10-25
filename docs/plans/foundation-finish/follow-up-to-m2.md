@@ -1,12 +1,16 @@
 # Foundation follow-up: stabilization through owner review and M2.0
 
 Date: 2026-10-25. Reviewed source: `889157f` on `ft-foundation-completion`.
-Status: **S1 corrective acceptance complete on 2026-10-25; S2/F7 is next.** All
-three P2 review findings are corrected and accepted (S1-P2-1/2/3) and document
-05 is done on Linux. The saved [S1 launch prompt](s1-launch-prompt.md) is now
-historical and must not be re-run. S0 remains accepted under the
-[B11 owner exception](../../verification/s0-native-keyboard-acceptance.md);
-B11 is unresolved/not fixed. S2/F7 and later steps are not accepted or started.
+Status: **S2/F7 is implemented and locally qualified on Linux; packet acceptance
+is pending hosted CI.** S1's three P2 findings are corrected and accepted
+(S1-P2-1/2/3) and document 05 is done on Linux. The saved [S1 launch
+prompt](s1-launch-prompt.md) is now historical and must not be re-run. S0
+remains accepted under the [B11 owner
+exception](../../verification/s0-native-keyboard-acceptance.md); B11 is
+unresolved/not fixed. The [F7 evidence
+record](../../verification/f7-terminal-chart.md) holds every F7-01–F7-08
+outcome, bounds and limit; S3 and later steps are not started, and F7 is not
+accepted until an owner-authorized push/PR produces hosted results.
 Audience: an LLM starting with no conversation history.
 
 ## 1. Goal, authority, and stopping point
@@ -219,11 +223,17 @@ launch.**
 
 ### S2 — F7 synthetic terminal and chart feasibility
 
-**Ready, not started.** Use the [S2 launch prompt](s2-launch-prompt.md) and
-execute [document 06](06-f7-terminal-chart.md) in its S2-A–D checkpoints:
-research/pins and data bounds, terminal, chart, then qualification. S1 and its
-normalized-model bounds correction are accepted on Linux and merged via PR #3;
-there is no remaining S1 prerequisite to reimplement.
+**Implemented and locally qualified on Linux; acceptance pending hosted CI.**
+S2-A–D are complete on `docs/s2-flash-readiness` and [document
+06](06-f7-terminal-chart.md) records the pins, admission/replay/chart contracts
+and checkpoint order; the [F7 evidence
+record](../../verification/f7-terminal-chart.md) records every F7-01–F7-08
+outcome, the selected bounds, deterministic/browser/native/X11 evidence and the
+pending hosted result. S1 and its normalized-model bounds correction are
+accepted on Linux and merged via PR #3. To close S2, the owner must authorize a
+branch push and a pull request (branch pushes alone start no Foundation/Security
+runs), then a session reads those exact results and records acceptance; do not
+start S3 before that.
 
 The packet specifies independent lazy Home surfaces, synchronous snapshot
 admission, ownership, appearance/resize/disposal races, keyboard/accessibility

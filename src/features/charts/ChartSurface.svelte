@@ -10,6 +10,14 @@ instance and every observer on unmount. Because a canvas is not accessible on
 its own, the surface also renders a bounded numeric equivalent: one row per
 admitted series with latest, minimum, and maximum values, never the full data.
 -->
+<script lang="ts" module>
+  import { chartRuntime } from "../../lib/state/specializedViewRuntime.svelte";
+
+  // Runs only when the dynamic import evaluates this lazy chunk, making first
+  // use and its same-origin URL visible beside the chart.
+  chartRuntime.recordChunk(import.meta.url);
+</script>
+
 <script lang="ts">
   import { CHART_MAX_HEIGHT, CHART_MIN_HEIGHT, CHART_SERIES_COLORS } from "./chartData";
   import { CHART_METADATA_LIMIT, CHART_SAMPLE_LIMIT, CHART_SERIES_LIMIT } from "./chartSnapshot";

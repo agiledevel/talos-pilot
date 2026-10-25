@@ -84,6 +84,10 @@ after a close, focus returns to the same toggle button.
     </p>
   </div>
 
+  <p class="text-xs break-all text-surface-700-300" data-chart-chunk>
+    Chunk: {chartRuntime.chunkUrl === null ? "not loaded" : `loaded (${chartRuntime.chunkUrl})`}
+  </p>
+
   <p class="text-xs break-all text-surface-700-300" data-chart-buffers>
     Rendered: {formatBytes(chartRuntime.retainedBytes)} · Scheduled: {formatBytes(
       chartRuntime.pendingBytes,

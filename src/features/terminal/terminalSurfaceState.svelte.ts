@@ -30,6 +30,10 @@ export class TerminalSurfaceState {
   emulatorFirstLine = $state("");
   /** Bounded text of the emulator's newest retained row. */
   emulatorLastLine = $state("");
+  /** First visible row index reported by the emulator's scroll event. */
+  emulatorViewportRow = $state(0);
+  /** Row index at the bottom of the emulator buffer. */
+  emulatorBaseRow = $state(0);
 
   /** Returns the surface to its pre-attachment state for a fresh open. */
   reset(): void {
@@ -43,6 +47,8 @@ export class TerminalSurfaceState {
     this.emulatorRows = 0;
     this.emulatorFirstLine = "";
     this.emulatorLastLine = "";
+    this.emulatorViewportRow = 0;
+    this.emulatorBaseRow = 0;
   }
 
   /**
@@ -102,10 +108,14 @@ export class TerminalSurfaceState {
     readonly rows: number;
     readonly firstLine: string;
     readonly lastLine: string;
+    readonly viewportRow: number;
+    readonly baseRow: number;
   }): void {
     this.emulatorRows = Math.max(0, Math.trunc(inspection.rows));
     this.emulatorFirstLine = inspection.firstLine.slice(0, 120);
     this.emulatorLastLine = inspection.lastLine.slice(0, 120);
+    this.emulatorViewportRow = Math.max(0, Math.trunc(inspection.viewportRow));
+    this.emulatorBaseRow = Math.max(0, Math.trunc(inspection.baseRow));
   }
 }
 

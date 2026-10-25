@@ -143,7 +143,13 @@ export function terminalAttachment(options: TerminalAttachmentOptions): Attachme
             break;
           }
         }
-        state.observeEmulator({ rows: buffer.length, firstLine, lastLine });
+        state.observeEmulator({
+          rows: buffer.length,
+          firstLine,
+          lastLine,
+          viewportRow: buffer.viewportY,
+          baseRow: buffer.baseY,
+        });
       } catch {
         // Diagnostics are advisory: a failed read leaves the previous bounded
         // inspection in place instead of disturbing replay.
@@ -190,6 +196,41 @@ export function terminalAttachment(options: TerminalAttachmentOptions): Attachme
       terminalRuntime.instanceOpened();
       instanceCounted = true;
       terminal.focus();
+
+      // Scrolling changes the viewport without a write callback, so the real
+      // scroll event updates the bounded row diagnostic.
+      const scrollEvent = terminal.onScroll(() => {
+        inspectEmulator();
+      });
+      terminalRuntime.listenerAdded();
+      resources.addDisposable(() => {
+        scrollEvent.dispose();
+        terminalRuntime.listenerRemoved();
+      });
+
+      // The emulator is read-only, so PageUp/PageDown/Home/End scroll the
+      // viewport instead of being sent to a program that does not exist. This
+      // keeps the scrollback keyboard-operable without a focus trap or addon.
+      resources.listen(node, "keydown", (event) => {
+        if (!(event instanceof KeyboardEvent)) {
+          return;
+        }
+        if (event.ctrlKey || event.altKey || event.metaKey || terminal === null) {
+          return;
+        }
+        if (event.key === "PageUp") {
+          terminal.scrollPages(-1);
+        } else if (event.key === "PageDown") {
+          terminal.scrollPages(1);
+        } else if (event.key === "Home") {
+          terminal.scrollToTop();
+        } else if (event.key === "End") {
+          terminal.scrollToBottom();
+        } else {
+          return;
+        }
+        event.preventDefault();
+      });
 
       replay = new TerminalReplaySession({
         writer: {

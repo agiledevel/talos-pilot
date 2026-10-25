@@ -183,9 +183,19 @@ export function chartAttachment(options: ChartAttachmentOptions): Attachment<HTM
       }
       const size = measure();
       if (size === null) {
+        // Still hidden: keep the single bounded snapshot until a positive size
+        // arrives from a later observer delivery.
         return;
       }
       chart.setSize(size);
+      // Frame requests are coalesced, so a resize delivery can own the frame an
+      // admitted replacement also asked for. This is the only callback that
+      // runs, so it must re-drive the latest bounded snapshot as well.
+      if (pending !== null) {
+        resources.scheduleFrame(() => {
+          guard(flush, "The synthetic chart could not be rendered.");
+        });
+      }
     };
 
     const applyAppearance = (next: SpecializedAppearance): void => {

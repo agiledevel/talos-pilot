@@ -174,6 +174,18 @@ describe("chart snapshot admission", () => {
     expect(rejected.message).toContain("s1");
   });
 
+  it("bounds a rejected metadata message without echoing the whole string", () => {
+    const huge = "x".repeat(2_000_000);
+    const result = requireRejected({
+      time: [1],
+      series: [{ id: "a", label: huge, values: [1] }],
+    });
+    expect(result.code).toBe("metadata-too-long");
+    expect(result.message.length).toBeLessThan(500);
+    expect(result.message).toContain("…");
+    expect(result.message).not.toContain("x".repeat(81));
+  });
+
   it("clears the chart for empty timestamps or no value series", () => {
     const emptyTime = admitChartSnapshot({ time: [], series: [] });
     expect(emptyTime).toMatchObject({ accepted: true, snapshot: null, evictedSamples: 0 });

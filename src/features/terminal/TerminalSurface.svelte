@@ -10,6 +10,14 @@ appearance, and releases the emulator and every observer on unmount. The
 component renders the projection and synthetic controls only; it never reads or
 prints the emulator's buffer.
 -->
+<script lang="ts" module>
+  import { terminalRuntime } from "../../lib/state/specializedViewRuntime.svelte";
+
+  // Runs only when the dynamic import evaluates this lazy chunk, making first
+  // use and its same-origin URL visible beside the terminal.
+  terminalRuntime.recordChunk(import.meta.url);
+</script>
+
 <script lang="ts">
   import {
     TERMINAL_MAX_COLS,
@@ -121,6 +129,14 @@ prints the emulator's buffer.
   <p class="text-sm break-all text-surface-700-300" data-terminal-emulator>
     Emulator rows: {formatCount(view.emulatorRows)} · newest row:
     {view.emulatorLastLine === "" ? "(empty)" : view.emulatorLastLine}
+  </p>
+  <p
+    class="text-sm text-surface-700-300"
+    data-terminal-viewport
+    data-viewport-row={view.emulatorViewportRow}
+    data-base-row={view.emulatorBaseRow}
+  >
+    Viewport: row {formatCount(view.emulatorViewportRow)} of {formatCount(view.emulatorBaseRow)}
   </p>
 
   <div

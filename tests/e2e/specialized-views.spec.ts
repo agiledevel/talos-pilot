@@ -451,6 +451,17 @@ test("chart theme, density, resize, and reopen preserve the accepted window", as
     }
   }
 
+  // A replacement immediately after a resize must still reach the canvas: the
+  // resize and the admitted snapshot share one coalesced frame.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.getByRole("button", { name: "Sample limit + 1" }).click();
+  await expect(page.locator("[data-chart-notice]")).toContainText("evicted 1 older sample", {
+    timeout: 20_000,
+  });
+  await expect(chartEmulatorState(page)).toContainText("8 series × 2,000 aligned samples");
+  await expect.poll(async () => paintedPixels(page)).toBeGreaterThan(1_000);
+  await expect(page.locator("[data-chart-buffers]")).toContainText("Queue: 0");
+
   for (const size of [
     { width: 1280, height: 800 },
     { width: 1024, height: 700 },
