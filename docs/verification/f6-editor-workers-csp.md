@@ -15,6 +15,13 @@ closed; its head results at `d9db19b` were documentation-only evidence
 (Foundation `39881901336` in 41s and Security `39881901333` in 27s, desktop
 skipped, renderer/browser and CodeQL reused executed evidence from `facf409`).
 
+**Subsequent S0 disposition, 2026-10-25:** the owner approved bounded acceptance
+conditional on real native keyboard verification, which passed. See the
+[decision and native evidence](s0-native-keyboard-acceptance.md). S0 is accepted
+with that exception, not with a claimed fix/explanation of B11. Retain browser
+diagnostics and reopen on actionable recurrence. Document 05 remains open for
+S1 editor/model/worker bounds; the earlier matrix is not relabeled as a fresh run.
+
 ## Acceptance matrix
 
 `Browser` is Chromium through Playwright or a renderer test. `Native` is the
