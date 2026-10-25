@@ -25,7 +25,10 @@ test("recovered editor and diff sessions release rejected initial options", asyn
     editor.setValue("a: 1\n");
     diff.setDocuments("a: 1\n", "a: 2\n");
     // Sessions remain strongly rooted across GC; only their source options
-    // should be collected. Neither unattached session creates timers/workers.
+    // should be collected. This proves the sessions do not retain the source
+    // options object itself, not that no string copy could exist elsewhere.
+    // Unattached sessions create no worker: the accepted replacement arms only
+    // the queue's debounce timer, whose dispatch fails closed without a worker.
     Reflect.set(globalThis, "__s1RetainedSessions", { editor, diff });
     Reflect.set(globalThis, "__s1SourceOptions", [
       new WeakRef(editorOptions),

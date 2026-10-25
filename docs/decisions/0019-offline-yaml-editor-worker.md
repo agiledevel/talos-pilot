@@ -173,4 +173,8 @@ timeout, worker error, disposal, and atomic diff-pair rejection), browser flows
 for initial/replaced/pasted documents, and a fresh Linux Tauri/WebKitGTK run that rejects oversized initial
 and replacement documents while the existing worker diagnostic, diff, lazy
 assets, CSP denial, offline behavior and model/worker/listener cleanup still
-pass. Installed-package and other-platform rows remain with documents 08 and 10.
+pass. The corrective revision (S1-P2-1/2/3) was approved by a separate review,
+covered by fresh local renderer/browser and Linux native evidence, and accepted
+with hosted Foundation/Security results on 2026-10-25; the acceptance is recorded
+in the [ledger](../plans/foundation-finish/ledger.md) and closes document 05 on
+Linux. Installed-package and other-platform rows remain with documents 08 and 10.

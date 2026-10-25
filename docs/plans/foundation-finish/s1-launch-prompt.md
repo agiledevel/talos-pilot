@@ -1,17 +1,16 @@
 # S1 launch prompt: corrective implementation and acceptance
 
-Status: **READY** (2026-10-25). This replaces the historical pre-implementation
-prompt. S1 already exists at `812c4fb`, followed by the ledger-only `ac6799a`.
-Three P2 review corrections are prepared on **`ft-editor-bounds`**. Resume the
-existing work and inspect the current tree/ledger; do not recreate the branch,
-reset to main, reinstall Monaco or discard the corrections. PR
-[#3](https://github.com/agiledevel/talos-pilot/pull/3) targets main and remains
-owner-controlled and unmerged.
+Status: **EXECUTED — closed 2026-10-25; do not re-run.** This prompt replaced the
+historical pre-implementation prompt and was consumed by the S1 corrective
+acceptance. The corrections are at `cac672b` on **`ft-editor-bounds`**, and the
+outcome — S1-P2-1/2/3 resolved, document 05 accepted and done on Linux — is in
+the [ledger](ledger.md) and [F6 evidence](../../verification/f6-editor-workers-csp.md).
+PR [#3](https://github.com/agiledevel/talos-pilot/pull/3) targets main and
+remains owner-controlled and unmerged.
 
-“Ready” means the [corrective plan](follow-up-to-m2.md#s1--bound-editordiff-input-and-validation-work-document-05-follow-up)
-and launch instructions are actionable. It does **not** accept S1/document 05,
-claim unexecuted gates or authorize F7. The latest [ledger](ledger.md) entry
-records which corrections and checks are already complete.
+Read the rest as the record of that corrective step, not as a current task: its
+acceptance conditions were satisfied before S1/document 05 was recorded. The
+next step is [document 06](06-f7-terminal-chart.md) (S2/F7) in a later task.
 
 ## Copy-paste task prompt
 

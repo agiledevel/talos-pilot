@@ -528,7 +528,39 @@ browser-probe split and documentation were finalized after native/ordinary
 verification; application/native inputs were unchanged, and final renderer and
 both browser commands were rerun for the harness revision.
 
-Final committed/hosted acceptance remains the next S1 worker's task. The plan
-is **ready**, not an assertion that those pending gates ran. No installed
-package, other-platform WebView, trusted OS paste, cluster or performance
-qualification is claimed; the GC probe is Chromium/source-level evidence only.
+### Acceptance close — 2026-10-25
+
+The corrective revision was reviewed and accepted on `ft-editor-bounds`. An
+independent read-only review of `ac6799a..cac672b` found no blocker, critical or
+major defect; it traced the marker re-creation path in Monaco 0.57
+(`MarkerService.changeOne` rebuilds markers and always fires, so
+`deltaDecorations` re-creates the squiggle after the revert), the synchronous
+revert guard, the owner intent transitions and effect dependencies, the queue
+bounds and every admission point. Its two minor findings were comment-only and
+corrected before acceptance: the ownership probe no longer claims unattached
+sessions create no timers (they arm the queue's 120 ms debounce, whose dispatch
+fails closed without a worker), and it now states that it proves source-options
+ownership rather than the absence of any string copy.
+
+After that comment change, the affected boundary was re-run on the final tree:
+`pnpm check:ci` passed (212 tests/28 files, zero Svelte diagnostics, 72.57%
+statements / 76.1% branches, production frontend build) and `pnpm test:e2e`
+passed 21/21. Application, native and worker inputs stayed identical to
+`cac672b`, whose actual Linux Tauri/WebKitGTK `pnpm test:native` passed 24/24
+across three spec files and whose ordered `pnpm desktop:build` →
+`pnpm production:check` → `pnpm advisories:check` sequence passed (67,079
+symbols, 5 recorded advisories); those rows are preserved, not relabelled.
+
+Hosted results at `cac672b`: Foundation [40220238228](https://github.com/agiledevel/talos-pilot/actions/runs/40220238228)
+passed with a fresh renderer run (212 tests/28 files, then 21 browser flows) and
+executed, passing `desktop (ubuntu-22.04)`, `desktop (macos-15)` and
+`desktop (windows-2022)` jobs; Security [40220238237](https://github.com/agiledevel/talos-pilot/actions/runs/40220238237)
+passed CodeQL (actions, JavaScript/TypeScript, Rust) and Trivy. Hosted desktop
+builds do not qualify other-platform WebView runtimes.
+
+**Disposition:** S1-P2-1/2/3 resolved and S1/document 05 accepted, done on Linux
+(2026-10-25). C6 remains in progress for the F7 terminal/chart wrappers,
+installed packages and deferred WebView platforms; B11 stays an unresolved
+carried risk; later owner review and M2.0 stay gated. No installed package,
+other-platform WebView, trusted OS paste, cluster or performance measurement is
+claimed, and the GC probe is Chromium/source-level evidence only.
