@@ -185,8 +185,10 @@ All existing S1 byte/queue/initial-recovery/CSP/lazy/offline/cleanup acceptance
 cases below remain required. Run the applicable final gates in document 05,
 including actual native verification and the ordered ordinary production
 rebuild/exclusion/advisory checks. Preserve earlier evidence as historical, not
-as a fresh result for changed code. The plan being ready does **not** mean that
-S1/document 05 is accepted or F7 is unblocked.
+as a fresh result for changed code. These were the corrective acceptance gates;
+acceptance is now complete as recorded above, including the subsequent
+normalized-model bounds fix merged via PR #3. Do not reopen S1 from this
+historical checklist.
 
 **Read:** editor/diff session modules, components, worker protocol/parser,
 [decision 0019](../../decisions/0019-offline-yaml-editor-worker.md), existing
@@ -217,15 +219,25 @@ launch.**
 
 ### S2 — F7 synthetic terminal and chart feasibility
 
-Execute [document 06](06-f7-terminal-chart.md), including its upstream package
-research, documented wrappers, lazy loading, appearance/resize/disposal races,
-keyboard/accessibility and native offline/CSP evidence. Starting bounds:
-terminal **1 MiB or 10,000 lines**, whichever first; chart **8 series × 2,000
-samples**. Verify each limit and one beyond. No process/socket, exec, metrics,
-API logs or forwarding integration.
+**Ready, not started.** Use the [S2 launch prompt](s2-launch-prompt.md) and
+execute [document 06](06-f7-terminal-chart.md) in its S2-A–D checkpoints:
+research/pins and data bounds, terminal, chart, then qualification. S1 and its
+normalized-model bounds correction are accepted on Linux and merged via PR #3;
+there is no remaining S1 prerequisite to reimplement.
 
-**Exit:** all document 06 cases pass and bounds are recorded. C6 stays open for
-installed-package/deferred-platform rows.
+The packet specifies independent lazy Home surfaces, synchronous snapshot
+admission, ownership, appearance/resize/disposal races, keyboard/accessibility
+and actual native offline/CSP evidence. Starting bounds: terminal **1,048,576
+UTF-8 bytes and 10,000 logical lines**, whichever first; chart **8 value series
+× 2,000 aligned samples**. Verify each limit and one beyond. The terminal is
+read-only plain text, with bounded callback-paced replay; a ninth chart series
+is rejected visibly, while an extra sample evicts the oldest aligned row.
+No process/socket, exec, metrics, API logs or forwarding integration.
+
+**Exit:** F7-01–08 and applicable final gates pass on the final relevant tree;
+selected geometry/data/queue bounds and evidence classes are recorded. Until
+then F7 remains in progress/blocked, not accepted. C6 stays open for
+installed-package/deferred-platform rows. Stop before S3 in this launch.
 
 ### S3 — F8 notices, dependencies and security
 
