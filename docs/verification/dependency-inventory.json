@@ -7,7 +7,7 @@
     "rustc": "1.99.1",
     "go": "1.27.3",
     "lockfiles": {
-      "pnpmLock": "4e0f33f12379d7ba8d37a5e2649981588177540cdfa538a6a6f485a43068e802",
+      "pnpmLock": "0ab7f895fd8c559cb8febdcfd9b05ae16cec4fbf025df44e187e83845b9f5e12",
       "cargoLock": "9e3ae2f9e24b53dc17ec71a2076a635f5401f55310a95c8bc13d3974c97d1bea",
       "goSum": "ffb278d2583c3268a8ca81ca86449aa64e8e2f788deea074fbfee96032f7e00b"
     }
@@ -1085,6 +1085,22 @@
       "name": "@wdio/xvfb",
       "versions": [
         "9.31.2"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@xterm/addon-fit",
+      "versions": [
+        "0.11.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "@xterm/xterm",
+      "versions": [
+        "6.0.0"
       ],
       "license": "MIT",
       "hasNotice": false
@@ -4064,6 +4080,14 @@
       "name": "unicorn-magic",
       "versions": [
         "0.3.0"
+      ],
+      "license": "MIT",
+      "hasNotice": false
+    },
+    {
+      "name": "uplot",
+      "versions": [
+        "1.6.32"
       ],
       "license": "MIT",
       "hasNotice": false
