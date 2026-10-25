@@ -55,8 +55,6 @@ export interface TerminalReplayState {
   readonly replaying: boolean;
   /** True while a write is awaiting its callback. */
   readonly writing: boolean;
-  /** Canonical bytes of the replay that remain unwritten. */
-  readonly remainingCanonicalBytes: number;
 }
 
 const encoder = new TextEncoder();
@@ -201,11 +199,12 @@ export class TerminalReplaySession {
 
   /** Current replay state for diagnostics and tests. */
   get state(): TerminalReplayState {
-    return {
-      replaying: this.#replayText.length > 0,
-      writing: this.#writing,
-      remainingCanonicalBytes: canonicalBytesFrom(this.#replayText, this.#replayOffset),
-    };
+    return { replaying: this.#replayText.length > 0, writing: this.#writing };
+  }
+
+  /** Canonical bytes of the replay that remain unwritten. */
+  get remainingCanonicalBytes(): number {
+    return canonicalBytesFrom(this.#replayText, this.#replayOffset);
   }
 
   /** The admitted snapshot the session retains, or `null`. */

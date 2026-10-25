@@ -9,6 +9,7 @@ opened, so Home itself imports no specialized library.
 <script lang="ts">
   import EditorFeasibilityPanel from "../editor/EditorFeasibilityPanel.svelte";
   import TerminalFeasibilityPanel from "../terminal/TerminalFeasibilityPanel.svelte";
+  import ChartFeasibilityPanel from "../charts/ChartFeasibilityPanel.svelte";
 </script>
 
 <section class="grid max-w-3xl gap-4" aria-labelledby="clusters-title">
@@ -25,3 +26,5 @@ opened, so Home itself imports no specialized library.
 <EditorFeasibilityPanel />
 
 <TerminalFeasibilityPanel />
+
+<ChartFeasibilityPanel />
