@@ -1,21 +1,21 @@
 # Foundation follow-up: stabilization through owner review and M2.0
 
 Date: 2026-10-25. Reviewed source: `889157f` on `ft-foundation-completion`.
-Status: **S2/F7 is accepted on the development Linux WebView and document 06 is
-done; S3 may start only after the owner merges PR #4 and a session reads that
-merged revision's `main` Foundation/Security results.** The [review and S3
-readiness assessment](../../verification/s2-review-s3-readiness.md) and the
-[S2-R1 corrective record](../../verification/s2-r1-chart-frame-coalescing.md)
-record the fix, the regression and the hosted candidate runs. S1's three P2 findings are corrected and accepted
-(S1-P2-1/2/3) and document 05 is done on Linux. The saved [S1 launch
-prompt](s1-launch-prompt.md) is now historical and must not be re-run. S0
-remains accepted under the [B11 owner
-exception](../../verification/s0-native-keyboard-acceptance.md); B11 is
-unresolved/not fixed. The [F7 evidence
-record](../../verification/f7-terminal-chart.md) holds every F7-01–F7-08
-outcome, bounds and limit, subject to the review's evidence corrections. S3 and
-later steps are not started; F7 needs corrective implementation and final
-qualification, not merely the now-completed hosted runs.
+Current status, 2026-10-26: **S2/F7 is accepted on the development Linux WebView,
+document 06 is done and PR #4 merged at `41b1e00`. S3 is READY for implementation;
+F8 remains not started.** That exact `main` revision's Foundation
+[40245086906](https://github.com/agiledevel/talos-pilot/actions/runs/40245086906)
+and Security [40245086864](https://github.com/agiledevel/talos-pilot/actions/runs/40245086864)
+passed and their job/step results were read. The S3 entry gate is met; those runs
+are not S3 qualification. Use [document 07](07-f8-dependencies-notices-security.md)
+and the [S3 launch prompt](s3-launch-prompt.md) on `ft-dependency-notices-security`.
+The [S2 review](../../verification/s2-review-s3-readiness.md),
+[corrective record](../../verification/s2-r1-chart-frame-coalescing.md) and
+[F7 evidence](../../verification/f7-terminal-chart.md) retain the implementation,
+corrections and limits. S1/document 05 remain accepted on Linux, and their launch
+prompt is historical. S0 remains accepted under the [B11 owner
+exception](../../verification/s0-native-keyboard-acceptance.md); B11 remains
+unresolved/not fixed. S3 and later implementation are not started.
 Audience: an LLM starting with no conversation history.
 
 ## 1. Goal, authority, and stopping point
@@ -43,19 +43,19 @@ prerequisite is blocked does not authorize closing F10 or starting M2.0.
 
 ## 2. Current state and evidence
 
-| Boundary        | Current state                                                                                                       | Remaining work                                                                                            |
-| --------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| F0/F1/F2        | Closed/accepted under recorded owner decisions                                                                      | Preserve; do not reimplement or reopen owner decisions                                                    |
-| F3/F4           | Accepted Linux list/watch implementation, native and disposable Kubernetes 1.36 evidence                            | Refresh affected evidence after relevant corrections; F5 remains separate                                 |
-| F1a/document 01 | Deterministic stall detection and Part A harness exist                                                              | Part B: all eight live cases, measured outcomes, cleanup and host restoration                             |
-| F5/document 04  | Not started; existing 1.36 list/watch evidence is not the full matrix                                               | Pinned 1.35/1.37 fixtures plus the complete 1.36 harness cases                                            |
-| F6/document 05  | Accepted on Linux 2026-10-25: S1 at `812c4fb`, P2 corrections at `cac672b`, final corrective evidence in the ledger | Preserve as attributed evidence; C6 rows for F7 wrappers, installed packages and deferred WebViews remain |
-| F7/document 06  | Not started                                                                                                         | Synthetic bounded terminal/chart feasibility, including native evidence                                   |
-| F8/document 07  | Inventory/advisory machinery exists; C7 not fully complete                                                          | Generated/packaged notices, drift enforcement, refreshed security/applicability                           |
-| F9/document 08  | Linux package qualification not done                                                                                | Revision-based artifacts and clean Ubuntu/Fedora installed-runtime evidence                               |
-| F10/document 09 | No measured budgets/harness or final acceptance                                                                     | Measurements, enforced budgets, final review, owner review                                                |
-| Document 10     | Deferred by owner; no macOS/Windows hardware                                                                        | Revisit only when resources are explicitly available                                                      |
-| M2.0            | Not started; entry gate unmet                                                                                       | Inventory accepted foundation and create milestone 2 evidence ledger after Linux close                    |
+| Boundary        | Current state                                                                                                       | Remaining work                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| F0/F1/F2        | Closed/accepted under recorded owner decisions                                                                      | Preserve; do not reimplement or reopen owner decisions                                                     |
+| F3/F4           | Accepted Linux list/watch implementation, native and disposable Kubernetes 1.36 evidence                            | Refresh affected evidence after relevant corrections; F5 remains separate                                  |
+| F1a/document 01 | Deterministic stall detection and Part A harness exist                                                              | Part B: all eight live cases, measured outcomes, cleanup and host restoration                              |
+| F5/document 04  | Not started; existing 1.36 list/watch evidence is not the full matrix                                               | Pinned 1.35/1.37 fixtures plus the complete 1.36 harness cases                                             |
+| F6/document 05  | Accepted on Linux 2026-10-25: S1 at `812c4fb`, P2 corrections at `cac672b`, final corrective evidence in the ledger | Preserve as attributed evidence; F7 is now accepted; C6 installed-package and deferred WebView rows remain |
+| F7/document 06  | Accepted on Linux; PR #4 merged at `41b1e00`, exact main Foundation/Security passed and read 2026-10-26             | Preserve corrective/native evidence; installed-package/deferred WebView rows remain separate               |
+| F8/document 07  | Inventory/advisory machinery exists; C7 not fully complete                                                          | Generated/packaged notices, drift enforcement, refreshed security/applicability                            |
+| F9/document 08  | Linux package qualification not done                                                                                | Revision-based artifacts and clean Ubuntu/Fedora installed-runtime evidence                                |
+| F10/document 09 | No measured budgets/harness or final acceptance                                                                     | Measurements, enforced budgets, final review, owner review                                                 |
+| Document 10     | Deferred by owner; no macOS/Windows hardware                                                                        | Revisit only when resources are explicitly available                                                       |
+| M2.0            | Not started; entry gate unmet                                                                                       | Inventory accepted foundation and create milestone 2 evidence ledger after Linux close                     |
 
 ### Fresh review evidence at `889157f`
 
@@ -93,8 +93,10 @@ Resolve it before reusing these wrappers with real documents.
 ## 3. Session protocol and safety
 
 1. Check the actual branch/revision/tree; preserve unrelated changes. Read
-   `gh pr checks 2` and completed run details once at entry; record evidence
-   reuse versus fresh execution. Do useful independent work while checks run.
+   the actual branch's PR and completed run details once at entry; discover the
+   PR with `gh pr list --state open --head "$(git branch --show-current)"` rather
+   than hard-coding historical PR #2. Record evidence reuse versus fresh execution.
+   Do useful independent work while checks run.
 2. Reuse the checked-in toolchain bootstrap/private installs; verify pins before
    gates. Read the mandatory skills for every changed domain. Research new
    dependencies/APIs from primary sources only when the packet needs them.
@@ -228,26 +230,21 @@ launch.**
 
 ### S2 — F7 synthetic terminal and chart feasibility
 
-**S2/F7 accepted on Linux; document 06 done. S3 waits for the owner's merge and
-that revision's `main` results.** The [review](../../verification/s2-review-s3-readiness.md)
-supersedes the implementation handoff below for acceptance and hosted status;
-the [S2-R1 corrective record](../../verification/s2-r1-chart-frame-coalescing.md)
-records the `5e306a5` fix, its failing-before/passing-after browser regression,
-the rerun renderer, browser, native, trusted-input and ordered production gates,
-and the hosted Foundation/Security runs for PR head `4fcc9d2`. Do not assume the
-merge revision equals that head, and do not start S3 before reading the merged
-revision's results.
+**S2/F7 accepted on Linux; document 06 done. PR #4 merged at `41b1e00` and that
+exact `main` revision's Foundation/Security runs passed and were read on
+2026-10-26. The S3 entry gate is met.** The
+[review](../../verification/s2-review-s3-readiness.md) and
+[S2-R1 corrective record](../../verification/s2-r1-chart-frame-coalescing.md)
+record the `5e306a5` fix, its failing-before/passing-after browser regression,
+rerun renderer/browser/native/trusted-input/ordered-production gates, and
+candidate hosted results. Entry main results are linked at the top of this file;
+they do not turn S2 into installed-package or cross-platform runtime evidence.
 
-Historical implementation handoff: S2-A–D were completed on `docs/s2-flash-readiness` and [document
-06](06-f7-terminal-chart.md) records the pins, admission/replay/chart contracts
-and checkpoint order; the [F7 evidence
+S2-A–D were completed on `docs/s2-flash-readiness`; [document
+06](06-f7-terminal-chart.md) records contracts and the [F7 evidence
 record](../../verification/f7-terminal-chart.md) records every F7-01–F7-08
-outcome, the selected bounds, deterministic/browser/native/X11 evidence and the
-pending hosted result. S1 and its normalized-model bounds correction are
-accepted on Linux and merged via PR #3. To close S2, the owner must authorize a
-branch push and a pull request (branch pushes alone start no Foundation/Security
-runs), then a session reads those exact results and records acceptance; do not
-start S3 before that.
+outcome. The saved S2 prompt is historical, not a relaunch. No further S2
+implementation or repeated qualification is required by this planning handoff.
 
 The packet specifies independent lazy Home surfaces, synchronous snapshot
 admission, ownership, appearance/resize/disposal races, keyboard/accessibility
@@ -258,25 +255,46 @@ read-only plain text, with bounded callback-paced replay; a ninth chart series
 is rejected visibly, while an extra sample evicts the oldest aligned row.
 No process/socket, exec, metrics, API logs or forwarding integration.
 
-**Exit:** F7-01–08 and applicable final gates pass on the final relevant tree;
-selected geometry/data/queue bounds and evidence classes are recorded. Until
-then F7 remains in progress/blocked, not accepted. C6 stays open for
-installed-package/deferred-platform rows. Stop before S3 in this launch.
+**Exit (met):** F7-01–08 and applicable final gates pass on the final relevant
+tree; selected geometry/data/queue bounds and evidence classes are recorded.
+C6 stays open for installed-package/deferred-platform rows. S2's historical
+implementation launch stopped before S3.
 
 ### S3 — F8 notices, dependencies and security
 
-Execute [document 07](07-f8-dependencies-notices-security.md). Generate notices
-from dependency sources, enforce drift with a demonstrated failure/pass, package
-them, review licenses and refresh inventory/advisory evidence for the final
-set. Repeat each exception's dependency-path, linked-code and upstream-fix
-assessment before renewing/removing it. Do not auto-renew or widen exceptions.
+**READY; implementation not started (2026-10-26).** Branch
+`ft-dependency-notices-security` starts from merged `main` `41b1e00`; exact
+Foundation/Security job/step results have been read. Execute
+[document 07](07-f8-dependencies-notices-security.md) using the
+[S3 launch prompt](s3-launch-prompt.md), one checkpoint at a time:
+
+1. **S3-A:** review live locked inputs, redistribution/target coverage, full
+   license/subcomponent texts and MPL recipient/source obligations; fix exact
+   output paths, finite bounds and source policy before code.
+2. **S3-B:** deterministic generator/read-only checks with live-input drift,
+   missing/extra/text failure tests and regeneration recovery; required CI/build
+   enforcement, including scope tests for formerly ignored build inputs.
+3. **S3-C:** Tauri legal resources, actual Linux bundle payload hash verification,
+   negative missing/tampered payload tests and actual native smoke. A no-bundle
+   executable or source directory alone is not package evidence.
+4. **S3-D:** fresh inventory/advisory evidence, decisions 0006/0017 and both
+   exceptions' path/linked-code/upstream-fix assessments; explicit removal or
+   justified dated renewal, final separate review and candidate hosted checks.
+
+Use the packet's F8-01–08 acceptance matrix. The existing inventory is Linux-only;
+choose explicit reproducible cross-target coverage, not a relabelled Linux copy.
+No automatic/widened exceptions, incidental Go/Talos refresh or fixture work.
+No push/PR/release authority is granted by preparing this branch.
 
 **Date override:** at or after **2026-11-15**, handle the two Trivy exceptions
 before continuing another lengthy packet; hard expiry is **2026-11-30**.
 
-**Exit:** document 07 accepted, including notice presence and fresh security or
-properly labelled compatible reused evidence under decision 0018. Per-platform
-final-artifact inspection remains assigned to F9; do not call C7 globally done.
+**Exit:** all F8-01–08 accepted with reproducible full notices, demonstrated
+source/package failure/pass, real Linux payload/native evidence and final
+candidate security/CI results (compatible reuse labelled under decision 0018).
+Missing hosted, bundle or native evidence leaves F8 in progress/blocked.
+Per-format/target final-artifact scans and clean installed runtimes remain F9;
+do not call C7 globally done. Stop before S4 in the S3 implementation launch.
 
 ### S4 — F9 Linux installer and vault qualification
 
