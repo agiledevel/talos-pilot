@@ -52,6 +52,10 @@ the same toggle button.
     }
     await feasibility.open();
   }
+
+  async function openOversizedEditor(): Promise<void> {
+    await feasibility.openWithOversize();
+  }
 </script>
 
 <section
@@ -81,6 +85,15 @@ the same toggle button.
     >
       {toggleLabel}
     </button>
+    {#if status !== "ready" && status !== "loading"}
+      <button
+        type="button"
+        class="btn preset-outlined-surface-500"
+        onclick={() => void openOversizedEditor()}
+      >
+        Open with oversized draft
+      </button>
+    {/if}
     <p class="text-sm text-surface-700-300" data-editor-runtime>
       Workers: {editorRuntime.workers} · Models: {editorRuntime.models} · Listeners:
       {editorRuntime.listeners}
@@ -108,15 +121,18 @@ the same toggle button.
   {#if status === "ready" && feasibility.surface.surface !== null}
     {@const Surface = feasibility.surface.surface}
     <Surface
-      value={feasibility.value}
+      readValue={() => feasibility.readValue()}
       onChange={(next) => {
-        feasibility.value = next;
+        feasibility.acceptEdit(next);
       }}
       onCorrect={() => {
         feasibility.correct();
       }}
       onReset={() => {
         feasibility.reset();
+      }}
+      onOversize={() => {
+        feasibility.oversize();
       }}
       onClose={close}
       targetLabel={EDITOR_TARGET_LABEL}

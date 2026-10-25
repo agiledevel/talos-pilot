@@ -7,6 +7,7 @@ import {
   YAML_LANGUAGE_ID,
 } from "../../features/editor/editorMonaco";
 import { observeEditorAppearance, observeEditorSize } from "../../features/editor/editorLifecycle";
+import { admitDocumentPair } from "../../features/editor/documentBounds";
 import { editorRuntime, OwnedListeners } from "./editorRuntimeDiagnostics.svelte";
 
 let nextUri = 0;
@@ -33,6 +34,12 @@ export interface YamlDiffOptions {
 /**
  * Owns one Monaco diff editor and its two read-only text models.
  *
+ * Both documents are admitted against the UTF-8 byte ceiling before either
+ * model is created or replaced, and a replacement is applied as a pair: if
+ * either side is oversized, both sides keep their previous accepted text and
+ * the component shows the rejection. No text is truncated. An oversized initial
+ * pair creates no model; a later accepted pair can still start the diff.
+ *
  * The diff is computed by Monaco's worker-backed diff service under the same
  * packaged CSP as the YAML editor. The attachment cleanup disposes the editor,
  * both models, the resize/theme observers, and every owned listener; the editor
@@ -46,10 +53,16 @@ export class YamlDiffSession {
   status = $state<"idle" | "ready" | "failed">("idle");
   /** Safe failure message when Monaco cannot create the diff. */
   mountError = $state<string | null>(null);
+  /** Visible rejection of either diff side. */
+  documentError = $state<string | null>(null);
 
-  readonly #options: YamlDiffOptions;
+  #label: string;
+  readonly #originalLabel: string;
+  readonly #modifiedLabel: string;
   #original: string;
   #modified: string;
+  #hasAcceptedDocuments: boolean;
+  #element: HTMLElement | null = null;
   #editor: monaco.editor.IStandaloneDiffEditor | null = null;
   #originalModel: monaco.editor.ITextModel | null = null;
   #modifiedModel: monaco.editor.ITextModel | null = null;
@@ -59,9 +72,23 @@ export class YamlDiffSession {
 
   /** @param options Initial documents and accessible names. */
   constructor(options: YamlDiffOptions) {
-    this.#options = options;
-    this.#original = options.original;
-    this.#modified = options.modified;
+    // Documents live only in the admitted fields, never in a retained options
+    // object that could preserve a rejected initial pair after recovery.
+    this.#label = options.label;
+    this.#originalLabel = options.originalLabel;
+    this.#modifiedLabel = options.modifiedLabel;
+    const admitted = admitDocumentPair(options.original, options.modified);
+    if (!admitted.accepted) {
+      this.#original = "";
+      this.#modified = "";
+      this.#hasAcceptedDocuments = false;
+      this.documentError = admitted.message;
+    } else {
+      this.#original = admitted.original;
+      this.#modified = admitted.modified;
+      this.#hasAcceptedDocuments = true;
+      this.documentError = null;
+    }
   }
 
   /** Builds the Svelte attachment that owns the diff editor's lifetime. */
@@ -74,34 +101,55 @@ export class YamlDiffSession {
     };
   }
 
-  /** Replaces both documents. Programmatic changes do not emit an edit event. */
+  /**
+   * Replaces both documents as one reviewable pair. Programmatic changes do not
+   * emit an edit event. If either side exceeds the byte ceiling, neither side
+   * changes and the rejection is shown.
+   */
   setDocuments(original: string, modified: string): void {
     if (this.#disposed) {
       return;
     }
-    if (original !== this.#original) {
-      this.#original = original;
-      if (this.#originalModel?.getValue() !== original) {
-        this.#originalModel?.setValue(original);
+    if (original === this.#original && modified === this.#modified && this.#hasAcceptedDocuments) {
+      this.documentError = null;
+      if (this.#editor === null && this.#element !== null) {
+        this.#startEditor();
       }
+      return;
     }
-    if (modified !== this.#modified) {
-      this.#modified = modified;
-      if (this.#modifiedModel?.getValue() !== modified) {
-        this.#modifiedModel?.setValue(modified);
-      }
+    const admitted = admitDocumentPair(original, modified);
+    if (!admitted.accepted) {
+      this.documentError = admitted.message;
+      return;
+    }
+    this.#original = admitted.original;
+    this.#modified = admitted.modified;
+    this.#hasAcceptedDocuments = true;
+    this.documentError = null;
+    const originalModel = this.#originalModel;
+    const modifiedModel = this.#modifiedModel;
+    if (originalModel === null || modifiedModel === null) {
+      this.#startEditor();
+      return;
+    }
+    if (originalModel.getValue() !== admitted.original) {
+      originalModel.setValue(admitted.original);
+    }
+    if (modifiedModel.getValue() !== admitted.modified) {
+      modifiedModel.setValue(admitted.modified);
     }
   }
 
   /** Updates the accessible group name after a prop change. */
   setLabel(label: string): void {
+    this.#label = label;
     const editor = this.#editor;
     if (editor === null) {
       return;
     }
     editor.updateOptions({ ariaLabel: label });
-    editor.getOriginalEditor().updateOptions({ ariaLabel: this.#options.originalLabel });
-    editor.getModifiedEditor().updateOptions({ ariaLabel: this.#options.modifiedLabel });
+    editor.getOriginalEditor().updateOptions({ ariaLabel: this.#originalLabel });
+    editor.getModifiedEditor().updateOptions({ ariaLabel: this.#modifiedLabel });
   }
 
   /** Releases the diff editor, both models, observers, and listeners. */
@@ -112,6 +160,7 @@ export class YamlDiffSession {
     this.#disposed = true;
     this.#listeners?.dispose();
     this.#listeners = null;
+    this.#element = null;
     const editor = this.#editor;
     this.#editor = null;
     const original = this.#originalModel;
@@ -130,9 +179,27 @@ export class YamlDiffSession {
   }
 
   #mount(element: HTMLElement): void {
-    if (this.#disposed || this.#editor !== null) {
+    if (this.#disposed || this.#element !== null) {
       return;
     }
+    this.#element = element;
+    this.#startEditor();
+  }
+
+  #startEditor(): void {
+    const element = this.#element;
+    if (this.#disposed || element === null || this.#editor !== null) {
+      return;
+    }
+    if (!this.#hasAcceptedDocuments) {
+      return;
+    }
+    const admitted = admitDocumentPair(this.#original, this.#modified);
+    if (!admitted.accepted) {
+      this.documentError = admitted.message;
+      return;
+    }
+    this.documentError = null;
     const listeners = new OwnedListeners(editorRuntime);
     this.#listeners = listeners;
     try {
@@ -140,13 +207,13 @@ export class YamlDiffSession {
       ensureMonacoYaml();
       const appearance = readEditorAppearance();
       const originalModel = monaco.editor.createModel(
-        this.#original,
+        admitted.original,
         YAML_LANGUAGE_ID,
         modelUri("before"),
       );
       this.#originalModel = originalModel;
       const modifiedModel = monaco.editor.createModel(
-        this.#modified,
+        admitted.modified,
         YAML_LANGUAGE_ID,
         modelUri("after"),
       );
@@ -156,9 +223,9 @@ export class YamlDiffSession {
       editorRuntime.modelCreated();
       const editor = monaco.editor.createDiffEditor(element, {
         theme: appearance.dark ? "talos-pilot-dark" : "talos-pilot-light",
-        ariaLabel: this.#options.label,
-        originalAriaLabel: this.#options.originalLabel,
-        modifiedAriaLabel: this.#options.modifiedLabel,
+        ariaLabel: this.#label,
+        originalAriaLabel: this.#originalLabel,
+        modifiedAriaLabel: this.#modifiedLabel,
         originalEditable: false,
         readOnly: true,
         automaticLayout: false,

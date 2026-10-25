@@ -4,13 +4,17 @@ Read the series [README](README.md) and the [ledger](ledger.md) first. This docu
 
 Plan packet: [F6](../foundation-completion-flash.md#f6--qualify-svelte-shell-and-offline-monacoyaml-workers). Maps to checkpoints C6.1 and C6.2 and task FND-005. Prerequisite in the plan: F5. It may be taken earlier when a fixture document is blocked, if the ledger records why.
 
-**Current status, 2026-10-25:** the original implementation and Linux native
-passes are recorded in [F6 evidence](../../verification/f6-editor-workers-csp.md).
-S0 is [accepted by owner-directed exception after a native keyboard pass](../../verification/s0-native-keyboard-acceptance.md);
-B11 remains unresolved/not fixed, with diagnostics retained. Execute
-[S1](follow-up-to-m2.md#s1--bound-editordiff-input-and-validation-work-document-05-follow-up)
-for F6-B1 document/model/worker bounds, then re-establish acceptance before F7.
-This packet remains open. Preserve the earlier attributed failures and results.
+**Current status, 2026-10-25: done on Linux.** S1 is accepted on this branch: the
+initial implementation at `812c4fb` and the three P2 corrective cases
+(S1-P2-1/2/3) at `cac672b` carry separate recorded evidence in the
+[F6 evidence](../../verification/f6-editor-workers-csp.md) and the append-only
+[ledger](ledger.md). The three cases preserved the owning accepted draft across
+rejection and reopen, restored the rendered inline diagnostic after a rejected
+edit, and released rejected initial options/component copies. S0 remains
+[accepted under its owner exception](../../verification/s0-native-keyboard-acceptance.md);
+B11 is unresolved/not fixed and diagnostics stay. F7 has not started and is the
+next step. C6 stays **in progress** for terminal/chart wrappers, installed
+packages and deferred WebView platforms.
 
 ## Outcome
 
@@ -80,6 +84,32 @@ Use a benign synthetic YAML document. It must not be, or resemble, a machine con
 6. **Cleanup.** Use attachments for setup and teardown. Closing the surface disposes models, editors, workers, and listeners. Expose counters or diagnostics that a test can read to prove it.
 7. **CSP evidence.** Add negative tests: a script from an unauthorized origin and an inline script must be blocked. Show no request leaves the application for a remote origin.
 8. **Native evidence.** In the release executable: lazy chunk loading, offline asset resolution, and the worker producing its diagnostic. Then open and close repeatedly, replace props, resize, and change theme, while observing that workers, models, and listeners return to baseline.
+
+## S1 follow-up acceptance (2026-10-25)
+
+F6-B1 was the source finding that the parser rejected documents above 64 KiB
+only after model creation and full worker transfer, while the diff accepted
+unrestricted strings and debouncing left queued work unbounded. The initial S1
+implementation adds the following contract without changing the CSP; the final
+acceptance also covers S1-P2-1/2/3 from the linked corrective plan, recorded in
+the same evidence and ledger:
+
+- the 64 KiB value is an explicit UTF-8 **byte** ceiling, admitted before model
+  creation/replacement and before worker transfer for initial, replaced and
+  edited/pasted/undo-redo documents and both diff sides;
+- rejection is visible, the prior accepted document stays usable, nothing is
+  truncated, the rejected text is not retained, and a rejected initial document
+  creates no model and recovers when a bounded replacement arrives;
+- validation keeps one in-flight request and at most one coalesced latest
+  document, invalidates diagnostics immediately on a document change, and
+  ignores stale/duplicate/out-of-order replies;
+- timeout, worker error, bounded restart and disposal are explicit and tested by
+  observing dispatched/in-flight/queued work and resource counters.
+
+The evidence matrix, commands and limits are in
+[F6 evidence](../../verification/f6-editor-workers-csp.md#s1-bounds-and-bounded-validation-acceptance--2026-10-25)
+and the S1 entries in the [ledger](ledger.md). This follow-up changed no
+acceptance case below; it makes cases 3 and 8 hold under bounded input as well.
 
 ## Acceptance cases
 

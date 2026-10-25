@@ -1,10 +1,12 @@
 # Foundation follow-up: stabilization through owner review and M2.0
 
 Date: 2026-10-25. Reviewed source: `889157f` on `ft-foundation-completion`.
-Status: S0 accepted with an owner-directed residual-risk exception after the
-real native keyboard check passed; S1 is next. Document 05 remains open.
-[B11 decision and evidence](../../verification/s0-native-keyboard-acceptance.md)
-record the exception; B11 is unresolved/not fixed. Later steps are not accepted.
+Status: **S1 corrective acceptance complete on 2026-10-25; S2/F7 is next.** All
+three P2 review findings are corrected and accepted (S1-P2-1/2/3) and document
+05 is done on Linux. The saved [S1 launch prompt](s1-launch-prompt.md) is now
+historical and must not be re-run. S0 remains accepted under the
+[B11 owner exception](../../verification/s0-native-keyboard-acceptance.md);
+B11 is unresolved/not fixed. S2/F7 and later steps are not accepted or started.
 Audience: an LLM starting with no conversation history.
 
 ## 1. Goal, authority, and stopping point
@@ -32,19 +34,19 @@ prerequisite is blocked does not authorize closing F10 or starting M2.0.
 
 ## 2. Current state and evidence
 
-| Boundary        | Current state                                                                                                        | Remaining work                                                                         |
-| --------------- | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| F0/F1/F2        | Closed/accepted under recorded owner decisions                                                                       | Preserve; do not reimplement or reopen owner decisions                                 |
-| F3/F4           | Accepted Linux list/watch implementation, native and disposable Kubernetes 1.36 evidence                             | Refresh affected evidence after relevant corrections; F5 remains separate              |
-| F1a/document 01 | Deterministic stall detection and Part A harness exist                                                               | Part B: all eight live cases, measured outcomes, cleanup and host restoration          |
-| F5/document 04  | Not started; existing 1.36 list/watch evidence is not the full matrix                                                | Pinned 1.35/1.37 fixtures plus the complete 1.36 harness cases                         |
-| F6/document 05  | Linux native editor/CSP evidence recorded; S0 accepted by owner exception after native keyboard pass; B11 unresolved | S1 editor-bound hardening; retain B11 diagnostics and reopen on actionable recurrence  |
-| F7/document 06  | Not started                                                                                                          | Synthetic bounded terminal/chart feasibility, including native evidence                |
-| F8/document 07  | Inventory/advisory machinery exists; C7 not fully complete                                                           | Generated/packaged notices, drift enforcement, refreshed security/applicability        |
-| F9/document 08  | Linux package qualification not done                                                                                 | Revision-based artifacts and clean Ubuntu/Fedora installed-runtime evidence            |
-| F10/document 09 | No measured budgets/harness or final acceptance                                                                      | Measurements, enforced budgets, final review, owner review                             |
-| Document 10     | Deferred by owner; no macOS/Windows hardware                                                                         | Revisit only when resources are explicitly available                                   |
-| M2.0            | Not started; entry gate unmet                                                                                        | Inventory accepted foundation and create milestone 2 evidence ledger after Linux close |
+| Boundary        | Current state                                                                                                       | Remaining work                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| F0/F1/F2        | Closed/accepted under recorded owner decisions                                                                      | Preserve; do not reimplement or reopen owner decisions                                                    |
+| F3/F4           | Accepted Linux list/watch implementation, native and disposable Kubernetes 1.36 evidence                            | Refresh affected evidence after relevant corrections; F5 remains separate                                 |
+| F1a/document 01 | Deterministic stall detection and Part A harness exist                                                              | Part B: all eight live cases, measured outcomes, cleanup and host restoration                             |
+| F5/document 04  | Not started; existing 1.36 list/watch evidence is not the full matrix                                               | Pinned 1.35/1.37 fixtures plus the complete 1.36 harness cases                                            |
+| F6/document 05  | Accepted on Linux 2026-10-25: S1 at `812c4fb`, P2 corrections at `cac672b`, final corrective evidence in the ledger | Preserve as attributed evidence; C6 rows for F7 wrappers, installed packages and deferred WebViews remain |
+| F7/document 06  | Not started                                                                                                         | Synthetic bounded terminal/chart feasibility, including native evidence                                   |
+| F8/document 07  | Inventory/advisory machinery exists; C7 not fully complete                                                          | Generated/packaged notices, drift enforcement, refreshed security/applicability                           |
+| F9/document 08  | Linux package qualification not done                                                                                | Revision-based artifacts and clean Ubuntu/Fedora installed-runtime evidence                               |
+| F10/document 09 | No measured budgets/harness or final acceptance                                                                     | Measurements, enforced budgets, final review, owner review                                                |
+| Document 10     | Deferred by owner; no macOS/Windows hardware                                                                        | Revisit only when resources are explicitly available                                                      |
+| M2.0            | Not started; entry gate unmet                                                                                       | Inventory accepted foundation and create milestone 2 evidence ledger after Linux close                    |
 
 ### Fresh review evidence at `889157f`
 
@@ -150,6 +152,42 @@ Do not close document 05 until S1 is also accepted.
 
 ### S1 — Bound editor/diff input and validation work (document 05 follow-up)
 
+**Plan status, 2026-10-25: DONE. S1-P2-1/2/3 and document 05 are accepted on
+Linux.** The initial UTF-8 admission and bounded queue implementation at
+`812c4fb`, the three P2 corrections at `cac672b` and their final review, gates
+and hosted acceptance are recorded in [F6 evidence](../../verification/f6-editor-workers-csp.md)
+and the [ledger](ledger.md). The [launch prompt](s1-launch-prompt.md) is
+historical and must not be re-run. S0's owner exception/B11 are unchanged.
+
+#### Corrective acceptance cases
+
+1. **S1-P2-1 — preserve the owning draft:** a rejected controlled replacement must
+   not overwrite the last accepted draft, including accepted user edits. Closing
+   and normally reopening returns that draft, with a real editor and no rejection
+   alert. Keep a synthetic oversized _intent_, generating text synchronously at
+   the editor admission boundary, rather than retaining the rejected payload in
+   owner state. Cover intent recovery/reset/close deterministically, accepted
+   user edits in Chromium, and close/reopen in the native application.
+2. **S1-P2-2 — restore inline diagnostics:** rejected edits use `model.setValue`,
+   which clears decorations as well as undo history. Restore the accepted
+   document's inline markers without resubmitting validation, posting rejected
+   text, changing the validation phase or publishing another diagnostic result.
+   Assert a rendered squiggle before and after the browser-dispatched paste;
+   checking only diagnostic text or marker-service entries is insufficient.
+3. **S1-P2-3 — release rejected initial text:** retain only callbacks, labels and
+   non-document options in sessions; store document text only after admission.
+   Remove component mount-time copies. Exercise rejected editor/diff options,
+   bounded recovery, live-session weak references to collected source options,
+   and cleanup. A GC probe establishes options ownership, not a performance or
+   whole-heap memory budget; review the absence of other rejected-text fields.
+
+All existing S1 byte/queue/initial-recovery/CSP/lazy/offline/cleanup acceptance
+cases below remain required. Run the applicable final gates in document 05,
+including actual native verification and the ordered ordinary production
+rebuild/exclusion/advisory checks. Preserve earlier evidence as historical, not
+as a fresh result for changed code. The plan being ready does **not** mean that
+S1/document 05 is accepted or F7 is unblocked.
+
 **Read:** editor/diff session modules, components, worker protocol/parser,
 [decision 0019](../../decisions/0019-offline-yaml-editor-worker.md), existing
 editor tests and the resource-bound rules in quality.md.
@@ -170,9 +208,12 @@ editor tests and the resource-bound rules in quality.md.
    native worker/CSP/cleanup evidence, then rebuild ordinary production and run
    exclusion checks. Refresh other affected boundary gates.
 
-**Exit:** F6-B1 is resolved with bounded ownership/failure evidence; S0 stays green.
-Mark document 05 done with a new acceptance entry, preserving earlier evidence.
-F7 may then start.
+**Exit:** F6-B1 and S1-P2-1/2/3 have final corrective-revision evidence; S0's
+existing owner exception is preserved. Document 05 was marked done only after
+the applicable local/native/hosted gates and a separate review, with a ledger
+acceptance entry that preserves earlier results. **Corrective acceptance
+complete on 2026-10-25; F7 may start in a later task and is not part of this
+launch.**
 
 ### S2 — F7 synthetic terminal and chart feasibility
 

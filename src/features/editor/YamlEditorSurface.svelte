@@ -22,10 +22,11 @@ models, workers, and listeners, and release them when this surface unmounts.
   import type { EditorSurfaceProps } from "../../lib/state/editorFeasibility.svelte";
 
   let {
-    value,
+    readValue,
     onChange,
     onCorrect,
     onReset,
+    onOversize,
     onClose,
     targetLabel,
     original,
@@ -65,9 +66,12 @@ models, workers, and listeners, and release them when this surface unmounts.
     <button type="button" class="btn preset-outlined-surface-500" onclick={onReset}>
       Reset malformed sample
     </button>
+    <button type="button" class="btn preset-outlined-surface-500" onclick={onOversize}>
+      Try oversized replacement
+    </button>
   </div>
 
-  <YamlEditor label="Synthetic release manifest YAML" {value} {onChange} autoFocus />
+  <YamlEditor label="Synthetic release manifest YAML" {readValue} {onChange} autoFocus />
 
   <YamlDiffView
     label="Synthetic release manifest comparison"

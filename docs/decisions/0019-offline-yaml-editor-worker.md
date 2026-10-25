@@ -78,3 +78,110 @@ correction, the diff, the lazy asset observations, the CSP negative tests, and
 the observed worker/model/listener cleanup in the release executable. The
 native rows ran on the Linux development WebView; installed-package and other
 platform rows remain with documents 08 and 10.
+
+## Amended 2026-10-25: UTF-8 document bounds and bounded validation ownership (S1)
+
+S1 resolved F6-B1 without changing the CSP, the worker boundary or the chosen
+packages. The original 64 KiB parser check still existed, but it ran inside the
+worker after Monaco had already created a model and transferred the full text,
+and the diff accepted unrestricted strings. Debouncing alone also did not bound
+queued work or stale results.
+
+### Decision
+
+- **The ceiling is 65,536 UTF-8 bytes, not characters or code units.** A shared
+  `documentBounds.ts` measures with an allocation-conscious scan: it rejects by
+  string length first, then counts code units and stops at the first byte above
+  the limit. Well-formed surrogate pairs cost four bytes and an unpaired
+  surrogate costs three, matching `TextEncoder`. Model admission additionally
+  projects Monaco 0.57's normalized representation: a strict majority of
+  CR-containing endings selects CRLF, otherwise LF; all CR/LF/CRLF endings are
+  rewritten to that EOL and a leading BOM is stripped. Both source and projected
+  model bytes must fit before model creation/replacement. The projection scans
+  only an already raw-bounded string and allocates no normalized copy; admission
+  returns the supplied text unchanged. Real-Monaco browser regressions verify
+  this version-dependent projection. The worker re-checks the raw byte ceiling
+  on each request as defense in depth.
+- **Admission precedes every model and worker transfer.** The editor checks the
+  initial value, each controlled replacement, and every user mutation that
+  reaches `onDidChangeContent` — typing, paste and undo/redo. An oversized edit
+  is reverted to the last accepted text in the same content event. The diff
+  admits both sides as one pair. Rejected text is never truncated, never retained
+  in a model after that event and never posted to the YAML worker; a visible
+  message names the ceiling. The content-event guard is a synchronous revert,
+  not a claim that Monaco never transiently allocates a user-supplied edit.
+- **A rejected replacement preserves the last accepted document.** A rejected
+  initial document creates no model or worker and leaves the attachment alive;
+  a later bounded replacement mounts the editor. For the diff, either rejected
+  side keeps both previous sides so the reviewed pair stays coherent.
+- **One in-flight request and one coalesced latest document.** A dedicated
+  `YamlValidationQueue` owns one debounce timer, one in-flight timeout and one
+  pending document. Rapid edits replace the pending document instead of adding
+  tasks; a document queued while a request is in flight still waits for its own
+  quiet period before dispatch. Each request carries a monotonic request id and the document version it
+  analyses; only the newest version can publish `ready` diagnostics. Submitting
+  a document publishes `pending` immediately, which clears the previous
+  diagnostics and markers before the debounced dispatch, so a stale result can
+  never look current for newer text.
+- **Failure is bounded and explicit.** A five-second timeout or worker error
+  publishes one safe failure diagnostic, clears the in-flight and queued work,
+  terminates the failed worker and does not retry the same document. The next
+  accepted document change starts a fresh bounded request. Disposal cancels
+  both timers, drops queued work, removes listeners, terminates the worker and
+  ignores every late response.
+
+### Alternatives rejected
+
+A longer debounce or a smaller diagnostic count does not bound model retention,
+transfer bytes or the queue, so it leaves the source finding open. Rejecting only
+in the worker keeps the oversized model and message. Retrying a failed document
+could loop against a broken worker. An unbounded request queue or per-keystroke
+request would convert one slow worker into unbounded pending work. Truncating at
+the ceiling would silently change the reviewed document.
+
+### Consequences
+
+- While a changed document waits for its bounded dispatch, the surface shows
+  `Checking YAML…` instead of the previous result; a failure message replaces the
+  diagnostics until the next accepted document change.
+- Recovery from a rejected _edit_ or _replacement_ requires an accepted document
+  change. The feasibility surface exposes explicit oversized-draft controls so
+  this user-visible rejection and recovery path is exercised, not hidden behind
+  a test-only hook.
+- A rejected user edit is reverted with `model.setValue`, which also clears the
+  model's undo/redo history and decorations. Clearing history is deliberate: it
+  guarantees the rejected full text leaves both the model and the undo stack.
+  The corrective implementation reapplies the accepted diagnostic markers after
+  the revert without resubmitting validation or changing its phase/publications.
+  The accepted text, diagnostic results and worker ownership remain; only earlier
+  undo steps are lost. A later real-document editor may replace this with a
+  reviewed inverse edit that preserves history, outside this feasibility packet.
+- The feasibility owner retains only the last admitted draft plus an oversized
+  attempt **intent**. A synchronous `readValue` prop generates proposed synthetic
+  text at the editor admission boundary; no oversized payload is cached in owner
+  state or component initialization. Closing clears the attempt, not the accepted
+  draft, so reopening preserves accepted user edits. This reader is controlled
+  and synchronous, not an asynchronous loading protocol.
+- Editor/diff sessions snapshot only callbacks, accessible labels and other
+  non-document options. They do not retain constructor options or mount-time
+  component copies that could keep rejected initial documents alive after
+  bounded recovery. Callers still own any strings they themselves retain.
+- The worker is recreated lazily after a timeout/error. That single recreation
+  per accepted document change is intentional; there is no background retry.
+- No CSP, capability, dependency, IPC command, schema-fetch path or credential
+  boundary changed. The worker is still a bundled same-origin module.
+
+### Verification
+
+The S1 matrix in [F6 evidence](../verification/f6-editor-workers-csp.md) records
+deterministic byte-bound and queue tests (exact/over ASCII and multibyte,
+coalescing, one-in-flight/one-latest, stale/out-of-order/duplicate replies,
+timeout, worker error, disposal, and atomic diff-pair rejection), browser flows
+for initial/replaced/pasted documents, and a fresh Linux Tauri/WebKitGTK run that rejects oversized initial
+and replacement documents while the existing worker diagnostic, diff, lazy
+assets, CSP denial, offline behavior and model/worker/listener cleanup still
+pass. The corrective revision (S1-P2-1/2/3) was approved by a separate review,
+covered by fresh local renderer/browser and Linux native evidence, and accepted
+with hosted Foundation/Security results on 2026-10-25; the acceptance is recorded
+in the [ledger](../plans/foundation-finish/ledger.md) and closes document 05 on
+Linux. Installed-package and other-platform rows remain with documents 08 and 10.

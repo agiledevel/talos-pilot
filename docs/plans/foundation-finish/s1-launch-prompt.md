@@ -1,133 +1,123 @@
-# S1 launch prompt: bounded editor/diff documents and validation
+# S1 launch prompt: corrective implementation and acceptance
 
-Prepared 2026-10-25 after S0 checkpoint `b0988db`. Proposed branch:
-**`ft-editor-bounds`**, created from updated `main` after the owner merges the
-foundation checkpoint. This is not permission for an agent to merge that branch
-or a claim that Linux foundation qualification is complete.
+Status: **EXECUTED — closed 2026-10-25; do not re-run.** This prompt replaced the
+historical pre-implementation prompt and was consumed by the S1 corrective
+acceptance. The corrections are at `cac672b` on **`ft-editor-bounds`**, and the
+outcome — S1-P2-1/2/3 resolved, document 05 accepted and done on Linux — is in
+the [ledger](ledger.md) and [F6 evidence](../../verification/f6-editor-workers-csp.md).
+PR [#3](https://github.com/agiledevel/talos-pilot/pull/3) targets main and
+remains owner-controlled and unmerged.
 
-At preparation time the working tree also contains pre-existing documentation
-edits and the untracked `follow-up-to-m2.md`. Preserve them deliberately before
-switching branches; a merge does not carry uncommitted files to another
-clone/worktree. The saved prompt should travel with the merged checkpoint and
-repeats S1's acceptance criteria so it remains usable if the other working-tree
-planning files have not been committed.
+Read the rest as the record of that corrective step, not as a current task: its
+acceptance conditions were satisfied before S1/document 05 was recorded. The
+next step is [document 06](06-f7-terminal-chart.md) (S2/F7) in a later task.
 
 ## Copy-paste task prompt
 
 ```text
-Implement S1 of Talos Pilot's foundation follow-up completely: resolve F6-B1
-editor/diff input and validation-work bounds, and re-establish document 05
-acceptance. Work autonomously through implementation, failure-path tests, actual
-native verification, documentation, separate review, commits and CI. Do not stop
-after planning, scaffolding or browser mocks. Stop after S1/document 05 is
-accepted, or at a genuine recorded blocker. Do not implement F7, fixtures,
-packages, performance work or milestone 2 features.
+Finish S1 corrective implementation and acceptance for Talos Pilot's document 05.
+The original S1 implementation is present; DO NOT start it again from scratch.
+Review/preserve the prepared P2 fixes, complete any missing correction or gate,
+then carry the final tree through separate review, coherent commit/push and
+hosted results. Stop after S1/document 05 is accepted or at a recorded blocker.
+Do not implement F7/S2, fixtures, packages, budgets or milestone 2 features.
 
-REPOSITORY, BRANCH AND BASELINE
-- Repository: /developer/ifjkt/talos-pilot.
-- Work/push branch: ft-editor-bounds. Start from updated main AFTER the owner
-  merges the foundation checkpoint containing b0988db's changes. Verify content
-  rather than requiring that SHA as an ancestor if the merge was squashed.
-  If this prerequisite is absent, report it; never merge the owner's PR yourself.
-- Inspect status before switching/creating the branch. Preserve unrelated work,
-  especially existing documentation edits and untracked planning files. Do not
-  reset, clean, overwrite or automatically stash them. Do not accidentally
-  include unrelated owner edits in an implementation checkpoint.
-- Commit and push coherent work only to ft-editor-bounds. Open a separate S1 PR
-  targeting main if needed for hosted checks; do not edit the foundation PR or
-  merge any PR. No main push, force-push, tag or release.
-- S0 is ALREADY accepted by explicit owner exception after a real Linux native
-  keyboard pass. Read docs/verification/s0-native-keyboard-acceptance.md. B11 is
-  unresolved/not fixed. Retain browser assertions, lifecycle/input diagnostics
-  and hosted failure artifacts. Do not reopen S0 merely because its historical
-  cause is unexplained, or resume repeated menu stress campaigns. A new
-  actionable recurrence gets bounded evidence-led investigation, not guessed
-  focus fixes, retries, forced focus, sleeps or relaxed timeouts/assertions.
+WORKSPACE / AUTHORITY
+- Repository: /developer/ifjkt/talos-pilot. Existing branch: ft-editor-bounds.
+  Base main checkpoint: ef2279d. Initial S1: 812c4fb; ledger follow-up: ac6799a.
+  The current tree may contain the prepared corrective code/tests/docs, either
+  uncommitted or in later commits. Inspect status/log/diff before doing anything.
+  Preserve all prepared and unrelated owner work; no reset/clean/automatic stash.
+- Use existing PR #3 (ft-editor-bounds -> main). Commit/push coherent scoped work
+  only to this branch. Never merge, close or retarget a PR, push main, force-push,
+  tag, release, rewrite the baseline or change owner-controlled PR metadata.
+- Read AGENTS.md, docs/design.md, docs/quality.md, docs/flash-pace.md and relevant
+  Svelte/TypeScript/Tauri skills/references. Read foundation-finish/README.md,
+  the ledger's current status/latest entries, document 05, the S1 corrective
+  section of follow-up-to-m2.md, F6 evidence and decision 0019.
+- S0 is already accepted ONLY under the owner's native-keyboard/B11 exception.
+  B11 is unresolved/not fixed. Retain assertions and diagnostics; do not resume
+  menu stress campaigns or invent focus fixes. Investigate only a new actionable
+  recurrence with bounded evidence. No permission to touch owner services,
+  clusters, credentials, desktop, network/firewall or VM is implied.
+- Read branch-head hosted results once, distinguishing fresh executions from
+  reused evidence. Verify/reuse the pinned private toolchain with bootstrap.
+  Do not refresh dependencies or reinstall tools without a demonstrated need.
 
-AUTHORITIES AND STARTUP
-1. Read AGENTS.md, docs/design.md, docs/quality.md, docs/flash-pace.md, the
-   foundation-finish README and the ledger's current status/decisions/latest
-   entries. Read document 05 completely, its F6 evidence and decision 0019.
-   Read S1 in follow-up-to-m2.md if that planning file is present. Do not reuse
-   the historical Session B prompt to reinstall/reimplement Monaco.
-2. Read relevant project Svelte/TypeScript/Tauri skills, Svelte lifecycle/runes
-   references and tooling guidance; Rust guidance before any Rust change.
-3. Inspect yamlEditorSession.svelte.ts, yamlDiffSession.svelte.ts, editor
-   components/state, yamlAnalysis.ts and the actual worker implementation,
-   ownership counters, existing unit/browser/native tests and build/CSP setup.
-   The parser's 64 KiB rejection currently happens after model creation/full
-   worker transfer; debounce alone does not bound queued work or stale results.
-4. Check current hosted baseline results once and record exact revisions and
-   reuse versus fresh execution. Use the new branch/PR, not hard-coded PR 2.
-   Reuse/verify pinned private tools with the repository bootstrap. Do not
-   reinstall tools or refresh dependency pins without a demonstrated need.
-5. Before code, record acceptance cases, affected contracts, ownership, byte
-   limits, state transitions, failure/timeout semantics and final gates in the
-   ledger. Keep document 05 in progress until all required evidence exists.
+THREE REQUIRED P2 CORRECTIONS
+1. S1-P2-1: rejected replacement must not overwrite the owning accepted draft.
+   Reproduction on old code: open -> edit a valid sample -> Try oversized
+   replacement -> Close editor -> Open YAML editor. Old code reopened with a
+   rejection and no editor, because owner state retained the rejected payload.
+   Prepared approach: owner stores accepted text plus an oversized intent;
+   readValue generates the proposed text synchronously at admission. Close
+   drops the intent, not accepted text. Preserve accepted user edits, initial
+   rejection/recovery, reset/correction and normal lazy cleanup. Cover the
+   owner's transitions, browser user edits across close/reopen and native reopen.
+2. S1-P2-2: a rejected paste must preserve the rendered inline diagnostic.
+   Monaco model.setValue clears decorations as well as undo history. Prepared
+   approach: reapply accepted diagnostic markers after the revert, without
+   resubmitting analysis, sending rejected text or changing validation state.
+   Assert an actual rendered squiggly-error before/after the browser-dispatched
+   EditContext paste. Diagnostic message or getModelMarkers alone misses this.
+   Preserve the deliberate undo-history consequence in decision 0019.
+3. S1-P2-3: rejected initial text must not remain in retained options/initial
+   component copies. Sessions must keep only non-document options and admitted
+   text. Prepared tests use real compiled editor/diff sessions, reject initial
+   options, recover with bounded documents and request Chromium GC while the
+   sessions stay alive; WeakRefs to the source options must clear. This proves
+   options ownership, not a whole-heap or performance budget. Separately review
+   all retained fields and component initialization for rejected-text copies.
 
-REQUIRED IMPLEMENTATION AND ACCEPTANCE
-- Use the existing 64 KiB contract as an explicit UTF-8 BYTE ceiling, not a
-  character count. Bound initial and replacement documents, user edits/paste,
-  and both diff sides. Cover other mutation routes such as undo/redo where
-  applicable. Reject oversize input visibly, preserve a usable prior accepted
-  document, never truncate silently, and prevent unbounded model retention.
-  Define usable behavior for rejected initial input when no prior model exists.
-- Validate before creating/replacing models and before worker transfer, using
-  an allocation-conscious size check. Keep worker-boundary runtime validation
-  as defense in depth; parser-only rejection is insufficient.
-- Bound analysis to ONE in-flight request and at most ONE coalesced latest
-  bounded document. Debouncing must not leave an unbounded message/task queue.
-  Document cancellation, response correlation, worker failure/restart, timeout
-  and disposal. Keep retries/restarts bounded; do not add speculative machinery.
-- Invalidate stale diagnostics on document change, including the window BEFORE
-  the next debounce dispatch. Old/out-of-order responses cannot look current
-  for newer text. Disposal must prevent late publication and release resources.
-- Add observable regression tests for exact/over-limit ASCII and multibyte
-  inputs; initial, replaced, edited/pasted documents; each diff side; rapid edits,
-  stalled workers, stale/out-of-order replies, worker errors, timeout and close.
-  Prove bounded dispatched/pending work and actual cleanup, not only that a
-  cleanup callback or terminate spy was called. Preserve strict types and
-  accessibility; keep logic in cohesive services/state, not component wrappers.
-- Keep benign synthetic data, lazy loading, bundled same-origin offline workers,
-  target context, appearance behavior and restrictive CSP. No remote schemas,
-  blob:/unsafe-eval/remote executable sources, credentials or cluster operations.
-- Update the contract/decision 0019 as appropriate, F6 evidence, current status
-  documents and ledger in the same change. Preserve attributed historical
-  failures and native passes. Do not claim B11 fixed or all of C6/M1 complete.
+KEEP THE EXISTING CONTRACT
+- 65,536 UTF-8 bytes, with allocation-conscious measurement and matching
+  TextEncoder surrogate semantics. Admission before createModel, programmatic
+  setValue, both diff-side replacements and YAML worker transfer. User mutations
+  are synchronously reverted in the content event if rejected; never truncate.
+- One debounce timer, one in-flight request and one coalesced latest bounded
+  document; request/version correlation; immediate pending/marker invalidation;
+  stale/duplicate/out-of-order replies ignored. Five-second timeout/error ends
+  the worker, drops queued work and does not auto-retry; a new accepted document
+  change may lazily start a new worker. Disposal releases all ownership/timers.
+- Preserve atomic diff admission, rejected-initial no-model recovery, benign
+  synthetic content, visible target, accessibility, lazy bundled offline assets,
+  unchanged restrictive CSP, same-origin workers and no remote schemas. No new
+  test-only IPC/capability, credential boundary, dependency or cluster operation.
+- Keep business/state logic in typed cohesive modules, not Svelte wrappers.
+  readValue is a synchronous controlled reader, not a cached oversized payload.
 
-VERIFICATION AND FINISH
-- Follow FLASH pace: narrow tests while iterating, disjoint delegated ownership
-  when useful, useful review/docs work during CI. Do not race builds against
-  shared dist or src-tauri/target. Run final pnpm check:ci and normal pnpm
-  test:e2e; do not immediately duplicate the unchanged aggregate with check,
-  test:run and test:coverage. Preserve the packet's theme/density/viewport/axe
-  requirements and production lazy-loading guard.
-- Extend/run tests/native/editor-worker.spec.ts as needed and run the actual
-  Linux Tauri native suite. Fresh native evidence must establish changed bounds
-  and failure/cleanup behavior plus document 05's real worker diagnostics, diff,
-  offline/lazy assets, CSP denial, zero remote requests and model/worker/listener
-  return to baseline. Browser mocks and compilation do not satisfy these rows.
-  Use private Xvfb/XDG directories; clean owned processes/displays on failure
-  and success. Do not touch the owner's desktop, network, clusters or services.
-- Native tests overwrite the release executable. Afterwards run, IN ORDER,
-  pnpm desktop:build, pnpm production:check and pnpm advisories:check. Run other
-  affected Rust/Go/contracts/inventory/dependency gates required by quality.md;
-  record why an unchanged boundary was not rerun. No installed-package or
-  macOS/Windows qualification claim from a Linux development WebView pass.
-- Review the final diff separately for correctness, security, maintainability,
-  contract consistency and missing failure paths. Validate documentation links,
-  formatting and diff whitespace. Never weaken gates to obtain green results.
-- Push coherent checkpoints, inspect final relevant hosted results, fix actual
-  findings, and distinguish fresh versus unchanged-input evidence. A push alone
-  does not trigger this repository's PR CI without a PR; arrange the S1 PR or
-  report that evidence as pending. Avoid ledger-only result-commit loops.
-- Mark document 05 done only when F6-B1 and all applicable acceptance/gate rows
-  are satisfied, recording S0's existing owner exception unchanged. If a required
-  gate cannot run or fails, leave the packet incomplete/unverified with exact
-  reason and next action; do not silently accept it.
-- Final handoff: branch/commit/PR, behavior and bounds, commands/environments/
-  results and hosted URLs, native versus browser evidence, cleanup, remaining
-  risks, and explicit S1/document 05 disposition. Keep C6 in progress for later
-  package/platform work. Name document 06/F7 as next; DO NOT start it. The owner
-  alone decides whether to merge this S1 PR.
+FINAL VERIFICATION / HANDOFF
+- Read the latest ledger evidence first. Do not blindly duplicate applicable
+  final-tree gates already executed by the preparatory session when source is
+  unchanged; rerun affected gates after any code/test correction. Never label
+  compilation, mocks, an ancestor run or a skipped job as current native proof.
+- Required final renderer gates: pnpm check:ci and normal pnpm test:e2e. Keep
+  all existing theme/density/viewport/axe/CSP/lazy/cleanup assertions and normal
+  concurrency. Do not weaken gates, add sleeps/retries or rerun passing stress
+  campaigns. Use narrow tests while iterating, then one final aggregate.
+- Run/verify actual Linux pnpm test:native under private Xvfb and XDG dirs,
+  cleaning owned app/helper/display/server resources on success and failure.
+  The native editor spec includes rejected replacement -> close -> normal
+  reopen, plus retained document 05 worker diagnostic/diff/CSP/offline/cleanup
+  rows. Browser GC/paste evidence is NOT trusted OS paste or native memory proof.
+- Native tests overwrite the release executable. Afterwards run IN ORDER:
+  pnpm desktop:build, pnpm production:check, pnpm advisories:check. Do not race
+  dist or src-tauri/target with other builds. Run other boundary gates only as
+  applicable; record unchanged Rust/Go/IPC/dependency inputs truthfully.
+- Update decision 0019/F6 evidence and current README/packet/plan/milestone/ledger
+  statuses consistently. Preserve earlier attributed failures/passes. Validate
+  local document links, formatting and git diff --check; separately review the
+  final diff for correctness, ownership, security and missing failure paths.
+- Commit/push prepared work plus any fixes coherently to ft-editor-bounds and
+  inspect the final relevant Foundation/Security hosted results on PR #3.
+  Fresh desktop CI builds do not qualify other-platform native runtimes. Use at
+  most one ledger-only hosted-result follow-up; no result-commit loop.
+- Only after all applicable final evidence and separate review, record S1-P2-1,
+  S1-P2-2 and S1-P2-3 resolved and S1/document 05 accepted/done on Linux. Otherwise
+  leave acceptance in progress with the exact missing/failed gate and next step.
+  C6/M1, installed packages, deferred WebViews and later owner review stay open.
+- Final report: changes, branch/commit/PR, actual commands/environments/results,
+  hosted URLs/fresh versus reused evidence, cleanup, limitations and explicit
+  disposition. Name S2/document 06/F7 as the later next step; DO NOT start it.
+  The owner alone decides whether to merge PR #3.
 ```
