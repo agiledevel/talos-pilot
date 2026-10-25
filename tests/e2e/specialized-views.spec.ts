@@ -298,6 +298,192 @@ function chartEmulatorState(page: Page): Locator {
   return page.locator("[data-chart-retained]");
 }
 
+/** The renderer's controllable animation-frame scheduler, installed per test. */
+interface ChartFrameGate {
+  /** Callbacks held instead of dispatched. */
+  held(): number;
+  /** Dispatches every held callback in one real animation frame. */
+  release(): Promise<void>;
+  /** Restores the native scheduler and dispatches anything still held. */
+  restore(): Promise<void>;
+}
+
+declare global {
+  interface Window {
+    __chartFrameGate?: ChartFrameGate;
+  }
+}
+
+/**
+ * Holds the page's animation-frame callbacks until the test releases them.
+ *
+ * The chart attachment owns at most one frame, so holding dispatch makes both
+ * coalescing orders deterministic: either an admitted replacement or a real
+ * ResizeObserver delivery requests the frame first, and the other request is
+ * dropped by the owner. ResizeObserver delivery belongs to the browser's
+ * rendering update, so it still happens while these callbacks are held.
+ */
+async function holdAnimationFrames(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const nativeRequest = window.requestAnimationFrame.bind(window);
+    const nativeCancel = window.cancelAnimationFrame.bind(window);
+    const held = new Map<number, FrameRequestCallback>();
+    let nextId = 1;
+
+    const release = (): Promise<void> =>
+      new Promise<void>((resolve) => {
+        nativeRequest(() => {
+          const callbacks = [...held.values()];
+          held.clear();
+          const timestamp = performance.now();
+          for (const callback of callbacks) {
+            callback(timestamp);
+          }
+          resolve();
+        });
+      });
+
+    window.requestAnimationFrame = (callback: FrameRequestCallback): number => {
+      const id = nextId;
+      nextId += 1;
+      held.set(id, callback);
+      return id;
+    };
+    window.cancelAnimationFrame = (id: number): void => {
+      held.delete(id);
+    };
+    window.__chartFrameGate = {
+      held: () => held.size,
+      release,
+      restore: async () => {
+        window.requestAnimationFrame = nativeRequest;
+        window.cancelAnimationFrame = nativeCancel;
+        await release();
+      },
+    };
+  });
+}
+
+async function heldFrameCallbacks(page: Page): Promise<number> {
+  return page.evaluate(() => window.__chartFrameGate?.held() ?? -1);
+}
+
+async function releaseHeldFrames(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await window.__chartFrameGate?.release();
+  });
+}
+
+async function restoreAnimationFrames(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await window.__chartFrameGate?.restore();
+  });
+}
+
+/** Waits for two native frames so a dispatched callback has fully settled. */
+async function settleAnimationFrames(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            resolve();
+          });
+        });
+      }),
+  );
+}
+
+/**
+ * Sets the chart host's width and waits for the browser's ResizeObserver
+ * delivery for the new box, rather than assuming when it happens.
+ */
+async function setChartHostWidth(page: Page, width: number): Promise<void> {
+  await page.evaluate(
+    (nextWidth) =>
+      new Promise<void>((resolve, reject) => {
+        const host = document.querySelector<HTMLElement>("[data-chart-host]");
+        if (host === null) {
+          reject(new Error("The chart host is missing."));
+          return;
+        }
+        const reached = (): boolean =>
+          Math.abs(host.getBoundingClientRect().width - nextWidth) <= 1;
+        if (reached()) {
+          resolve();
+          return;
+        }
+        const probe = new ResizeObserver(() => {
+          if (!reached()) return;
+          probe.disconnect();
+          resolve();
+        });
+        probe.observe(host);
+        host.style.width = `${String(nextWidth)}px`;
+      }),
+    width,
+  );
+}
+
+interface ChartGeometry {
+  /** Border-box host width the attachment measures. */
+  hostWidth: number;
+  /** Rendered canvas width uPlot actually drew with. */
+  canvasWidth: number;
+}
+
+async function chartGeometry(page: Page): Promise<ChartGeometry> {
+  return page.evaluate(() => {
+    const host = document.querySelector<HTMLElement>("[data-chart-host]");
+    const canvas = host?.querySelector<HTMLCanvasElement>("canvas") ?? null;
+    if (host === null || canvas === null) {
+      throw new Error("The chart host or its canvas is missing.");
+    }
+    return {
+      hostWidth: host.getBoundingClientRect().width,
+      canvasWidth: canvas.getBoundingClientRect().width,
+    };
+  });
+}
+
+/**
+ * Digests the painted chart canvases so identical geometry can be compared for
+ * a data change, instead of treating any painted pixel as proof.
+ */
+async function chartPixelDigest(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const canvases = [...document.querySelectorAll<HTMLCanvasElement>("[data-chart-host] canvas")];
+    let hash = 2_166_136_261;
+    for (const canvas of canvases) {
+      const context = canvas.getContext("2d");
+      if (context === null || canvas.width === 0 || canvas.height === 0) {
+        continue;
+      }
+      const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+      for (let index = 0; index < data.length; index += 4) {
+        hash = Math.imul(hash ^ (data[index] ?? 0), 16_777_619);
+        hash = Math.imul(hash ^ (data[index + 1] ?? 0), 16_777_619);
+        hash = Math.imul(hash ^ (data[index + 2] ?? 0), 16_777_619);
+        hash = Math.imul(hash ^ (data[index + 3] ?? 0), 16_777_619);
+      }
+    }
+    return (hash >>> 0).toString(16);
+  });
+}
+
+/**
+ * Clicks “Next sample” with real pointer input while frame dispatch is held.
+ * Playwright's own click waits for animation frames, so the pointer is placed
+ * at the button's measured box and no actionability frame check is involved.
+ */
+async function clickNextSample(page: Page): Promise<void> {
+  const box = await page.getByRole("button", { name: "Next sample" }).boundingBox();
+  if (box === null) {
+    throw new Error("The Next sample button has no layout box.");
+  }
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+}
+
 test("the chart loads lazily, paints real values, and releases its instance", async ({ page }) => {
   await scriptNativeResponses(page);
   const requests: string[] = [];
@@ -487,4 +673,75 @@ test("chart theme, density, resize, and reopen preserve the accepted window", as
   await expect.poll(async () => paintedPixels(page)).toBeGreaterThan(1_000);
   await page.getByRole("button", { name: "Close chart", exact: true }).click();
   await expect(chartRuntime(page)).toContainText("Instances: 0");
+});
+
+test("one coalesced chart frame applies a replacement and a resize in either order", async ({
+  page,
+}) => {
+  await scriptNativeResponses(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Open chart", exact: true }).click();
+  await expect(chartEmulatorState(page)).toContainText("2 series × 300 aligned samples", {
+    timeout: 20_000,
+  });
+  await expect.poll(async () => paintedPixels(page)).toBeGreaterThan(1_000);
+  // Real pointer input needs the button inside the viewport; the content area
+  // scrolls, and scrolling changes neither the host width nor the canvas.
+  await page.getByRole("button", { name: "Next sample" }).scrollIntoViewIfNeeded();
+
+  const settled = await chartGeometry(page);
+  expect(Math.abs(settled.canvasWidth - (settled.hostWidth - 8))).toBeLessThanOrEqual(1);
+  const settledPixels = await chartPixelDigest(page);
+  const buffers = page.locator("[data-chart-buffers]");
+
+  // Ordering 1: the admitted replacement owns the frame, so the ResizeObserver
+  // delivery that follows cannot schedule its own callback.
+  await holdAnimationFrames(page);
+  try {
+    await clickNextSample(page);
+    await expect.poll(async () => heldFrameCallbacks(page)).toBe(1);
+    await expect(buffers).toContainText("Queue: 1");
+    await setChartHostWidth(page, 300);
+    expect(await heldFrameCallbacks(page)).toBe(1);
+    await releaseHeldFrames(page);
+  } finally {
+    await restoreAnimationFrames(page);
+  }
+  await settleAnimationFrames(page);
+  const dataFirst = await chartGeometry(page);
+  expect(dataFirst.hostWidth).toBeCloseTo(300, 0);
+  expect(dataFirst.canvasWidth).toBeCloseTo(292, 0);
+  await expect(buffers).toContainText("Queue: 0");
+  await expect(buffers).toContainText("Scheduled: 0 B");
+
+  // Back at the original geometry, the replacement's shifted timestamps must
+  // change the painted pixels; an unrendered window would leave them identical.
+  await setChartHostWidth(page, settled.hostWidth);
+  await settleAnimationFrames(page);
+  const restored = await chartGeometry(page);
+  expect(Math.abs(restored.canvasWidth - settled.canvasWidth)).toBeLessThanOrEqual(1);
+  expect(await chartPixelDigest(page)).not.toBe(settledPixels);
+
+  // Ordering 2: the ResizeObserver delivery owns the frame and the replacement
+  // admitted after it is dropped as a frame request but still drained.
+  await holdAnimationFrames(page);
+  await setChartHostWidth(page, 420);
+  await expect.poll(async () => heldFrameCallbacks(page)).toBe(1);
+  await clickNextSample(page);
+  await expect(buffers).toContainText("Queue: 1");
+  expect(await heldFrameCallbacks(page)).toBe(1);
+  await releaseHeldFrames(page);
+  await restoreAnimationFrames(page);
+  await settleAnimationFrames(page);
+  const resizeFirst = await chartGeometry(page);
+  expect(resizeFirst.hostWidth).toBeCloseTo(420, 0);
+  expect(resizeFirst.canvasWidth).toBeCloseTo(412, 0);
+  await expect(buffers).toContainText("Queue: 0");
+  await expect(buffers).toContainText("Scheduled: 0 B");
+  await expect(chartEmulatorState(page)).toContainText("2 series × 300 aligned samples");
+
+  await page.getByRole("button", { name: "Close chart", exact: true }).click();
+  await expect(chartRuntime(page)).toContainText("Instances: 0");
+  await expect(chartRuntime(page)).toContainText("Frame: none");
+  await expect(buffers).toContainText("Rendered: 0 B");
 });

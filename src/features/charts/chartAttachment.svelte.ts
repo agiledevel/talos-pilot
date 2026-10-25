@@ -26,13 +26,18 @@ import type { ChartSurfaceState } from "./chartSurfaceState.svelte";
  * uPlot and its stylesheet live only in the lazily imported surface chunk. The
  * attachment admits each replacement synchronously, keeps at most one accepted
  * window plus one newer scheduled window, and coalesces work into a single
- * animation frame. A same-shape replacement updates the instance in place; a
- * changed series shape destroys and recreates it. Every observer, listener,
- * frame, instance, and retained array is released on close.
+ * animation frame. That frame services both a waiting replacement and the
+ * measured host size, so a resize delivery and an admitted window cannot
+ * starve each other in either order. A same-shape replacement updates the
+ * instance in place; a changed series shape destroys and recreates it. Every
+ * observer, listener, frame, instance, and retained array is released on close.
  */
 
 /** Space reserved above the plotting area for uPlot's legend. */
 const LEGEND_HEIGHT = 34;
+
+/** A positive plotting size measured from the host element. */
+type PlotSize = { readonly width: number; readonly height: number };
 
 /** Options the chart attachment reads reactively. */
 export interface ChartAttachmentOptions {
@@ -62,6 +67,9 @@ export function chartAttachment(options: ChartAttachmentOptions): Attachment<HTM
     // axis/grid colour accessors in place).
     let current: ChartSnapshot | null = null;
     let pending: ChartSnapshot | null = null;
+    // The size last handed to the live instance, so a frame that also carries a
+    // replacement does not re-commit an unchanged size.
+    let plottedSize: PlotSize | null = null;
     let instanceCounted = false;
     let disposed = false;
 
@@ -72,6 +80,7 @@ export function chartAttachment(options: ChartAttachmentOptions): Attachment<HTM
       chart.destroy();
       chart = null;
       shapeKey = null;
+      plottedSize = null;
       if (instanceCounted) {
         instanceCounted = false;
         chartRuntime.instanceClosed();
@@ -115,12 +124,12 @@ export function chartAttachment(options: ChartAttachmentOptions): Attachment<HTM
       }
     };
 
-    const measure = (): { width: number; height: number } | null => {
+    const measure = (): PlotSize | null => {
       const box = node.getBoundingClientRect();
       return clampChartSize(box.width - 8, box.height - LEGEND_HEIGHT);
     };
 
-    const create = (snapshot: ChartSnapshot, size: { width: number; height: number }): void => {
+    const create = (snapshot: ChartSnapshot, size: PlotSize): void => {
       if (appearance === null) {
         fail("The synthetic chart could not resolve the application appearance.");
         return;
@@ -130,10 +139,41 @@ export function chartAttachment(options: ChartAttachmentOptions): Attachment<HTM
       instanceCounted = true;
       shapeKey = chartShapeKey(snapshot);
       current = snapshot;
+      plottedSize = size;
       chartRuntime.retainedBytes = chartRetainedBytes(snapshot);
     };
 
-    const flush = (): void => {
+    /**
+     * Hands a measured size to the live instance when it actually changed.
+     *
+     * @param size Positive plotting size measured at frame time.
+     */
+    const applySize = (size: PlotSize): void => {
+      if (chart === null) {
+        return;
+      }
+      if (
+        plottedSize !== null &&
+        plottedSize.width === size.width &&
+        plottedSize.height === size.height
+      ) {
+        return;
+      }
+      chart.setSize(size);
+      plottedSize = size;
+    };
+
+    /**
+     * Applies one measured host size and the latest bounded snapshot.
+     *
+     * A resize delivery and an admitted replacement deliberately share the one
+     * owned animation frame, and {@link OwnedSpecializedResources.scheduleFrame}
+     * keeps only the first callback. Both kinds of work are therefore read at
+     * frame time: whichever request scheduled the frame, the size is measured
+     * here and a same-shape replacement applies it before drawing. Neither
+     * request ordering can strand stale dimensions or an unrendered window.
+     */
+    const drain = (): void => {
       if (disposed) {
         return;
       }
@@ -141,11 +181,13 @@ export function chartAttachment(options: ChartAttachmentOptions): Attachment<HTM
       pending = null;
       chartRuntime.pendingBytes = 0;
       chartRuntime.queueDepth = 0;
-      if (snapshot === null) {
-        return;
-      }
       const size = measure();
       if (size === null) {
+        if (snapshot === null) {
+          // Still hidden with nothing waiting: the old size is retained until a
+          // later positive observer delivery.
+          return;
+        }
         // A hidden or not-yet-laid-out host: keep the single bounded snapshot and
         // wait for the next positive resize instead of creating a degenerate chart.
         pending = snapshot;
@@ -153,7 +195,13 @@ export function chartAttachment(options: ChartAttachmentOptions): Attachment<HTM
         chartRuntime.queueDepth = 1;
         return;
       }
+      if (snapshot === null) {
+        // Resize-only frame: no replacement is waiting, so just follow the host.
+        applySize(size);
+        return;
+      }
       if (chart !== null && shapeKey === chartShapeKey(snapshot)) {
+        applySize(size);
         chart.setData(chartAlignedData(snapshot), true);
         current = snapshot;
         chartRuntime.retainedBytes = chartRetainedBytes(snapshot);
@@ -163,39 +211,18 @@ export function chartAttachment(options: ChartAttachmentOptions): Attachment<HTM
       create(snapshot, size);
     };
 
+    /** Requests the one coalesced frame that services pending data and size. */
+    const requestDrain = (): void => {
+      resources.scheduleFrame(() => {
+        guard(drain, "The synthetic chart could not be rendered.");
+      });
+    };
+
     const schedule = (snapshot: ChartSnapshot): void => {
       pending = snapshot;
       chartRuntime.pendingBytes = chartRetainedBytes(snapshot);
       chartRuntime.queueDepth = 1;
-      resources.scheduleFrame(() => {
-        guard(flush, "The synthetic chart could not be rendered.");
-      });
-    };
-
-    const resize = (): void => {
-      if (chart === null) {
-        if (pending !== null) {
-          resources.scheduleFrame(() => {
-            guard(flush, "The synthetic chart could not be rendered.");
-          });
-        }
-        return;
-      }
-      const size = measure();
-      if (size === null) {
-        // Still hidden: keep the single bounded snapshot until a positive size
-        // arrives from a later observer delivery.
-        return;
-      }
-      chart.setSize(size);
-      // Frame requests are coalesced, so a resize delivery can own the frame an
-      // admitted replacement also asked for. This is the only callback that
-      // runs, so it must re-drive the latest bounded snapshot as well.
-      if (pending !== null) {
-        resources.scheduleFrame(() => {
-          guard(flush, "The synthetic chart could not be rendered.");
-        });
-      }
+      requestDrain();
     };
 
     const applyAppearance = (next: SpecializedAppearance): void => {
@@ -231,9 +258,7 @@ export function chartAttachment(options: ChartAttachmentOptions): Attachment<HTM
         if (box === undefined || box.width <= 0 || box.height <= 0) {
           return;
         }
-        resources.scheduleFrame(() => {
-          guard(resize, "The synthetic chart could not be resized.");
-        });
+        requestDrain();
       });
       observer.observe(node);
       resources.addObserver(() => observer.disconnect());
