@@ -99,8 +99,10 @@ queued work or stale results.
   initial value, each controlled replacement, and every user mutation that
   reaches `onDidChangeContent` — typing, paste and undo/redo. An oversized edit
   is reverted to the last accepted text in the same content event. The diff
-  admits both sides as one pair. Rejected text is never truncated, never stored
-  in a model and never posted to the worker; a visible message names the ceiling.
+  admits both sides as one pair. Rejected text is never truncated, never retained
+  in a model after that event and never posted to the YAML worker; a visible
+  message names the ceiling. The content-event guard is a synchronous revert,
+  not a claim that Monaco never transiently allocates a user-supplied edit.
 - **A rejected replacement preserves the last accepted document.** A rejected
   initial document creates no model or worker and leaves the attachment alive;
   a later bounded replacement mounts the editor. For the diff, either rejected
@@ -140,11 +142,23 @@ the ceiling would silently change the reviewed document.
   this user-visible rejection and recovery path is exercised, not hidden behind
   a test-only hook.
 - A rejected user edit is reverted with `model.setValue`, which also clears the
-  model's undo/redo history. That is deliberate: it guarantees the rejected full
-  text leaves both the model and the undo stack. The accepted document text,
-  diagnostics, markers and worker ownership remain; only earlier undo steps are
-  lost. A later real-document editor may replace this with a reviewed inverse
-  edit that preserves history, but that is not part of this feasibility packet.
+  model's undo/redo history and decorations. Clearing history is deliberate: it
+  guarantees the rejected full text leaves both the model and the undo stack.
+  The corrective implementation reapplies the accepted diagnostic markers after
+  the revert without resubmitting validation or changing its phase/publications.
+  The accepted text, diagnostic results and worker ownership remain; only earlier
+  undo steps are lost. A later real-document editor may replace this with a
+  reviewed inverse edit that preserves history, outside this feasibility packet.
+- The feasibility owner retains only the last admitted draft plus an oversized
+  attempt **intent**. A synchronous `readValue` prop generates proposed synthetic
+  text at the editor admission boundary; no oversized payload is cached in owner
+  state or component initialization. Closing clears the attempt, not the accepted
+  draft, so reopening preserves accepted user edits. This reader is controlled
+  and synchronous, not an asynchronous loading protocol.
+- Editor/diff sessions snapshot only callbacks, accessible labels and other
+  non-document options. They do not retain constructor options or mount-time
+  component copies that could keep rejected initial documents alive after
+  bounded recovery. Callers still own any strings they themselves retain.
 - The worker is recreated lazily after a timeout/error. That single recreation
   per accepted document change is intentional; there is no background retry.
 - No CSP, capability, dependency, IPC command, schema-fetch path or credential

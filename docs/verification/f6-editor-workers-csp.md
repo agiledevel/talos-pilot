@@ -17,6 +17,13 @@ skipped, renderer/browser and CodeQL reused executed evidence from `facf409`).
 
 ## Current follow-up — 2026-10-25
 
+**Latest disposition:** S1's initial acceptance below is superseded by a separate
+review's three P2 findings. The [corrective plan](../plans/foundation-finish/follow-up-to-m2.md#s1--bound-editordiff-input-and-validation-work-document-05-follow-up)
+and [launch prompt](../plans/foundation-finish/s1-launch-prompt.md) are **READY**;
+implementation acceptance/document 05 is in progress until the corrective tree
+has its required final qualification. Earlier results remain attributed, not
+fresh evidence for changed code. S0's owner exception/B11 are unchanged.
+
 The matrix below records the 2026-10-23 evidence; it is not rewritten as a fresh
 pass. At `889157f`, `pnpm check:ci` passed, but two fresh `pnpm test:e2e` runs
 failed (14/16 and 15/16). Menu keyboard focus/selection failed in both; editor
@@ -466,3 +473,62 @@ estimate. These are observations for F10, not budgets.
 - No CSP, capability, dependency, IPC command, Rust/Go source or generated
   contract changed. Rust/Go/contract unit gates were not rerun for unchanged
   inputs; the native build compiled the Rust application.
+
+## S1 P2 corrective revision — 2026-10-25
+
+The review at `ac6799a` reproduced two failures missed by the original tests:
+rejected replacement → close → normal reopen lost the owning accepted draft,
+and rejected EditContext paste removed the rendered squiggle while diagnostic
+text/marker-service entries remained. Source inspection also found constructor
+`#options` and component `initial` objects retaining rejected initial strings.
+These are S1-P2-1/2/3 in the ready corrective plan, not a B11/menu recurrence.
+
+Prepared corrections:
+
+- The feasibility state owns admitted text plus a boolean oversized intent.
+  A synchronous `readValue` prop generates a proposed candidate only when the
+  editor admits it; accepted user edits replace admitted text, and close clears
+  the intent. No proposed oversized payload is cached as the owner's draft.
+- Rejected user edits reapply the accepted diagnostic markers after `setValue`
+  removes decorations, without dispatching another validation, publishing a
+  result or changing the current validation phase. Undo-history clearing remains
+  the documented deliberate consequence.
+- Sessions keep non-document options only; document fields contain admitted text.
+  Component initialization constructs sessions inside `untrack` without retaining
+  a mount-time document/options copy.
+
+New evidence distinguishes three boundaries: deterministic owner transitions;
+Chromium user-edit/reject/close/reopen and actual rendered-squiggle assertions;
+and a Chromium GC probe holding recovered real editor/diff sessions alive while
+WeakRefs to their rejected source options clear. The GC probe proves source
+options ownership, not a whole-heap or performance budget. The native suite's
+bounds case also checks rejection → close → normal reopen with a real model and
+preserved diagnostic.
+
+### Corrective local results
+
+Source: corrective checkpoint carrying this record, based on `ac6799a`, Linux
+x86_64 `7.2.8-1-default`; pinned Node 26.12.1/pnpm 12.15.0, Rust 1.99.1,
+Go 1.27.3, WebKitGTK 605.1.15 as reported by the driver.
+
+| Command                                                                  | Result                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm check:ci`                                                          | Passed: 212 tests/28 files; coverage 72.57% statements / 76.1% branches; format, type-aware lint, zero Svelte diagnostics and production frontend build.                                                     |
+| `pnpm test:e2e`                                                          | 21/21 passed with 4 workers; includes edited-draft reopen, rendered-squiggle restoration and recovered-session GC ownership.                                                                                 |
+| `pnpm test:e2e:preview`                                                  | Diagnostic only: 20/20 UI flows passed. Exactly the source-module GC probe is excluded because preview serves `dist/`, not TS/rune source URLs; it remains required and executed in the normal browser gate. |
+| `pnpm test:native`                                                       | Actual Linux Tauri/WebKitGTK release executable: 24/24 (5 editor, 12 helper/shell, 7 Kubernetes-session), including rejection → close → normal reopen. Private Xvfb/XDG directories and baseline cleanup.    |
+| `pnpm desktop:build` → `pnpm production:check` → `pnpm advisories:check` | Passed in this order after native: ordinary binary restored, driver/listener excluded, 67,079 symbols against 5 recorded advisories.                                                                         |
+
+Native-test binary SHA-256:
+`a51b58815a5bdef46e119d3c47b348066b826bc8892fb5d5fbd8dc572f14721d`.
+Private Xvfb/XDG resources were removed; process inspection found no owned
+app/helper/server/display left. Logs are retained at
+`/tmp/tp-s1-p2-{check-ci,e2e,preview,native,production}.log`. The source-level
+browser-probe split and documentation were finalized after native/ordinary
+verification; application/native inputs were unchanged, and final renderer and
+both browser commands were rerun for the harness revision.
+
+Final committed/hosted acceptance remains the next S1 worker's task. The plan
+is **ready**, not an assertion that those pending gates ran. No installed
+package, other-platform WebView, trusted OS paste, cluster or performance
+qualification is claimed; the GC probe is Chromium/source-level evidence only.

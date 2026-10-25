@@ -56,7 +56,9 @@ export class YamlDiffSession {
   /** Visible rejection of either diff side. */
   documentError = $state<string | null>(null);
 
-  readonly #options: YamlDiffOptions;
+  #label: string;
+  readonly #originalLabel: string;
+  readonly #modifiedLabel: string;
   #original: string;
   #modified: string;
   #hasAcceptedDocuments: boolean;
@@ -70,7 +72,11 @@ export class YamlDiffSession {
 
   /** @param options Initial documents and accessible names. */
   constructor(options: YamlDiffOptions) {
-    this.#options = options;
+    // Documents live only in the admitted fields, never in a retained options
+    // object that could preserve a rejected initial pair after recovery.
+    this.#label = options.label;
+    this.#originalLabel = options.originalLabel;
+    this.#modifiedLabel = options.modifiedLabel;
     const admitted = admitDocumentPair(options.original, options.modified);
     if (!admitted.accepted) {
       this.#original = "";
@@ -136,13 +142,14 @@ export class YamlDiffSession {
 
   /** Updates the accessible group name after a prop change. */
   setLabel(label: string): void {
+    this.#label = label;
     const editor = this.#editor;
     if (editor === null) {
       return;
     }
     editor.updateOptions({ ariaLabel: label });
-    editor.getOriginalEditor().updateOptions({ ariaLabel: this.#options.originalLabel });
-    editor.getModifiedEditor().updateOptions({ ariaLabel: this.#options.modifiedLabel });
+    editor.getOriginalEditor().updateOptions({ ariaLabel: this.#originalLabel });
+    editor.getModifiedEditor().updateOptions({ ariaLabel: this.#modifiedLabel });
   }
 
   /** Releases the diff editor, both models, observers, and listeners. */
@@ -216,9 +223,9 @@ export class YamlDiffSession {
       editorRuntime.modelCreated();
       const editor = monaco.editor.createDiffEditor(element, {
         theme: appearance.dark ? "talos-pilot-dark" : "talos-pilot-light",
-        ariaLabel: this.#options.label,
-        originalAriaLabel: this.#options.originalLabel,
-        modifiedAriaLabel: this.#options.modifiedLabel,
+        ariaLabel: this.#label,
+        originalAriaLabel: this.#originalLabel,
+        modifiedAriaLabel: this.#modifiedLabel,
         originalEditable: false,
         readOnly: true,
         automaticLayout: false,

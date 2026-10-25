@@ -418,6 +418,24 @@ describe("native offline YAML editor under the packaged CSP", () => {
       "The accepted document's diagnostic disappeared after a rejected replacement.",
     );
 
+    // Closing must discard only the rejected attempt, not the owner's last
+    // accepted draft. Previously the oversized payload survived in owner state
+    // and the normal reopen created no editor model.
+    await clickButton("Close editor");
+    const closedAfterRejection = await waitFor(
+      (value) => !value.surface && counts(value.runtime).workers === 0,
+      "Closing a rejected replacement did not release the editor resources.",
+    );
+    expectBaseline(closedAfterRejection.runtime);
+    await clickButton("Open YAML editor");
+    const reopened = await waitFor(
+      (value) => value.editorMounted && value.diagnostic.includes("YAML diagnostic:"),
+      "Reopening after rejection lost the accepted document.",
+      30_000,
+    );
+    assert.equal(reopened.documentError, "");
+    assert.equal(counts(reopened.runtime).models, 3);
+
     await clickButton("Apply correction");
     await waitFor(
       (value) => value.diagnostic.includes("No YAML diagnostics"),

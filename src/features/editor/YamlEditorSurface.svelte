@@ -22,7 +22,7 @@ models, workers, and listeners, and release them when this surface unmounts.
   import type { EditorSurfaceProps } from "../../lib/state/editorFeasibility.svelte";
 
   let {
-    value,
+    readValue,
     onChange,
     onCorrect,
     onReset,
@@ -71,7 +71,7 @@ models, workers, and listeners, and release them when this surface unmounts.
     </button>
   </div>
 
-  <YamlEditor label="Synthetic release manifest YAML" {value} {onChange} autoFocus />
+  <YamlEditor label="Synthetic release manifest YAML" {readValue} {onChange} autoFocus />
 
   <YamlDiffView
     label="Synthetic release manifest comparison"

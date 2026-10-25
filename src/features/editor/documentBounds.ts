@@ -5,9 +5,10 @@
  * The ceiling is a UTF-8 **byte** limit, not a JavaScript string-length limit:
  * one 4-byte code point costs four bytes, and a lone surrogate encodes as a
  * three-byte replacement character, matching `TextEncoder`. The check runs
- * before a model is created or replaced and before text crosses the worker
- * boundary, so an oversized paste cannot occupy a Monaco model, a worker
- * message or the renderer's retained state.
+ * before a model is created or programmatically replaced and before text crosses
+ * the YAML worker boundary. A user edit is admitted from Monaco's content event
+ * and synchronously reverted if oversized; the rejected text is not retained in
+ * the model after that event, the worker queue or the owner's accepted state.
  */
 
 /** Largest UTF-8 document accepted by the editor, the diff and the worker, in bytes. */
@@ -109,7 +110,7 @@ export function documentLimitMessage(limit: number = YAML_DOCUMENT_LIMIT_BYTES):
 }
 
 /**
- * Admits or rejects one complete document before any model or worker sees it.
+ * Admits or rejects one complete document before an owned model update or worker transfer.
  *
  * Rejected text is never truncated: the caller keeps its previous accepted
  * document and shows {@link DocumentAdmission.message}. Callers must apply this

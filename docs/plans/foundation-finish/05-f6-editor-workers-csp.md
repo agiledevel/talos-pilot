@@ -4,16 +4,19 @@ Read the series [README](README.md) and the [ledger](ledger.md) first. This docu
 
 Plan packet: [F6](../foundation-completion-flash.md#f6--qualify-svelte-shell-and-offline-monacoyaml-workers). Maps to checkpoints C6.1 and C6.2 and task FND-005. Prerequisite in the plan: F5. It may be taken earlier when a fixture document is blocked, if the ledger records why.
 
-**Current status, 2026-10-25: done.** The original implementation and Linux
-native passes are recorded in [F6 evidence](../../verification/f6-editor-workers-csp.md).
-S0 is [accepted by owner-directed exception after a native keyboard pass](../../verification/s0-native-keyboard-acceptance.md);
-B11 remains unresolved/not fixed, with diagnostics retained. S1 is accepted:
-F6-B1 is resolved by UTF-8 document byte admission, a bounded one-in-flight and
-one-latest validation queue, explicit stale/failure/timeout/disposal semantics,
-deterministic and browser regression tests, and fresh Linux native evidence. The
-earlier attributed failures and results are preserved in the evidence record and
-the append-only [ledger](ledger.md). C6 stays **in progress** for the terminal/
-chart wrappers, installed packages and deferred WebView platforms.
+**Current status, 2026-10-25: in progress; S1 corrective plan READY.** The
+initial S1 implementation/native/hosted results remain attributed in
+[F6 evidence](../../verification/f6-editor-workers-csp.md) and the append-only
+[ledger](ledger.md). A subsequent review reopened acceptance for three P2 cases:
+preserving the owning accepted draft across rejection/close/reopen, restoring
+rendered inline diagnostics after a rejected edit, and releasing rejected initial
+options/component copies. Corrections are prepared; use the
+[ready corrective plan](follow-up-to-m2.md#s1--bound-editordiff-input-and-validation-work-document-05-follow-up)
+and [launch prompt](s1-launch-prompt.md) to finish final qualification and acceptance.
+S0 remains [accepted under its owner exception](../../verification/s0-native-keyboard-acceptance.md);
+B11 is unresolved/not fixed and diagnostics stay. F7 has not started. C6 stays
+**in progress** for terminal/chart wrappers, installed packages and deferred
+WebView platforms.
 
 ## Outcome
 
@@ -88,8 +91,9 @@ Use a benign synthetic YAML document. It must not be, or resemble, a machine con
 
 F6-B1 was the source finding that the parser rejected documents above 64 KiB
 only after model creation and full worker transfer, while the diff accepted
-unrestricted strings and debouncing left queued work unbounded. S1 resolves it
-without changing the CSP:
+unrestricted strings and debouncing left queued work unbounded. The initial S1
+implementation adds the following contract without changing the CSP; final
+acceptance now also requires S1-P2-1/2/3 in the linked corrective plan:
 
 - the 64 KiB value is an explicit UTF-8 **byte** ceiling, admitted before model
   creation/replacement and before worker transfer for initial, replaced and

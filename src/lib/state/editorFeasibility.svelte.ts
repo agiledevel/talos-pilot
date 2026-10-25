@@ -1,5 +1,5 @@
 import type { Component } from "svelte";
-import { YAML_DOCUMENT_LIMIT_BYTES } from "../../features/editor/documentBounds";
+import { admitDocument, YAML_DOCUMENT_LIMIT_BYTES } from "../../features/editor/documentBounds";
 import { editorRuntime } from "./editorRuntimeDiagnostics.svelte";
 
 /** Benign synthetic document with one unclosed flow sequence. */
@@ -43,8 +43,8 @@ export const EDITOR_TARGET_LABEL = "Synthetic release preview (offline, no clust
 
 /** Props the lazily loaded editor surface accepts. */
 export interface EditorSurfaceProps {
-  /** Controlled synthetic document. */
-  value: string;
+  /** Reads the proposed document synchronously at the editor's admission boundary. */
+  readValue: () => string;
   /** Reports edits made inside the editor. */
   onChange: (value: string) => void;
   /** Replaces the document with the corrected sample. */
@@ -141,8 +141,34 @@ async function loadEditorSurface(): Promise<EditorSurfaceComponent> {
  * the surface releases everything the attachments created.
  */
 export class EditorFeasibilityState {
-  /** Current synthetic document; editable and replaceable by the buttons. */
-  value = $state(MALFORMED_YAML_SAMPLE);
+  #value = $state(MALFORMED_YAML_SAMPLE);
+  // Keep only the intent. The rejected payload is generated at admission, never
+  // cached in owner state, so closing cannot lose the accepted draft.
+  #oversizedDraft = $state(false);
+
+  /** Last accepted synthetic document, preserved across rejected replacements and close. */
+  get value(): string {
+    return this.#value;
+  }
+
+  /**
+   * Reads a proposed document for immediate admission by the editor.
+   *
+   * An oversized attempt is generated on demand instead of being retained in
+   * reactive state. Callers must consume this value synchronously, not cache it.
+   */
+  readValue(): string {
+    return this.#oversizedDraft ? oversizeYamlSample() : this.#value;
+  }
+
+  /** Records an admitted user edit and clears any previous oversized attempt. */
+  acceptEdit(value: string): void {
+    const admission = admitDocument(value);
+    if (admission.accepted) {
+      this.#value = admission.text;
+      this.#oversizedDraft = false;
+    }
+  }
   /** Lazy surface boundary with cancellation. */
   readonly surface = new LazySurface<EditorSurfaceComponent>(loadEditorSurface);
 
@@ -163,27 +189,28 @@ export class EditorFeasibilityState {
    * recover with a bounded document.
    */
   async openWithOversize(): Promise<void> {
-    this.value = oversizeYamlSample();
+    this.#oversizedDraft = true;
     await this.open();
   }
 
   /** Cancels a pending import or unmounts the loaded surface. */
   close(): void {
     this.surface.close();
+    this.#oversizedDraft = false;
   }
 
   /** Replaces the document with the corrected sample. */
   correct(): void {
-    this.value = CORRECTED_YAML_SAMPLE;
+    this.acceptEdit(CORRECTED_YAML_SAMPLE);
   }
 
   /** Restores the malformed sample so the worker diagnostic is reproducible. */
   reset(): void {
-    this.value = MALFORMED_YAML_SAMPLE;
+    this.acceptEdit(MALFORMED_YAML_SAMPLE);
   }
 
-  /** Attempts an oversized controlled replacement to demonstrate rejection. */
+  /** Attempts an oversized replacement without overwriting the accepted draft. */
   oversize(): void {
-    this.value = oversizeYamlSample();
+    this.#oversizedDraft = true;
   }
 }

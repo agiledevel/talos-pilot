@@ -2,8 +2,10 @@
 @component
 A reusable, attachment-owned Monaco YAML editor with a bundled diagnostic worker.
 
-The component is controlled through `value`: user edits are reported with
-`onChange`, and a replaced value is applied without reporting it back. The
+The component is controlled through `readValue`: user edits are reported with
+`onChange`, and a replaced value is applied without reporting it back. The reader
+is evaluated synchronously at admission, so a generated rejected candidate need
+not be retained in props or an initial-value object. The
 editor instance, text model, dedicated YAML worker, resize observer, theme
 listener, and model listeners belong to this component and are released when its
 host element unmounts. Diagnostics are produced by the worker; the component
@@ -22,8 +24,8 @@ moves keyboard focus into the editor after a lazily opened surface mounts.
   interface Props {
     /** Accessible name of the editor and its surrounding group. */
     label: string;
-    /** Controlled document text. */
-    value: string;
+    /** Reads controlled text for immediate admission; do not cache rejected candidates. */
+    readValue: () => string;
     /** Reports a user edit; programmatic value replacement is not reported. */
     onChange?: ((value: string) => void) | undefined;
     /** Reports each worker diagnostic set for an owning surface or test. */
@@ -36,29 +38,34 @@ moves keyboard focus into the editor after a lazily opened surface mounts.
 
   let {
     label,
-    value,
+    readValue,
     onChange,
     onDiagnostics,
     readOnly = false,
     autoFocus = false,
   }: Props = $props();
 
-  // The constructor takes the mount-time values; the effects below apply every
-  // later prop change, so this read is intentionally outside reactivity.
-  const initial = untrack(() => ({ label, value, readOnly, autoFocus }));
-  const session = new YamlEditorSession({
-    ...initial,
-    onChange: (next) => {
-      onChange?.(next);
-    },
-    onDiagnostics: (diagnostics) => {
-      onDiagnostics?.(diagnostics);
-    },
-  });
+  // Admit mount-time text without caching a rejected string in component state.
+  // The effect below tracks the reader's reactive inputs for later attempts.
+  const session = untrack(
+    () =>
+      new YamlEditorSession({
+        label,
+        value: readValue(),
+        readOnly,
+        autoFocus,
+        onChange: (next) => {
+          onChange?.(next);
+        },
+        onDiagnostics: (diagnostics) => {
+          onDiagnostics?.(diagnostics);
+        },
+      }),
+  );
   const attachment = session.createAttachment();
 
   $effect(() => {
-    session.setValue(value);
+    session.setValue(readValue());
   });
   $effect(() => {
     session.setReadOnly(readOnly);

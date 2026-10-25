@@ -32,10 +32,11 @@ keep the comparison identity clear.
 
   let { label, original, modified, originalLabel, modifiedLabel, targetLabel }: Props = $props();
 
-  // The session starts from the mount-time documents; the effects below apply
-  // later replacements.
-  const initial = untrack(() => ({ label, original, modified, originalLabel, modifiedLabel }));
-  const session = new YamlDiffSession(initial);
+  // Do not keep a second mount-time object holding possibly rejected texts.
+  // The effects below apply later replacements.
+  const session = untrack(
+    () => new YamlDiffSession({ label, original, modified, originalLabel, modifiedLabel }),
+  );
   const attachment = session.createAttachment();
 
   $effect(() => {

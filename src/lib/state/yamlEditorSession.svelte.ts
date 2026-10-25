@@ -78,7 +78,9 @@ export class YamlEditorSession {
   /** Visible rejection of an initial, replaced, edited or pasted document. */
   documentError = $state<string | null>(null);
 
-  readonly #options: YamlEditorOptions;
+  readonly #onChange: YamlEditorOptions["onChange"];
+  readonly #onDiagnostics: YamlEditorOptions["onDiagnostics"];
+  readonly #autoFocus: boolean;
   readonly #queue: YamlValidationQueue;
   #value: string;
   #hasAcceptedDocument: boolean;
@@ -97,7 +99,11 @@ export class YamlEditorSession {
 
   /** @param options Initial value, accessible name, and change callbacks. */
   constructor(options: YamlEditorOptions) {
-    this.#options = options;
+    // Keep only non-document options. Retaining `options` would keep rejected
+    // initial text alive even after a bounded replacement recovers the editor.
+    this.#onChange = options.onChange;
+    this.#onDiagnostics = options.onDiagnostics;
+    this.#autoFocus = options.autoFocus ?? false;
     const initial = admitDocument(options.value);
     this.#value = initial.accepted ? initial.text : "";
     this.#hasAcceptedDocument = initial.accepted;
@@ -290,7 +296,7 @@ export class YamlEditorSession {
         }
       });
       this.#queue.submit(admission.text);
-      if (this.#options.autoFocus === true) {
+      if (this.#autoFocus) {
         editor.focus();
       }
     } catch {
@@ -315,13 +321,17 @@ export class YamlEditorSession {
       this.#applyingValue = true;
       model.setValue(this.#value);
       this.#applyingValue = false;
+      // setValue clears decorations as well as undo history. Reapply the
+      // accepted document's markers without resubmitting validation or changing
+      // its phase; a pending accepted document must remain pending.
+      this.#setMarkers(this.diagnostics);
       this.documentError = admission.message;
       return;
     }
     this.#value = admission.text;
     this.#hasAcceptedDocument = true;
     this.documentError = null;
-    this.#options.onChange?.(admission.text);
+    this.#onChange?.(admission.text);
     this.#queue.submit(admission.text);
   }
 
@@ -390,12 +400,17 @@ export class YamlEditorSession {
     }
     this.validation = snapshot.phase;
     this.diagnostics = snapshot.diagnostics;
+    this.#setMarkers(snapshot.diagnostics);
+    this.#onDiagnostics?.(snapshot.diagnostics);
+  }
+
+  #setMarkers(diagnostics: readonly YamlDiagnostic[]): void {
     const model = this.#model;
     if (model !== null) {
       monaco.editor.setModelMarkers(
         model,
         MARKER_OWNER,
-        snapshot.diagnostics.map((diagnostic) => ({
+        diagnostics.map((diagnostic) => ({
           severity: monaco.MarkerSeverity.Error,
           message: diagnostic.message,
           startLineNumber: diagnostic.line,
@@ -409,6 +424,5 @@ export class YamlEditorSession {
         })),
       );
     }
-    this.#options.onDiagnostics?.(snapshot.diagnostics);
   }
 }

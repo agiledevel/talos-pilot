@@ -121,9 +121,9 @@ the same toggle button.
   {#if status === "ready" && feasibility.surface.surface !== null}
     {@const Surface = feasibility.surface.surface}
     <Surface
-      value={feasibility.value}
+      readValue={() => feasibility.readValue()}
       onChange={(next) => {
-        feasibility.value = next;
+        feasibility.acceptEdit(next);
       }}
       onCorrect={() => {
         feasibility.correct();

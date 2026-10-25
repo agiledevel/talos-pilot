@@ -370,6 +370,10 @@ test("an oversized paste is rejected and the editor stays usable", async ({ page
   await page.getByRole("button", { name: "Open YAML editor" }).click();
   await expect(page.getByText(/YAML diagnostic:/u)).toBeVisible({ timeout: 45_000 });
   const alert = page.locator("[data-yaml-editor] [role='alert']");
+  // Check the rendered marker, not just the retained marker-service entry or
+  // diagnostic text: Monaco setValue clears decorations on a rejected edit.
+  const inlineError = page.locator("[data-yaml-editor] .squiggly-error");
+  await expect(inlineError).toHaveCount(1);
   await page.locator("[data-yaml-editor] .monaco-editor").click();
 
   // Monaco 0.57 uses the EditContext API here. A real paste event carries the
@@ -392,6 +396,7 @@ test("an oversized paste is rejected and the editor stays usable", async ({ page
   // The rejected text was reverted rather than left in the model or sent to the
   // worker, so the accepted document's diagnostic is still what is shown.
   await expect(page.getByText(/YAML diagnostic:/u)).toBeVisible();
+  await expect(inlineError).toHaveCount(1);
 
   await page.keyboard.insertText("\n# bounded edit\n");
   await expect(alert).toHaveCount(0);
@@ -400,6 +405,40 @@ test("an oversized paste is rejected and the editor stays usable", async ({ page
   await page.getByRole("button", { name: "Reset malformed sample" }).click();
   await expect(page.getByText(/YAML diagnostic:/u)).toBeVisible({ timeout: 45_000 });
   await page.getByRole("button", { name: "Close editor" }).click();
+  await expect(page.locator("[data-editor-runtime]")).toHaveText(
+    "Workers: 0 · Models: 0 · Listeners: 0",
+    { timeout: 10_000 },
+  );
+});
+
+test("a rejected replacement preserves user edits through close and reopen", async ({ page }) => {
+  await scriptNativeResponses(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Open YAML editor", exact: true }).click();
+  await expect(page.getByText(/YAML diagnostic:/u)).toBeVisible({ timeout: 45_000 });
+  await page.getByRole("button", { name: "Apply correction" }).click();
+  await expect(page.getByText("No YAML diagnostics")).toBeVisible();
+  await page.locator("[data-yaml-editor] .monaco-editor").click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.insertText("\n# accepted draft survives rejection\n");
+  await expect(page.getByText("No YAML diagnostics")).toBeVisible();
+
+  await page.getByRole("button", { name: "Try oversized replacement" }).click();
+  await expect(page.locator("[data-yaml-editor] [role='alert']")).toContainText(
+    "65536-byte UTF-8 editor limit",
+  );
+  await page.getByRole("button", { name: "Close editor", exact: true }).click();
+  await expect(page.locator("[data-editor-runtime]")).toHaveText(
+    "Workers: 0 · Models: 0 · Listeners: 0",
+    { timeout: 10_000 },
+  );
+  await page.getByRole("button", { name: "Open YAML editor", exact: true }).click();
+  await expect(page.getByText("No YAML diagnostics")).toBeVisible();
+  await expect(page.locator("[data-yaml-editor] [role='alert']")).toHaveCount(0);
+  await expect(page.locator("[data-yaml-editor] .view-lines")).toContainText(
+    "# accepted draft survives rejection",
+  );
+  await page.getByRole("button", { name: "Close editor", exact: true }).click();
   await expect(page.locator("[data-editor-runtime]")).toHaveText(
     "Workers: 0 · Models: 0 · Listeners: 0",
     { timeout: 10_000 },

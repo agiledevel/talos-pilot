@@ -7,8 +7,10 @@ import { defineConfig } from "@playwright/test";
  * The required browser gate stays `pnpm test:e2e` against Vite development mode.
  * This configuration exists only to separate development-tooling effects
  * (dependency prebundling, HMR, Svelte development checks) from application
- * behavior when a browser flow fails, by running the identical instrumented
- * specs against the optimized bundle. It is not a packaging, CSP, offline or
+ * behavior when a browser flow fails, by running the same instrumented UI flows
+ * against the optimized bundle. Source-module ownership probes remain in the
+ * required development-server gate because preview exposes no source modules.
+ * It is not a packaging, CSP, offline or
  * native claim: it still runs Chromium with the scripted mock IPC transport, so
  * it cannot establish Tauri command registration, capability enforcement or the
  * installed WebView. Record its results as a diagnostic comparison, never as a
@@ -21,6 +23,9 @@ import { defineConfig } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./tests/e2e",
+  // Only this source-module GC probe needs Vite's TS/rune transforms. It remains
+  // mandatory in pnpm test:e2e; every bundled-UI flow still runs in both modes.
+  testIgnore: ["**/editor-session-ownership.spec.ts"],
   use: { baseURL: "http://127.0.0.1:1420", trace: "retain-on-failure" },
   webServer: {
     // `vite preview` serves `dist/`, so build first and keep the diagnostic port
