@@ -15,8 +15,10 @@ import { describe, it } from "mocha";
 
 interface EditorSnapshot {
   readonly surface: boolean;
+  readonly editorMounted: boolean;
   readonly runtime: string;
   readonly diagnostic: string;
+  readonly documentError: string;
   readonly diff: string;
   readonly target: string;
   readonly resources: readonly string[];
@@ -49,8 +51,10 @@ function snapshot(value: unknown): EditorSnapshot {
   assert.ok(isRecord(value));
   return {
     surface: value["surface"] === true,
+    editorMounted: value["editorMounted"] === true,
     runtime: asString(value["runtime"]),
     diagnostic: asString(value["diagnostic"]),
+    documentError: asString(value["documentError"]),
     diff: asString(value["diff"]),
     target: asString(value["target"]),
     resources: asStringArray(value["resources"]),
@@ -77,8 +81,16 @@ function expectBaseline(runtime: string): void {
 async function readSnapshot(): Promise<EditorSnapshot> {
   const value: unknown = await browser.tauri.execute(() => {
     const surface = document.querySelector("[data-editor-surface]") !== null;
+    const editorMounted = document.querySelector("[data-yaml-editor] .monaco-editor") !== null;
     const runtime = document.querySelector("[data-editor-runtime]")?.textContent ?? "";
     const diagnostic = [...document.querySelectorAll("[data-yaml-editor] [role='status']")]
+      .map((element) => element.textContent ?? "")
+      .join(" | ");
+    const documentError = [
+      ...document.querySelectorAll(
+        "[data-yaml-editor] [role='alert'], [data-yaml-diff] [role='alert']",
+      ),
+    ]
       .map((element) => element.textContent ?? "")
       .join(" | ");
     const diff = document.querySelector("[data-yaml-diff]")?.textContent ?? "";
@@ -88,8 +100,10 @@ async function readSnapshot(): Promise<EditorSnapshot> {
     const workerAssets = document.querySelector("[data-editor-worker-assets]")?.textContent ?? "";
     return {
       surface,
+      editorMounted,
       runtime,
       diagnostic,
+      documentError,
       diff,
       target,
       resources,
@@ -356,6 +370,71 @@ describe("native offline YAML editor under the packaged CSP", () => {
       (value) => !value.surface && counts(value.runtime).workers === 0,
       "The offline editor did not release its worker.",
     );
+  });
+
+  it("rejects oversized initial and replacement documents without growing owned editor resources", async () => {
+    await openHome();
+    await clickButton("Open with oversized draft");
+    const rejectedInitial = await waitFor(
+      (value) => value.surface && value.documentError.includes("65536-byte UTF-8 editor limit"),
+      "The oversized initial draft was not rejected visibly.",
+      30_000,
+    );
+    assert.equal(
+      rejectedInitial.editorMounted,
+      false,
+      "The rejected initial draft created an editor.",
+    );
+    assert.match(rejectedInitial.documentError, /Nothing was changed/u);
+    assert.equal(
+      counts(rejectedInitial.runtime).models,
+      2,
+      "Only the bounded diff pair should have models while the editor rejects its draft.",
+    );
+
+    await clickButton("Reset malformed sample");
+    const recovered = await waitFor(
+      (value) => value.editorMounted && value.diagnostic.includes("YAML diagnostic:"),
+      "A bounded sample did not recover the editor after the initial rejection.",
+      30_000,
+    );
+    assert.equal(counts(recovered.runtime).models, 3);
+    assert.doesNotMatch(recovered.documentError, /editor limit/u);
+
+    await clickButton("Try oversized replacement");
+    const rejectedReplacement = await waitFor(
+      (value) => value.documentError.includes("65536-byte UTF-8 editor limit"),
+      "The oversized replacement was not rejected visibly.",
+    );
+    assert.equal(rejectedReplacement.editorMounted, true);
+    assert.equal(
+      counts(rejectedReplacement.runtime).models,
+      3,
+      "The rejected replacement changed the editor's owned models.",
+    );
+    assert.match(
+      rejectedReplacement.diagnostic,
+      /YAML diagnostic:/u,
+      "The accepted document's diagnostic disappeared after a rejected replacement.",
+    );
+
+    await clickButton("Apply correction");
+    await waitFor(
+      (value) => value.diagnostic.includes("No YAML diagnostics"),
+      "The bounded correction did not clear the diagnostic after a rejection.",
+    );
+    await clickButton("Reset malformed sample");
+    await waitFor(
+      (value) => value.diagnostic.includes("YAML diagnostic:"),
+      "Resetting after a rejected replacement did not restore the diagnostic.",
+    );
+
+    await clickButton("Close editor");
+    const closed = await waitFor(
+      (value) => !value.surface && counts(value.runtime).workers === 0,
+      "Closing after the bound checks did not release the editor resources.",
+    );
+    expectBaseline(closed.runtime);
   });
 
   it("blocks an inline script and an unauthorized script origin under the packaged CSP", async () => {

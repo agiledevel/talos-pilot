@@ -7,11 +7,14 @@ import {
   YAML_LANGUAGE_ID,
 } from "../../features/editor/editorMonaco";
 import { observeEditorAppearance, observeEditorSize } from "../../features/editor/editorLifecycle";
+import { admitDocument, type DocumentAdmission } from "../../features/editor/documentBounds";
+import {
+  YamlValidationQueue,
+  type YamlValidationPhase,
+  type YamlValidationSnapshot,
+} from "../../features/editor/yamlValidationQueue";
+import type { YamlDiagnostic, YamlWorkerRequest } from "../../features/editor/yamlAnalysis";
 import { editorRuntime, OwnedListeners } from "./editorRuntimeDiagnostics.svelte";
-import { isYamlWorkerResponse, type YamlDiagnostic } from "../../features/editor/yamlAnalysis";
-
-/** Delay between the last edit and the worker request, in milliseconds. */
-const VALIDATION_DEBOUNCE_MS = 120;
 
 /** Marker owner used for the diagnostics this surface sets on its models. */
 const MARKER_OWNER = "talos-pilot-yaml-worker";
@@ -27,9 +30,9 @@ function modelUri(name: string): monaco.Uri {
 export interface YamlEditorOptions {
   /** Accessible name of the editor and its surrounding group. */
   readonly label: string;
-  /** Initial document text. */
+  /** Initial document text. Accepted only when it fits the UTF-8 byte ceiling. */
   readonly value: string;
-  /** Reports user edits back to the owner. */
+  /** Reports user edits back to the owner. Rejected edits are never reported. */
   readonly onChange?: ((value: string) => void) | undefined;
   /** Reports each validated diagnostic set. */
   readonly onDiagnostics?: ((diagnostics: readonly YamlDiagnostic[]) => void) | undefined;
@@ -41,13 +44,23 @@ export interface YamlEditorOptions {
 
 /**
  * Owns one Monaco YAML editor, its text model, its dedicated analysis worker,
- * and every listener that keeps it in sync with the shell.
+ * the bounded validation queue and every listener that keeps it in sync with
+ * the shell.
+ *
+ * Document admission happens before `createModel`, before `model.setValue` and
+ * before `Worker.postMessage`, using {@link admitDocument}'s UTF-8 byte check.
+ * A rejected initial document creates no model or worker; the visible rejection
+ * stays until a bounded replacement arrives. A rejected user edit (typing,
+ * paste or undo/redo) is reverted to the last accepted text in the same content
+ * event, so the model never retains oversized text and the value is never
+ * silently truncated.
  *
  * The attachment returned by {@link YamlEditorSession.createAttachment} creates
  * the editor when its host element mounts and releases everything when the host
  * unmounts. Diagnostics are produced by the bundled worker, not by parsing on
- * the renderer thread. A response whose request id is no longer current is
- * ignored, so a slow result cannot overwrite a newer edit or a closed surface.
+ * the renderer thread. {@link YamlValidationQueue} owns the single in-flight
+ * request and the single coalesced latest document; its `pending` publication
+ * clears stale diagnostics and markers immediately on a document change.
  *
  * No credential, cluster client, or secret-bearing document is held here. The
  * surface is a synthetic feasibility editor and the worker receives only the
@@ -56,21 +69,28 @@ export interface YamlEditorOptions {
 export class YamlEditorSession {
   /** Most recent bounded diagnostic set produced by the worker. */
   diagnostics = $state.raw<readonly YamlDiagnostic[]>([]);
+  /** Bounded validation phase for the currently accepted document. */
+  validation = $state<YamlValidationPhase>("idle");
   /** Editor lifecycle shown by the component. */
   status = $state<"idle" | "ready" | "failed">("idle");
   /** Safe failure message when Monaco or its worker cannot start. */
   mountError = $state<string | null>(null);
+  /** Visible rejection of an initial, replaced, edited or pasted document. */
+  documentError = $state<string | null>(null);
 
   readonly #options: YamlEditorOptions;
+  readonly #queue: YamlValidationQueue;
   #value: string;
+  #hasAcceptedDocument: boolean;
   #readOnly: boolean;
   #label: string;
+  #element: HTMLElement | null = null;
   #editor: monaco.editor.IStandaloneCodeEditor | null = null;
   #model: monaco.editor.ITextModel | null = null;
   #worker: Worker | null = null;
+  #removeWorkerMessage: (() => void) | null = null;
+  #removeWorkerError: (() => void) | null = null;
   #listeners: OwnedListeners | null = null;
-  #requestId = 0;
-  #debounce: ReturnType<typeof setTimeout> | null = null;
   #disposed = false;
   #applyingValue = false;
   #modelTracked = false;
@@ -78,16 +98,30 @@ export class YamlEditorSession {
   /** @param options Initial value, accessible name, and change callbacks. */
   constructor(options: YamlEditorOptions) {
     this.#options = options;
-    this.#value = options.value;
+    const initial = admitDocument(options.value);
+    this.#value = initial.accepted ? initial.text : "";
+    this.#hasAcceptedDocument = initial.accepted;
+    this.documentError = initial.accepted ? null : initial.message;
     this.#readOnly = options.readOnly ?? false;
     this.#label = options.label;
+    this.#queue = new YamlValidationQueue({
+      dispatch: (request) => this.#dispatchRequest(request),
+      publish: (snapshot) => {
+        this.#applyValidation(snapshot);
+      },
+      onWorkerFailure: () => {
+        this.#discardWorker();
+      },
+    });
   }
 
   /**
    * Builds the Svelte attachment that owns the editor's lifetime.
    *
    * The attachment identity is stable, so it runs once for a host element. Its
-   * cleanup is idempotent and is also reached when mounting fails part-way.
+   * cleanup is idempotent and is also reached when mounting fails part-way. A
+   * rejected initial document leaves the element attached without a model, so a
+   * later bounded replacement can still start the editor.
    */
   createAttachment(): (element: HTMLElement) => () => void {
     return (element) => {
@@ -100,21 +134,39 @@ export class YamlEditorSession {
 
   /**
    * Applies a new controlled value. Programmatic replacements do not call the
-   * change callback; they are validated and keep the model in sync.
+   * change callback. An oversized replacement is rejected visibly: the accepted
+   * model and last accepted value stay unchanged and the text is not retained.
    */
   setValue(value: string): void {
-    if (this.#disposed || value === this.#value) {
+    if (this.#disposed) {
       return;
     }
-    this.#value = value;
+    if (value === this.#value && this.#hasAcceptedDocument) {
+      this.documentError = null;
+      if (this.#editor === null && this.#element !== null) {
+        this.#startEditor();
+      }
+      return;
+    }
+    const admission = admitDocument(value);
+    if (!admission.accepted) {
+      this.documentError = admission.message;
+      return;
+    }
+    this.#value = admission.text;
+    this.#hasAcceptedDocument = true;
+    this.documentError = null;
     const model = this.#model;
-    if (model === null || model.getValue() === value) {
+    if (model === null) {
+      this.#startEditor();
       return;
     }
-    this.#applyingValue = true;
-    model.setValue(value);
-    this.#applyingValue = false;
-    this.#scheduleValidation();
+    if (model.getValue() !== admission.text) {
+      this.#applyingValue = true;
+      model.setValue(admission.text);
+      this.#applyingValue = false;
+    }
+    this.#queue.submit(admission.text);
   }
 
   /** Updates the read-only option after a prop change. */
@@ -135,25 +187,21 @@ export class YamlEditorSession {
     this.#editor?.updateOptions({ ariaLabel: label });
   }
 
-  /** Releases the editor, model, worker, observers, listeners, and timers. */
+  /** Releases the editor, model, worker, queue timers, observers and listeners. */
   dispose(): void {
     if (this.#disposed) {
       return;
     }
     this.#disposed = true;
-    this.#requestId += 1;
-    if (this.#debounce !== null) {
-      clearTimeout(this.#debounce);
-      this.#debounce = null;
-    }
+    this.#queue.dispose();
+    this.#discardWorker();
     this.#listeners?.dispose();
     this.#listeners = null;
+    this.#element = null;
     const editor = this.#editor;
     this.#editor = null;
     const model = this.#model;
     this.#model = null;
-    const worker = this.#worker;
-    this.#worker = null;
     if (model !== null) {
       monaco.editor.setModelMarkers(model, MARKER_OWNER, []);
     }
@@ -163,22 +211,48 @@ export class YamlEditorSession {
       this.#modelTracked = false;
       editorRuntime.modelDisposed();
     }
-    worker?.terminate();
     this.status = "idle";
+    this.validation = "idle";
     this.diagnostics = [];
   }
 
   #mount(element: HTMLElement): void {
-    if (this.#disposed || this.#editor !== null) {
+    if (this.#disposed || this.#element !== null) {
       return;
     }
+    this.#element = element;
+    this.#startEditor();
+  }
+
+  #startEditor(): void {
+    const element = this.#element;
+    if (this.#disposed || element === null || this.#editor !== null) {
+      return;
+    }
+    if (!this.#hasAcceptedDocument) {
+      // The initial document was rejected before any model existed. Keep the
+      // element attached and wait for a bounded replacement instead of creating
+      // a model from rejected text.
+      this.validation = "idle";
+      return;
+    }
+    const admission: DocumentAdmission = admitDocument(this.#value);
+    if (!admission.accepted) {
+      this.documentError = admission.message;
+      return;
+    }
+    this.documentError = null;
     const listeners = new OwnedListeners(editorRuntime);
     this.#listeners = listeners;
     try {
       installMonacoEnvironment();
       ensureMonacoYaml();
       const appearance = readEditorAppearance();
-      const model = monaco.editor.createModel(this.#value, YAML_LANGUAGE_ID, modelUri("manifest"));
+      const model = monaco.editor.createModel(
+        admission.text,
+        YAML_LANGUAGE_ID,
+        modelUri("manifest"),
+      );
       this.#model = model;
       this.#modelTracked = true;
       editorRuntime.modelCreated();
@@ -201,12 +275,7 @@ export class YamlEditorSession {
       this.mountError = null;
 
       const contentSubscription = model.onDidChangeContent(() => {
-        if (this.#applyingValue || this.#disposed) {
-          return;
-        }
-        this.#value = model.getValue();
-        this.#options.onChange?.(this.#value);
-        this.#scheduleValidation();
+        this.#handleContentChange(model);
       });
       listeners.addDisposable(() => {
         contentSubscription.dispose();
@@ -220,7 +289,7 @@ export class YamlEditorSession {
           applyEditorAppearance(active);
         }
       });
-      this.#scheduleValidation();
+      this.#queue.submit(admission.text);
       if (this.#options.autoFocus === true) {
         editor.focus();
       }
@@ -231,17 +300,42 @@ export class YamlEditorSession {
     }
   }
 
-  #scheduleValidation(): void {
-    if (this.#disposed) {
+  /**
+   * Applies every user mutation path — typing, paste and undo/redo — through one
+   * admission check. Rejected text is reverted synchronously to the last
+   * accepted value, so it cannot stay in the model or be queued to the worker.
+   */
+  #handleContentChange(model: monaco.editor.ITextModel): void {
+    if (this.#applyingValue || this.#disposed) {
       return;
     }
-    if (this.#debounce !== null) {
-      clearTimeout(this.#debounce);
+    const next = model.getValue();
+    const admission = admitDocument(next);
+    if (!admission.accepted) {
+      this.#applyingValue = true;
+      model.setValue(this.#value);
+      this.#applyingValue = false;
+      this.documentError = admission.message;
+      return;
     }
-    this.#debounce = setTimeout(() => {
-      this.#debounce = null;
-      this.#validate();
-    }, VALIDATION_DEBOUNCE_MS);
+    this.#value = admission.text;
+    this.#hasAcceptedDocument = true;
+    this.documentError = null;
+    this.#options.onChange?.(admission.text);
+    this.#queue.submit(admission.text);
+  }
+
+  #dispatchRequest(request: YamlWorkerRequest): boolean {
+    const worker = this.#ensureWorker();
+    if (worker === null) {
+      return false;
+    }
+    try {
+      worker.postMessage(request);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   #ensureWorker(): Worker | null {
@@ -261,82 +355,47 @@ export class YamlEditorSession {
       );
       editorRuntime.recordYamlWorkerAsset("yamlDiagnostics.worker");
       this.#worker = worker;
-      const removeMessage = listeners.add(worker, "message", (event: Event) => {
+      this.#removeWorkerMessage = listeners.add(worker, "message", (event: Event) => {
         if (this.#disposed || !(event instanceof MessageEvent)) {
           return;
         }
-        const payload: unknown = event.data;
-        if (!isYamlWorkerResponse(payload) || payload.requestId !== this.#requestId) {
-          return;
-        }
-        this.#applyDiagnostics(payload.diagnostics);
+        this.#queue.receive(event.data);
       });
-      const removeError = listeners.add(worker, "error", () => {
+      this.#removeWorkerError = listeners.add(worker, "error", () => {
         if (this.#disposed) {
           return;
         }
-        removeMessage();
-        removeError();
-        this.#applyDiagnostics([
-          {
-            message: "The YAML worker stopped unexpectedly. Close and reopen the editor.",
-            line: 1,
-            column: 1,
-            endLine: 1,
-            endColumn: 2,
-          },
-        ]);
-        this.#worker = null;
-        worker.terminate();
+        this.#queue.fail("error");
       });
       return worker;
     } catch {
-      this.#applyDiagnostics([
-        {
-          message: "The YAML worker could not start. The editor remains available.",
-          line: 1,
-          column: 1,
-          endLine: 1,
-          endColumn: 2,
-        },
-      ]);
       return null;
     }
   }
 
-  #validate(): void {
-    const worker = this.#ensureWorker();
-    const model = this.#model;
-    if (worker === null || model === null || this.#disposed) {
-      return;
-    }
-    this.#requestId += 1;
-    try {
-      worker.postMessage({ requestId: this.#requestId, text: model.getValue() });
-    } catch {
-      this.#applyDiagnostics([
-        {
-          message: "The YAML worker could not analyze this document. Close and reopen the editor.",
-          line: 1,
-          column: 1,
-          endLine: 1,
-          endColumn: 2,
-        },
-      ]);
-    }
+  /** Removes the failed worker's listeners before terminating it exactly once. */
+  #discardWorker(): void {
+    const worker = this.#worker;
+    this.#worker = null;
+    this.#removeWorkerMessage?.();
+    this.#removeWorkerMessage = null;
+    this.#removeWorkerError?.();
+    this.#removeWorkerError = null;
+    worker?.terminate();
   }
 
-  #applyDiagnostics(diagnostics: readonly YamlDiagnostic[]): void {
+  #applyValidation(snapshot: YamlValidationSnapshot): void {
     if (this.#disposed) {
       return;
     }
-    this.diagnostics = diagnostics;
+    this.validation = snapshot.phase;
+    this.diagnostics = snapshot.diagnostics;
     const model = this.#model;
     if (model !== null) {
       monaco.editor.setModelMarkers(
         model,
         MARKER_OWNER,
-        diagnostics.map((diagnostic) => ({
+        snapshot.diagnostics.map((diagnostic) => ({
           severity: monaco.MarkerSeverity.Error,
           message: diagnostic.message,
           startLineNumber: diagnostic.line,
@@ -350,6 +409,6 @@ export class YamlEditorSession {
         })),
       );
     }
-    this.#options.onDiagnostics?.(diagnostics);
+    this.#options.onDiagnostics?.(snapshot.diagnostics);
   }
 }

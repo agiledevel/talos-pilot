@@ -1,7 +1,12 @@
 import { parseDocument } from "yaml";
+import {
+  documentLimitMessage,
+  isWithinDocumentLimit,
+  utf8ByteLengthAtMost,
+  YAML_DOCUMENT_LIMIT_BYTES,
+} from "./documentBounds";
 
-/** Largest synthetic document the editor worker accepts; larger text is rejected before parsing. */
-export const YAML_DOCUMENT_LIMIT_BYTES = 64 * 1024;
+export { YAML_DOCUMENT_LIMIT_BYTES } from "./documentBounds";
 /** Largest number of diagnostics returned for one document. */
 export const YAML_DIAGNOSTIC_LIMIT = 20;
 /** Longest diagnostic message returned to the renderer. */
@@ -43,8 +48,6 @@ export interface YamlWorkerResponse {
   readonly diagnostics: readonly YamlDiagnostic[];
 }
 
-const utf8 = new TextEncoder();
-
 function clampMessage(message: string): string {
   if (message.length <= YAML_DIAGNOSTIC_MESSAGE_LIMIT) {
     return message;
@@ -82,22 +85,11 @@ function toDiagnostic(
  * @returns At most {@link YAML_DIAGNOSTIC_LIMIT} one-based diagnostics.
  */
 export function analyzeYaml(text: string): YamlAnalysis {
-  // A UTF-8 character is at most four bytes, so this avoids encoding a very
-  // large paste before the byte bound rejects it.
-  if (
-    text.length > YAML_DOCUMENT_LIMIT_BYTES * 4 ||
-    utf8.encode(text).byteLength > YAML_DOCUMENT_LIMIT_BYTES
-  ) {
+  // The shared admission check counts UTF-8 bytes without allocating a second
+  // copy of a large paste and stops as soon as the ceiling is crossed.
+  if (utf8ByteLengthAtMost(text, YAML_DOCUMENT_LIMIT_BYTES) === null) {
     return {
-      diagnostics: [
-        toDiagnostic(
-          `The document exceeds the ${String(YAML_DOCUMENT_LIMIT_BYTES)}-byte editor limit.`,
-          1,
-          1,
-          1,
-          2,
-        ),
-      ],
+      diagnostics: [toDiagnostic(documentLimitMessage(YAML_DOCUMENT_LIMIT_BYTES), 1, 1, 1, 2)],
     };
   }
 
@@ -177,11 +169,17 @@ export function isYamlWorkerResponse(value: unknown): value is YamlWorkerRespons
 
 /**
  * Validates a request before the worker parses it. Only the renderer sends
- * requests, but a malformed message must not reach the parser or be echoed.
+ * requests, but a malformed or oversized message must not reach the parser or
+ * be echoed. This is defense in depth behind the renderer's pre-model check.
  *
  * @param value Message payload received by the worker.
- * @returns True only for a complete request; {@link analyzeYaml} applies the size bound.
+ * @returns True only for a complete request whose text fits the UTF-8 byte ceiling.
  */
 export function isYamlWorkerRequest(value: unknown): value is YamlWorkerRequest {
-  return isRecord(value) && isPositiveInteger(value.requestId) && typeof value.text === "string";
+  return (
+    isRecord(value) &&
+    isPositiveInteger(value.requestId) &&
+    typeof value.text === "string" &&
+    isWithinDocumentLimit(value.text, YAML_DOCUMENT_LIMIT_BYTES)
+  );
 }

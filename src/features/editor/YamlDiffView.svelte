@@ -3,10 +3,12 @@
 A reusable, attachment-owned Monaco diff between two read-only YAML documents.
 
 The two models, diff editor, resize observer, theme listener, and Monaco worker
-are released by the attachment cleanup. Both sides are read-only: this component
-shows a reviewable difference and never dispatches an edit. The visible before
-and after labels and the owning surface's target line keep the comparison
-identity clear.
+are released by the attachment cleanup. Both sides are admitted against a 64 KiB
+UTF-8 byte ceiling as one pair before either model is created or replaced; an
+oversized side keeps both previous documents and shows an alert. Both sides are
+read-only: this component shows a reviewable difference and never dispatches an
+edit. The visible before and after labels and the owning surface's target line
+keep the comparison identity clear.
 -->
 <script lang="ts">
   import { untrack } from "svelte";
@@ -61,7 +63,11 @@ identity clear.
   ></div>
   {#if session.mountError !== null}
     <StatusMessage role="alert" tone="error" message={session.mountError} />
-  {:else if session.status === "ready"}
+  {/if}
+  {#if session.documentError !== null}
+    <StatusMessage role="alert" tone="error" message={session.documentError} />
+  {/if}
+  {#if session.status === "ready"}
     <p role="status" class="text-sm text-surface-700-300">
       Read-only diff between {originalLabel} and {modifiedLabel}.
     </p>

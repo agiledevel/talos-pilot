@@ -4,7 +4,9 @@ import {
   EditorFeasibilityState,
   LazySurface,
   MALFORMED_YAML_SAMPLE,
+  oversizeYamlSample,
 } from "./editorFeasibility.svelte";
+import { isWithinDocumentLimit } from "../../features/editor/documentBounds";
 
 function deferredSurface(): {
   readonly promise: Promise<string>;
@@ -87,5 +89,21 @@ describe("editor feasibility documents", () => {
     feasibility.reset();
     expect(feasibility.value).toBe(MALFORMED_YAML_SAMPLE);
     expect(MALFORMED_YAML_SAMPLE).not.toBe(CORRECTED_YAML_SAMPLE);
+  });
+
+  it("builds a benign oversized draft that the byte guard rejects", () => {
+    const oversize = oversizeYamlSample();
+    expect(oversize.length).toBeGreaterThan(64 * 1024);
+    expect(isWithinDocumentLimit(oversize)).toBe(false);
+    expect(oversize).toContain("release:");
+    expect(oversize).not.toMatch(/password|token|secret/iu);
+  });
+
+  it("exposes the oversized draft only through the explicit actions", async () => {
+    const feasibility = new EditorFeasibilityState();
+    feasibility.oversize();
+    expect(isWithinDocumentLimit(feasibility.value)).toBe(false);
+    feasibility.reset();
+    expect(feasibility.value).toBe(MALFORMED_YAML_SAMPLE);
   });
 });

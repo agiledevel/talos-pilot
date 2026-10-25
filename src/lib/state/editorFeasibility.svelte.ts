@@ -1,4 +1,5 @@
 import type { Component } from "svelte";
+import { YAML_DOCUMENT_LIMIT_BYTES } from "../../features/editor/documentBounds";
 import { editorRuntime } from "./editorRuntimeDiagnostics.svelte";
 
 /** Benign synthetic document with one unclosed flow sequence. */
@@ -21,6 +22,22 @@ export const CORRECTED_YAML_SAMPLE = `release:
     batches: [1, 2, 3]
 `;
 
+/**
+ * Builds a benign synthetic draft above the UTF-8 byte ceiling.
+ *
+ * The draft is generated only when the feasibility surface asks for it, so the
+ * initial shell does not retain an oversized string. It contains no credential
+ * or cluster data; it exists to demonstrate visible byte-limit rejection.
+ *
+ * @returns A synthetic YAML document larger than {@link YAML_DOCUMENT_LIMIT_BYTES}.
+ */
+export function oversizeYamlSample(): string {
+  const header = "release:\n  name: synthetic-preview\n  notes: |\n";
+  const line = `    ${"x".repeat(120)}\n`;
+  const count = Math.ceil(YAML_DOCUMENT_LIMIT_BYTES / line.length) + 1;
+  return header + line.repeat(count);
+}
+
 /** Identity shown beside every editor and diff in this feasibility surface. */
 export const EDITOR_TARGET_LABEL = "Synthetic release preview (offline, no cluster)";
 
@@ -34,6 +51,8 @@ export interface EditorSurfaceProps {
   onCorrect: () => void;
   /** Replaces the document with the malformed sample. */
   onReset: () => void;
+  /** Attempts a controlled replacement above the editor's byte ceiling. */
+  onOversize: () => void;
   /** Closes the surface and restores focus to its opener. */
   onClose: () => void;
   /** Visible target identity. */
@@ -136,6 +155,18 @@ export class EditorFeasibilityState {
     }
   }
 
+  /**
+   * Opens the surface with an oversized synthetic draft.
+   *
+   * The editor rejects the initial document before creating a model or worker
+   * and shows the byte ceiling; the surface's sample buttons remain usable to
+   * recover with a bounded document.
+   */
+  async openWithOversize(): Promise<void> {
+    this.value = oversizeYamlSample();
+    await this.open();
+  }
+
   /** Cancels a pending import or unmounts the loaded surface. */
   close(): void {
     this.surface.close();
@@ -149,5 +180,10 @@ export class EditorFeasibilityState {
   /** Restores the malformed sample so the worker diagnostic is reproducible. */
   reset(): void {
     this.value = MALFORMED_YAML_SAMPLE;
+  }
+
+  /** Attempts an oversized controlled replacement to demonstrate rejection. */
+  oversize(): void {
+    this.value = oversizeYamlSample();
   }
 }

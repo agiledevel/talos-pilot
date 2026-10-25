@@ -78,7 +78,11 @@ moves keyboard focus into the editor after a lazily opened surface mounts.
   ></div>
   {#if session.mountError !== null}
     <StatusMessage role="alert" tone="error" message={session.mountError} />
-  {:else if firstDiagnostic !== undefined}
+  {/if}
+  {#if session.documentError !== null}
+    <StatusMessage role="alert" tone="error" message={session.documentError} />
+  {/if}
+  {#if firstDiagnostic !== undefined}
     <div role="status" class="rounded-base preset-tonal-warning p-3 text-sm">
       <p>
         <strong>YAML diagnostic:</strong>
@@ -93,7 +97,13 @@ moves keyboard focus into the editor after a lazily opened surface mounts.
         </p>
       {/if}
     </div>
+  {:else if session.validation === "pending"}
+    <p role="status" class="text-sm text-surface-700-300" data-yaml-validation={session.validation}>
+      Checking YAML…
+    </p>
   {:else if session.status === "ready"}
-    <p role="status" class="text-sm text-surface-700-300">No YAML diagnostics</p>
+    <p role="status" class="text-sm text-surface-700-300" data-yaml-validation={session.validation}>
+      No YAML diagnostics
+    </p>
   {/if}
 </div>

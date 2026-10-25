@@ -26,6 +26,7 @@ models, workers, and listeners, and release them when this surface unmounts.
     onChange,
     onCorrect,
     onReset,
+    onOversize,
     onClose,
     targetLabel,
     original,
@@ -64,6 +65,9 @@ models, workers, and listeners, and release them when this surface unmounts.
     </button>
     <button type="button" class="btn preset-outlined-surface-500" onclick={onReset}>
       Reset malformed sample
+    </button>
+    <button type="button" class="btn preset-outlined-surface-500" onclick={onOversize}>
+      Try oversized replacement
     </button>
   </div>
 

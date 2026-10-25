@@ -352,3 +352,117 @@ Chromium browser flows against mock IPC (development and production-preview
 servers), and real local Linux Tauri release-executable/WebKitGTK runs. No
 installed package, macOS/Windows WebView, or real-cluster evidence is claimed.
 No fixture, host network, firewall, VM, container or credential was touched.
+
+## S1 bounds and bounded validation acceptance — 2026-10-25
+
+Base revision: `ef2279d` on `ft-editor-bounds` (the owner's squashed foundation
+checkpoint). Final revision: the commit carrying this record. This section adds
+S1 evidence for F6-B1; it does not rewrite the 2026-10-23 matrix or the 2026-10-25
+browser/build correction above. S0 stays accepted under the owner-directed B11
+exception, and B11 remains unresolved/not fixed.
+
+### Implementation contract
+
+- `src/features/editor/documentBounds.ts` owns the 65,536-byte UTF-8 ceiling.
+  `utf8ByteLengthAtMost` rejects by string length first, then counts code units
+  and stops at the first byte above the limit; surrogate pairs count four bytes
+  and unpaired surrogates three, matching `TextEncoder`. `admitDocument` returns
+  an accepted byte count or one safe message, and `isWithinDocumentLimit` is the
+  shared predicate.
+- `src/lib/state/yamlEditorSession.svelte.ts` admits the initial value before
+  `createModel`, each controlled replacement before `model.setValue`, and every
+  content change before the worker request. Rejected edits and undo/redo are
+  reverted synchronously to the last accepted text. A rejected initial document
+  creates no model or worker, shows the ceiling, and mounts from a later bounded
+  replacement. Rejections are visible; nothing is truncated and rejected text is
+  not retained as a model or worker message.
+- `src/features/editor/yamlValidationQueue.ts` owns one debounce timer, one
+  in-flight request, one coalesced latest document and monotonic request ids
+  plus document versions. `submit` publishes `pending` immediately, clearing the
+  previous diagnostics and markers before dispatch. Only the newest version can
+  publish `ready`. A five-second timeout or worker error publishes one safe
+  failure, drops in-flight and queued work, terminates the worker and does not
+  auto-retry; disposal cancels both timers, drops queued work and ignores late
+  replies. The queue exposes `dispatchedCount`, `hasInFlight` and
+  `hasQueuedDocument` so tests observe the bounds.
+- `src/lib/state/yamlDiffSession.svelte.ts` admits both sides as one pair before
+  creating or replacing either model. Either oversized side keeps both previous
+  documents and shows which side was rejected.
+- `src/features/editor/yamlAnalysis.ts` keeps the worker-side byte check as
+  defense in depth; `isYamlWorkerRequest` now rejects an oversized request before
+  parsing. The worker protocol, bundled same-origin worker, Monaco worker factory
+  and packaged CSP are unchanged.
+- The Home feasibility panel gained two user-visible controls, "Open with
+  oversized draft" and "Try oversized replacement", to exercise the rejection
+  and recovery path without a test hook. Both generate benign synthetic YAML at
+  click time; no oversized string is retained by the initial shell.
+
+### Matrix
+
+| S1 case                                                 | Result                                                 | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact/over ASCII and multibyte byte ceiling             | **Pass — deterministic**                               | `documentBounds.test.ts`: exact 65,536 bytes accepted; limit+1 rejected for ASCII, two-byte `é` and four-byte `😀`; mixed BMP/surrogate/unpaired-surrogate lengths equal `TextEncoder`; early rejection of a 10,000-character string at an 8-byte limit.                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Initial, replaced, edited/pasted documents              | **Pass — deterministic, browser and partially native** | `yamlValidationQueue.test.ts` proves pending invalidation, coalescing and one-in-flight/one-latest with dispatched/in-flight/queued observations. Browser: an oversized replacement keeps the accepted model and diagnostic; an oversized initial draft creates no editor model (`[data-yaml-editor] .monaco-editor` count 0) and recovers from a bounded sample; a browser-dispatched Monaco EditContext paste event of 66,000 characters is prevented, reverted and leaves the editor usable. Native: the initial and controlled-replacement paths pass; a real paste cannot be produced as trusted input by this harness, so that row is browser plus deterministic. |
+| Both diff sides                                         | **Pass — deterministic**                               | `admitDocumentPair` applies `admitDocument` to each side before either model is created or replaced and returns no texts when either is oversized; `documentBounds.test.ts` covers accepted pairs and rejected original/modified/both sides, and `yamlDiffSession` applies only an accepted pair. The native run still renders the bounded diff pair and its target labels.                                                                                                                                                                                                                                                                                             |
+| Rapid edits, stalled worker, stale/out-of-order replies | **Pass — deterministic**                               | `yamlValidationQueue.test.ts`: three rapid edits dispatch once with the latest text; while one request is in flight, further edits dispatch nothing and keep one latest document; a reply for the old version cannot publish `ready` and releases the slot for the latest; duplicate, unknown and out-of-order ids are ignored.                                                                                                                                                                                                                                                                                                                                         |
+| Worker error, timeout and bounded retry                 | **Pass — deterministic**                               | The same suite asserts one failure publication, one `onWorkerFailure` call, dropped queued work, no automatic retry across further timer advances, a late reply ignored after timeout, and a dispatch that cannot reach a worker failing once. Five-second timeout is the documented bound.                                                                                                                                                                                                                                                                                                                                                                             |
+| Close/disposal and resource cleanup                     | **Pass — deterministic and native**                    | Queue disposal before and during an in-flight request cancels timers, prevents dispatch/publication and ignores late replies. Native: the existing three open/close cycles plus the new oversize test return `Workers: 0 · Models: 0 · Listeners: 0` and leave no `blob:` asset.                                                                                                                                                                                                                                                                                                                                                                                        |
+| Existing document 05 cases 3–8 under bounds             | **Pass — browser and native**                          | The new browser tests run alongside the retained lazy-load, worker-diagnostic/correction, diff/target, offline/no-remote, CSP-negative, navigation-away and cleanup tests. The native editor spec (5 tests) retained its worker diagnostic, diff, same-origin worker assets, CSP denial, no-remote-request and baseline-cleanup assertions.                                                                                                                                                                                                                                                                                                                             |
+
+### Commands and results
+
+Linux x86_64 `7.2.8-1-default`; Node 26.12.1, pnpm 12.15.0, Rust 1.99.1,
+Go 1.27.3, Linux WebKitGTK 2.54.1 (driver reports WebKitGTK 605.1.15).
+
+| Command                                                                                                        | Result                                                                                                                                                                                                                    |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm exec vitest run src/features/editor src/lib/state/editorFeasibility.test.ts`                             | Passed during iteration: 4 files, 29 tests.                                                                                                                                                                               |
+| `pnpm check:ci`                                                                                                | Passed on the final tree: formatting, type-aware Oxlint, zero Svelte errors/warnings, one coverage-enabled renderer run (210 tests in 28 files; coverage 72.58% statements / 76.14% branches), production frontend build. |
+| `pnpm test:e2e`                                                                                                | Passed: 19 Playwright tests with the configured concurrency, including the three new bounded-input flows and the retained editor/shell flows.                                                                             |
+| `pnpm test:native` under a private Xvfb display and private `XDG_DATA_HOME`/`XDG_CONFIG_HOME`/`XDG_CACHE_HOME` | Passed: 24 tests across 3 spec files — 5 editor/worker/CSP/cleanup tests, 12 helper/shell tests, 7 Kubernetes session tests. The harness reported no remaining helper process or synthetic endpoint.                      |
+| `pnpm desktop:build`                                                                                           | Passed after the native-test build; rebuilt the ordinary production executable.                                                                                                                                           |
+| `pnpm production:check`                                                                                        | Passed; production artifacts exclude WebDriver and expose no driver listener.                                                                                                                                             |
+| `pnpm advisories:check`                                                                                        | Passed against the current ordinary binary: 67,079 demangled symbols, 5 recorded advisories still match the scanner report, dependency paths and linked executable.                                                       |
+| `pnpm format:check`, documentation links and `git diff --check`                                                | Checked after the final documentation edit.                                                                                                                                                                               |
+
+Native-test executable SHA-256:
+`fbf7a3797b478ce377f98a9d370e4f7dab14857fae954283f4bf81e3cbe69ce9`.
+No helper process stayed after the suite, and no owned Xvfb/app/helper process
+remained after the run. The native suite ran before the ordinary production
+rebuild, as required.
+
+Bundle observations from the final production build (not budgets):
+
+| Asset                                     | Size        | Gzip      |
+| ----------------------------------------- | ----------- | --------- |
+| Initial shell JavaScript `index-*.js`     | 286.52 kB   | 85.24 kB  |
+| Initial shell CSS `index-*.css`           | 173.39 kB   | 18.29 kB  |
+| Lazy editor `YamlEditorSurface-*.js`      | 2,748.30 kB | 701.91 kB |
+| Lazy editor CSS `YamlEditorSurface-*.css` | 99.14 kB    | 14.28 kB  |
+| Bundled YAML worker                       | 98.37 kB    | 30.37 kB  |
+| Bundled Monaco worker                     | 303.78 kB   | 91.63 kB  |
+
+Sizes are decimal kilobytes from the final `dist/` file lengths; gzip is
+`gzip -9` over the same files, so it is slightly smaller than Vite's printed
+estimate. These are observations for F10, not budgets.
+
+### Limits and evidence class
+
+- Native evidence is the Linux Tauri/WebKitGTK release executable with embedded
+  production assets and the packaged CSP. No installed package, macOS/Windows
+  WebView or real cluster was exercised; those rows stay with documents 08 and
+  10, and C6 stays in progress.
+- The native suite observes the visible rejection, absence of an editor model
+  for the rejected initial draft, recovery from a bounded sample, preserved
+  prior diagnostic/model after a rejected replacement, and baseline cleanup. A
+  stalled/out-of-order worker, a timeout and a real paste event are deterministic
+  and browser-level rows; the native harness has no trustworthy way to stall the
+  worker or synthesize trusted OS paste input. The browser row dispatches a
+  `ClipboardEvent` through Monaco's EditContext listener, so it proves the real
+  editor paste path but is not OS-trusted input either.
+- A rejected edit/replacement clears on the next accepted document change. The
+  component shows `Checking YAML…` while the bounded request is pending, so no
+  old diagnostic looks current for newer text.
+- No CSP, capability, dependency, IPC command, Rust/Go source or generated
+  contract changed. Rust/Go/contract unit gates were not rerun for unchanged
+  inputs; the native build compiled the Rust application.
