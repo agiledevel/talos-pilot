@@ -6,6 +6,11 @@ export default defineConfig({
   // Tailwind must run before Svelte so component styles can use its directives.
   plugins: [tailwindcss(), svelte()],
   clearScreen: false,
+  // The worker-only import is invisible to the initial dependency crawl. If it
+  // is discovered on first editor use, Vite re-optimizes and reloads every open
+  // page, discarding drafts and menu focus. Prebundle it, but keep browser
+  // loading behind the existing lazy editor boundary. This is dev-only.
+  optimizeDeps: { include: ["monaco-editor/editor/editor.worker"] },
   server: { host: "127.0.0.1", port: 1420, strictPort: true },
   build: {
     target: ["es2022", "chrome111", "safari16.4"],
