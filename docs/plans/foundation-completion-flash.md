@@ -54,7 +54,7 @@ Review entry points: [native commands](../../src-tauri/src/lib.rs), [storage run
 
 Read [AGENTS.md](../../AGENTS.md), [quality.md](../quality.md), the relevant design sections, and the packet's source before editing. Apply the mandatory [Rust](../../.agents/skills/talos-pilot-rust/SKILL.md), [Tauri](../../.agents/skills/talos-pilot-tauri/SKILL.md), [Svelte project](../../.agents/skills/talos-pilot-svelte/SKILL.md), [Svelte framework](../../.agents/skills/svelte/SKILL.md), and [TypeScript](../../.agents/skills/talos-pilot-typescript/SKILL.md) skills according to the changed domain. Use [Svelte tooling](../../.agents/skills/svelte-tooling/SKILL.md) when running framework diagnostics or changing its tooling.
 
-Sequence: **F0 → F1 → F2 → F1a → F3 → F4 → F5 → F6 → F7 → F8 → F9 → F10**. F0 and F1 are closed and F2 is accepted. F3/F4 now have accepted Linux evidence; F1a live rows and F5 remain open. Under the owner's Q11 sequencing, follow [the current follow-up plan](foundation-finish/follow-up-to-m2.md): S0/S1 restore F6 browser/bounds acceptance before F7–F9, fixture sessions run when prepared, and F10/owner review precede M2.0. These packets map to existing C/FND identifiers; they do not replace their acceptance criteria. Dependency research and platform-resource discovery may proceed while an independent integration environment is unavailable. Do not accept a dependent checkpoint on mocked or unexecuted prerequisites.
+Sequence: **F0 → F1 → F2 → F1a → F3 → F4 → F5 → F6 → F7 → F8 → F9 → F10**. F0 and F1 are closed and F2 is accepted. F3/F4 now have accepted Linux evidence; F1a live rows and F5 remain open. Under the owner's Q11 sequencing, follow [the current follow-up plan](foundation-finish/follow-up-to-m2.md): S0/S1 have restored F6 acceptance on Linux (S0 by owner exception, B11 unresolved); F7–F9 are next, fixture sessions run when prepared, and F10/owner review precede M2.0. These packets map to existing C/FND identifiers; they do not replace their acceptance criteria. Dependency research and platform-resource discovery may proceed while an independent integration environment is unavailable. Do not accept a dependent checkpoint on mocked or unexecuted prerequisites.
 
 Implement one packet, or its smallest coherent numbered subpacket, per session. State behavior and failure cases first; leave a runnable result; run relevant checks on the final changed code; review the final diff separately; update the ledger and next packet. An implementation without its required native/live evidence remains in progress. Do not repeat already proven C1–C3 implementation merely to refresh evidence.
 
@@ -218,6 +218,18 @@ Test at each bound and one beyond it. Retry clocks and transport faults should b
 **Behavior:** lazy synthetic terminal output and a chart render under the same packaged CSP with bounded retention and explicit disposal.
 
 Pin xterm.js/uPlot integrations. Add cohesive attachment-based wrappers with documented props, centralized theme/density mapping, resize handling, and reduced-motion behavior. Start with a 1 MiB/10,000-line terminal retention ceiling and 2,000 samples per chart series, at most eight series; verify behavior at/over both bounds and refine with evidence. Inputs remain synthetic; this packet does not implement container exec, API logs, metrics collection, or port forwarding.
+
+The implementation-ready [document 06](foundation-finish/06-f7-terminal-chart.md)
+clarifies these bounds without introducing a streaming protocol: read-only
+plain-text terminal replacement snapshots keep the newest Unicode-safe suffix
+within both UTF-8-byte and logical-line ceilings; finite emulator geometry and
+callback-paced writes bound the library queue separately. Chart replacements
+retain the newest aligned sample window; a ninth value series or malformed
+replacement is rejected visibly without losing accepted data. Empty snapshots
+clear stale data. Follow its F7-01–08 acceptance matrix and ordered small
+checkpoints, starting with the [S2 launch prompt](foundation-finish/s2-launch-prompt.md).
+Package research/pins and all F7 evidence remain implementation work; this
+preparation does not mark F7 started or accepted.
 
 **Tests/evidence:** resize/theme/dispose races, oversize batches, retention eviction, repeated mount/unmount and prop replacement, cancelled lazy imports, offline assets, keyboard/accessibility, and actual native cleanup/rendering. Run frontend/build/browser/native gates and inspect asset resolution in the release executable; installed-package resolution is an F9 row.
 

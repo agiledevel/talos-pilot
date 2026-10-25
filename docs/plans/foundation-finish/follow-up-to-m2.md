@@ -1,12 +1,21 @@
 # Foundation follow-up: stabilization through owner review and M2.0
 
 Date: 2026-10-25. Reviewed source: `889157f` on `ft-foundation-completion`.
-Status: **S1 corrective acceptance complete on 2026-10-25; S2/F7 is next.** All
-three P2 review findings are corrected and accepted (S1-P2-1/2/3) and document
-05 is done on Linux. The saved [S1 launch prompt](s1-launch-prompt.md) is now
-historical and must not be re-run. S0 remains accepted under the
-[B11 owner exception](../../verification/s0-native-keyboard-acceptance.md);
-B11 is unresolved/not fixed. S2/F7 and later steps are not accepted or started.
+Status: **S2/F7 is accepted on the development Linux WebView and document 06 is
+done; S3 may start only after the owner merges PR #4 and a session reads that
+merged revision's `main` Foundation/Security results.** The [review and S3
+readiness assessment](../../verification/s2-review-s3-readiness.md) and the
+[S2-R1 corrective record](../../verification/s2-r1-chart-frame-coalescing.md)
+record the fix, the regression and the hosted candidate runs. S1's three P2 findings are corrected and accepted
+(S1-P2-1/2/3) and document 05 is done on Linux. The saved [S1 launch
+prompt](s1-launch-prompt.md) is now historical and must not be re-run. S0
+remains accepted under the [B11 owner
+exception](../../verification/s0-native-keyboard-acceptance.md); B11 is
+unresolved/not fixed. The [F7 evidence
+record](../../verification/f7-terminal-chart.md) holds every F7-01–F7-08
+outcome, bounds and limit, subject to the review's evidence corrections. S3 and
+later steps are not started; F7 needs corrective implementation and final
+qualification, not merely the now-completed hosted runs.
 Audience: an LLM starting with no conversation history.
 
 ## 1. Goal, authority, and stopping point
@@ -185,8 +194,10 @@ All existing S1 byte/queue/initial-recovery/CSP/lazy/offline/cleanup acceptance
 cases below remain required. Run the applicable final gates in document 05,
 including actual native verification and the ordered ordinary production
 rebuild/exclusion/advisory checks. Preserve earlier evidence as historical, not
-as a fresh result for changed code. The plan being ready does **not** mean that
-S1/document 05 is accepted or F7 is unblocked.
+as a fresh result for changed code. These were the corrective acceptance gates;
+acceptance is now complete as recorded above, including the subsequent
+normalized-model bounds fix merged via PR #3. Do not reopen S1 from this
+historical checklist.
 
 **Read:** editor/diff session modules, components, worker protocol/parser,
 [decision 0019](../../decisions/0019-offline-yaml-editor-worker.md), existing
@@ -217,15 +228,40 @@ launch.**
 
 ### S2 — F7 synthetic terminal and chart feasibility
 
-Execute [document 06](06-f7-terminal-chart.md), including its upstream package
-research, documented wrappers, lazy loading, appearance/resize/disposal races,
-keyboard/accessibility and native offline/CSP evidence. Starting bounds:
-terminal **1 MiB or 10,000 lines**, whichever first; chart **8 series × 2,000
-samples**. Verify each limit and one beyond. No process/socket, exec, metrics,
-API logs or forwarding integration.
+**S2/F7 accepted on Linux; document 06 done. S3 waits for the owner's merge and
+that revision's `main` results.** The [review](../../verification/s2-review-s3-readiness.md)
+supersedes the implementation handoff below for acceptance and hosted status;
+the [S2-R1 corrective record](../../verification/s2-r1-chart-frame-coalescing.md)
+records the `5e306a5` fix, its failing-before/passing-after browser regression,
+the rerun renderer, browser, native, trusted-input and ordered production gates,
+and the hosted Foundation/Security runs for PR head `4fcc9d2`. Do not assume the
+merge revision equals that head, and do not start S3 before reading the merged
+revision's results.
 
-**Exit:** all document 06 cases pass and bounds are recorded. C6 stays open for
-installed-package/deferred-platform rows.
+Historical implementation handoff: S2-A–D were completed on `docs/s2-flash-readiness` and [document
+06](06-f7-terminal-chart.md) records the pins, admission/replay/chart contracts
+and checkpoint order; the [F7 evidence
+record](../../verification/f7-terminal-chart.md) records every F7-01–F7-08
+outcome, the selected bounds, deterministic/browser/native/X11 evidence and the
+pending hosted result. S1 and its normalized-model bounds correction are
+accepted on Linux and merged via PR #3. To close S2, the owner must authorize a
+branch push and a pull request (branch pushes alone start no Foundation/Security
+runs), then a session reads those exact results and records acceptance; do not
+start S3 before that.
+
+The packet specifies independent lazy Home surfaces, synchronous snapshot
+admission, ownership, appearance/resize/disposal races, keyboard/accessibility
+and actual native offline/CSP evidence. Starting bounds: terminal **1,048,576
+UTF-8 bytes and 10,000 logical lines**, whichever first; chart **8 value series
+× 2,000 aligned samples**. Verify each limit and one beyond. The terminal is
+read-only plain text, with bounded callback-paced replay; a ninth chart series
+is rejected visibly, while an extra sample evicts the oldest aligned row.
+No process/socket, exec, metrics, API logs or forwarding integration.
+
+**Exit:** F7-01–08 and applicable final gates pass on the final relevant tree;
+selected geometry/data/queue bounds and evidence classes are recorded. Until
+then F7 remains in progress/blocked, not accepted. C6 stays open for
+installed-package/deferred-platform rows. Stop before S3 in this launch.
 
 ### S3 — F8 notices, dependencies and security
 

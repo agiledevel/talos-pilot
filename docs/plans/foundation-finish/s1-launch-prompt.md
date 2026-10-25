@@ -5,8 +5,10 @@ historical pre-implementation prompt and was consumed by the S1 corrective
 acceptance. The corrections are at `cac672b` on **`ft-editor-bounds`**, and the
 outcome — S1-P2-1/2/3 resolved, document 05 accepted and done on Linux — is in
 the [ledger](ledger.md) and [F6 evidence](../../verification/f6-editor-workers-csp.md).
-PR [#3](https://github.com/agiledevel/talos-pilot/pull/3) targets main and
-remains owner-controlled and unmerged.
+PR [#3](https://github.com/agiledevel/talos-pilot/pull/3) subsequently merged
+into `main` at `a7ada06`, including the normalized-model bounds correction.
+The branch/PR commands in the historical prompt below are not current S2
+instructions; use the [S2 launch prompt](s2-launch-prompt.md).
 
 Read the rest as the record of that corrective step, not as a current task: its
 acceptance conditions were satisfied before S1/document 05 was recorded. The

@@ -26,9 +26,30 @@ Two shared documents support them:
 - [ledger.md](ledger.md) is the progress record. **Every session must update it.** The rules are in its first section.
 - [fixture-runbook.md](fixture-runbook.md) is the procedure for provisioning, using, and destroying the disposable Talos fixture.
 
-**Current execution entry point (2026-10-25):** [follow-up-to-m2.md](follow-up-to-m2.md), whose step S1 is **done**: S1-P2-1/2/3 and document 05 are accepted on Linux, with the [S1 launch prompt](s1-launch-prompt.md) now historical. S0 is [accepted by owner exception after the real native keyboard pass](../../verification/s0-native-keyboard-acceptance.md), with B11 unresolved/not fixed and diagnostics retained. The plan next sequences document 06 (S2/F7, not started), the remaining Linux packets, final technical evidence, the mandatory owner review, Linux close, and M2.0 only. It does not replace packet acceptance criteria or the ledger. Document 05 is closed on Linux but C6 stays in progress for terminal/chart wrappers, installed packages and deferred WebViews.
+**Current execution entry point (2026-10-25):** [follow-up-to-m2.md](follow-up-to-m2.md), whose step S1 is **done**: S1-P2-1/2/3 and document 05 are accepted on Linux, with the [S1 launch prompt](s1-launch-prompt.md) now historical. S0 is [accepted by owner exception after the real native keyboard pass](../../verification/s0-native-keyboard-acceptance.md), with B11 unresolved/not fixed and diagnostics retained. S2/[document 06](06-f7-terminal-chart.md) is now **done on Linux**: its review findings are corrected, its [corrective record](../../verification/s2-r1-chart-frame-coalescing.md) holds the failing-before/passing-after regression and all rerun gates, and the corrective candidate's hosted Foundation/Security checks passed. S3/[document 07](07-f8-dependencies-notices-security.md) starts only after the owner merges PR [#4](https://github.com/agiledevel/talos-pilot/pull/4) and a session reads that merged revision's `main` results. After that come the remaining Linux packets, final technical evidence, the mandatory owner review, Linux close, and M2.0 only. It does not replace packet acceptance criteria or the ledger. C6 stays in progress for installed packages and deferred WebViews.
 
 The older [closeout-plan.md](closeout-plan.md) retains host setup, owner decisions and historical session detail; its starting snapshot and completed A/A1/A2/B instructions are not the next task. The saved [Session B launch prompt](session-b-prompt.md) is historical and must not be used to restart the editor implementation from scratch.
+
+**Current review/CI context:** [PR #4](https://github.com/agiledevel/talos-pilot/pull/4)
+is open and its latest head `4fcc9d2` — the corrective revision plus documentation
+— passed Foundation
+[40243673183](https://github.com/agiledevel/talos-pilot/actions/runs/40243673183)
+and Security
+[40243673202](https://github.com/agiledevel/talos-pilot/actions/runs/40243673202),
+with renderer, desktop and JavaScript/TypeScript freshly executed. The
+[review corrections](../../verification/s2-review-s3-readiness.md) are applied:
+[S2-R1 is fixed and requalified, S2-R2 reconciled](../../verification/s2-r1-chart-frame-coalescing.md),
+F7/document 06 is done on Linux, and document 07 step 6 now discovers the
+owner-designated branch/PR instead of naming PR #2. The owner's merge and that
+merged revision's `main` results are what remain before S3 may start.
+
+**Historical branch context for S2 preparation:** PR #3 merged into `main` at `a7ada06`, including
+the normalized editor-bounds correction. Old branch names, PR #2/#3 commands
+and push permissions below describe their original sessions, not authority to
+switch branches or push a new S2 branch. Inspect the actual owner-designated
+branch and discover its current PR/runs with `gh`; record the starting
+revision's results. The S2 documentation preparation leaves F7 `not started`.
+Do not count a green main build as F7 native evidence.
 
 Work the documents in order. Documents 05 to 07 do not depend on the fixture and may be taken while a fixture document is blocked, but only if the ledger records why the earlier one is blocked.
 

@@ -1,6 +1,7 @@
 import type { Component } from "svelte";
 import { admitDocument, YAML_DOCUMENT_LIMIT_BYTES } from "../../features/editor/documentBounds";
 import { editorRuntime } from "./editorRuntimeDiagnostics.svelte";
+import { LazySurface } from "./lazySurface.svelte";
 
 /** Benign synthetic document with one unclosed flow sequence. */
 export const MALFORMED_YAML_SAMPLE = `release:
@@ -66,67 +67,6 @@ export interface EditorSurfaceProps {
 /** A lazily imported Svelte component with {@link EditorSurfaceProps}. */
 export type EditorSurfaceComponent = Component<EditorSurfaceProps>;
 
-type SurfaceStatus = "closed" | "loading" | "ready" | "failed";
-
-/**
- * Owns one lazily imported surface and invalidates an import that resolves
- * after the owner has closed or replaced it.
- *
- * The generation counter is the cancellation contract: `close()` advances it,
- * so a pending `import()` can still finish without assigning a component or
- * leaving state that a later open would reuse. This is deliberately generic so
- * its cancellation path is tested without Monaco or a DOM.
- */
-export class LazySurface<Surface> {
-  /** Current load state; `failed` retains a safe error. */
-  status = $state<SurfaceStatus>("closed");
-  /** Loaded surface, or `null` while closed/loading/failed. */
-  surface = $state.raw<Surface | null>(null);
-  /** Safe message for a failed import. */
-  error = $state<string | null>(null);
-
-  readonly #load: () => Promise<Surface>;
-  #generation = 0;
-
-  /** @param load Importer invoked for each open attempt. */
-  constructor(load: () => Promise<Surface>) {
-    this.#load = load;
-  }
-
-  /**
-   * Starts an import. A close during the import wins over its eventual result.
-   * A repeated open supersedes the earlier attempt instead of rendering twice.
-   */
-  async open(): Promise<void> {
-    const generation = ++this.#generation;
-    this.status = "loading";
-    this.error = null;
-    this.surface = null;
-    try {
-      const surface = await this.#load();
-      if (generation !== this.#generation) {
-        return;
-      }
-      this.surface = surface;
-      this.status = "ready";
-    } catch {
-      if (generation !== this.#generation) {
-        return;
-      }
-      this.status = "failed";
-      this.error = "The offline editor could not be loaded. Try again.";
-    }
-  }
-
-  /** Cancels a pending import and releases the loaded surface reference. */
-  close(): void {
-    this.#generation += 1;
-    this.surface = null;
-    this.status = "closed";
-    this.error = null;
-  }
-}
-
 async function loadEditorSurface(): Promise<EditorSurfaceComponent> {
   const module = await import("../../features/editor/YamlEditorSurface.svelte");
   return module.default;
@@ -169,8 +109,12 @@ export class EditorFeasibilityState {
       this.#oversizedDraft = false;
     }
   }
+
   /** Lazy surface boundary with cancellation. */
-  readonly surface = new LazySurface<EditorSurfaceComponent>(loadEditorSurface);
+  readonly surface = new LazySurface<EditorSurfaceComponent>({
+    load: loadEditorSurface,
+    failureMessage: "The offline editor could not be loaded. Try again.",
+  });
 
   /** Starts the lazy editor import and exposes its first-use state. */
   async open(): Promise<void> {
