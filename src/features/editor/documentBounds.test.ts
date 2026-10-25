@@ -38,6 +38,42 @@ describe("UTF-8 document byte bounds", () => {
     });
   });
 
+  it("rejects source text that expands past the ceiling when Monaco selects CRLF", () => {
+    const exactSource = `#${"x".repeat(65_530)}\r\n\r\n\n`;
+    expect(utf8ByteLengthAtMost(exactSource)).toBe(YAML_DOCUMENT_LIMIT_BYTES);
+    expect(admitDocument(exactSource).accepted).toBe(false);
+    expect(admitDocumentPair(exactSource, "after\n").accepted).toBe(false);
+    expect(admitDocumentPair("before\n", exactSource).accepted).toBe(false);
+
+    const exactModel = `#${"x".repeat(65_529)}\r\n\r\n\n`;
+    expect(admitDocument(exactModel)).toEqual({
+      accepted: true,
+      text: exactModel,
+      bytes: YAML_DOCUMENT_LIMIT_BYTES - 1,
+    });
+  });
+
+  it.each([
+    { text: "a\r\nb\r\nc\n", limit: 8, accepted: false },
+    { text: "a\r\nb\r\nc\n", limit: 9, accepted: true },
+    { text: "a\nb\nc\n", limit: 6, accepted: true },
+    { text: "a\r\nb\r\n", limit: 6, accepted: true },
+    { text: "a\rb\rc\n", limit: 8, accepted: false },
+    { text: "a\rb\rc\n", limit: 9, accepted: true },
+    { text: "a\rb\r", limit: 5, accepted: false },
+    { text: "a\rb\r", limit: 6, accepted: true },
+    // A tie selects LF, not CRLF; source bytes must still fit as well.
+    { text: "a\r\nb\n", limit: 5, accepted: true },
+    { text: "a\r\nb\n", limit: 4, accepted: false },
+    // Monaco strips a leading BOM from its stored text, but raw bytes still count.
+    { text: "\ufeffa\rb\r", limit: 7, accepted: true },
+    { text: "é\r\n😀\r\nx\n", limit: 12, accepted: false },
+    { text: "é\r\n😀\r\nx\n", limit: 13, accepted: true },
+    { text: "\ud800\r\n\udc00\r\nx\n", limit: 12, accepted: false },
+  ])("admits $text with ceiling $limit: $accepted", ({ text, limit, accepted }) => {
+    expect(admitDocument(text, limit).accepted).toBe(accepted);
+  });
+
   it("counts two-byte characters rather than string length", () => {
     const exact = "é".repeat(YAML_DOCUMENT_LIMIT_BYTES / 2);
     expect(exact.length).toBe(YAML_DOCUMENT_LIMIT_BYTES / 2);

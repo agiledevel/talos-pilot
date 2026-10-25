@@ -23,8 +23,8 @@ import { defineConfig } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./tests/e2e",
-  // Only this source-module GC probe needs Vite's TS/rune transforms. It remains
-  // mandatory in pnpm test:e2e; every bundled-UI flow still runs in both modes.
+  // Source-module ownership/model-bounds probes need Vite's TS/rune transforms.
+  // All remain mandatory in pnpm test:e2e; bundled-UI flows run in both modes.
   testIgnore: ["**/editor-session-ownership.spec.ts"],
   use: { baseURL: "http://127.0.0.1:1420", trace: "retain-on-failure" },
   webServer: {

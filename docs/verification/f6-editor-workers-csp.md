@@ -537,10 +537,12 @@ major defect; it traced the marker re-creation path in Monaco 0.57
 `deltaDecorations` re-creates the squiggle after the revert), the synchronous
 revert guard, the owner intent transitions and effect dependencies, the queue
 bounds and every admission point. Its two minor findings were comment-only and
-corrected before acceptance: the ownership probe no longer claims unattached
-sessions create no timers (they arm the queue's 120 ms debounce, whose dispatch
-fails closed without a worker), and it now states that it proves source-options
-ownership rather than the absence of any string copy.
+recorded before acceptance: the probe states that it proves source-options
+ownership rather than the absence of any string copy. The prior review's timer
+comment correction was itself inaccurate: an unattached recovered session does
+not submit validation or arm a timer, because `#startEditor` returns without an
+element. The current probe comment now reflects that control flow; the historical
+ledger entry is superseded on this point by the normalized-bounds follow-up.
 
 After that comment change, the affected boundary was re-run on the final tree:
 `pnpm check:ci` passed (212 tests/28 files, zero Svelte diagnostics, 72.57%
@@ -564,3 +566,50 @@ installed packages and deferred WebView platforms; B11 stays an unresolved
 carried risk; later owner review and M2.0 stay gated. No installed package,
 other-platform WebView, trusted OS paste, cluster or performance measurement is
 claimed, and the GC probe is Chromium/source-level evidence only.
+
+## Normalized-model admission correction — 2026-10-25
+
+A subsequent owner-requested review found a remaining model-size bypass: Monaco
+normalizes CR/LF/CRLF endings, so a raw 65,536-byte candidate can become a
+65,537-byte model. The [corrective plan and results](../plans/foundation-finish/s1-normalized-bounds-correction.md)
+record the acceptance criteria and execution. This supplements the historical
+S1/P2 evidence above rather than relabelling earlier runs as covering this case.
+
+Shared admission now checks both the source and the projected normalized model
+before any editor/diff model creation or replacement. It preserves supplied
+text, rejects either diff side atomically and does not allocate a normalized
+copy. Queue/worker raw-byte checks, credentials, CSP, lazy loading and owned
+resource cleanup are unchanged. The required browser gate compares admission
+with 243 actual Monaco models (CR/LF/CRLF combinations, ties, trailing CR, BOM,
+multibyte/lone-surrogate prefixes), then exercises model-free initial rejection,
+exact-limit recovery and atomic replacement rejection in the real sessions.
+These are Chromium/source-module tests, not native or packaged-UI claims.
+
+The GC probe comment and the inaccurate timer commentary in the prior acceptance
+narrative are corrected: an unattached recovered session has no element and does
+not submit validation or arm a debounce timer. The historical ledger's erroneous
+statement remains attributable and is explicitly superseded by this correction.
+
+Local final-source renderer results: `pnpm check:ci` passed (227 tests / 28 files,
+zero Svelte diagnostics, production frontend build) and `pnpm test:e2e` passed
+23/23. Fresh-context review found no defect. The first fresh native run passed
+23/24: its first editor case read the captured diff DOM immediately after the
+independent YAML worker reported a diagnostic. The harness now waits for the
+same existing two-document rendering assertion before reading the diff; no
+assertion, timeout, concurrency or retry policy was weakened. The failure is
+retained in `/tmp/tp-s1-normalized-native-failed.log`. The wait alone did not
+resolve it: a second 23/24 run timed out under default Xvfb, where a bounded
+diagnostic found no animation-frame delivery despite a visible document. The
+repository's documented explicit 1280×800 X11 display delivered frames and both
+diff documents. No default-Xvfb fix is claimed.
+
+Final `pnpm test:native` on that explicit display with private XDG directories
+passed **24/24** (5 editor, 12 helper/shell, 7 Kubernetes), WebKitGTK 605.1.15 on
+Linux x86_64. The subsequent `pnpm desktop:build` → `pnpm production:check` →
+`pnpm advisories:check` passed in order, restoring the ordinary driver-free
+binary and verifying 67,079 symbols / 5 recorded advisories. The linked plan
+records exact commands, hashes, cleanup, retained failure/diagnostic logs and
+limits. The mixed-newline regressions are browser/source-module evidence;
+packaged native editor/diff/CSP/offline/cleanup rows are a fresh separate run,
+not a claim that the exact mixed-newline inputs ran natively. Hosted disposition
+for the pushed correction is recorded in the ledger.

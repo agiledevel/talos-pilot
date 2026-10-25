@@ -50,6 +50,39 @@ Repository setup:
 1. Leave GitHub's code scanning **default setup** disabled. Code scanning rejects uploads from an advanced workflow while default setup is enabled.
 2. Protect `main` with required checks for the three **CodeQL** jobs, **Trivy filesystem scan**, and **Foundation checks result**. That job fails unless the scope and renderer jobs passed and the desktop matrix either passed or was skipped by the scope decision. Do not require the individual **desktop** jobs: a pull request has no `macos-15-intel` job, and a skipped matrix reports no per-runner check, so those requirements would never be met. The workflow files create these checks; they do not change branch-protection settings. The `Native tests` workflow is deliberately not a required branch-protection check; a change touching a native boundary records its run for the final revision before merge, as [decision 0016](decisions/0016-ci-test-tiering.md) requires.
 
+### Persistent main-branch merge policy
+
+On 2026-10-25 the owner authorized correcting the active
+[Main ruleset](https://github.com/agiledevel/talos-pilot/rules/24978792).
+`Restrict updates` (`update`) blocked ordinary PR merges even with green checks.
+It was removed, **not** bypassed for one merge. The saved ruleset now requires:
+
+- A pull request, with zero external approvals for this solo project and review
+  threads resolved; merge, squash and rebase methods remain allowed.
+- The five stable checks listed above, bound to the GitHub Actions integration
+  (app ID 15368), with the branch up to date before merging. Missing, pending or
+  failed required checks still block merging; individual desktop/native matrix
+  checks are deliberately not required.
+- The existing deletion, non-fast-forward and branch-creation restrictions.
+  The existing admin bypass is unchanged; routine PR merges need no bypass.
+
+The corrected policy applies persistently to the default branch, including after
+PR #3 is merged. Do not restore `Restrict updates` as a substitute for requiring
+PRs: it restricts the merge update itself. Do not add another-person approval as
+an accidental self-merge blocker. These settings live in GitHub, not the workflow
+YAML. Recheck them after any ruleset administration:
+
+```sh
+gh api repos/agiledevel/talos-pilot/rules/branches/main
+gh pr checks <number> --required
+gh pr view <number> --json mergeable,mergeStateStatus,reviewDecision
+```
+
+The immediate read-back after applying the policy reported PR #3 `MERGEABLE` /
+`CLEAN`, with all five required checks passing at `07dccb8`. This is a policy
+verification of that head, not qualification of later code. The owner still
+performs the merge; no merge was executed as part of the policy correction.
+
 The desktop and release jobs need `protoc` because `prost-build` compiles the helper schema in `src-tauri/build.rs`, and hosted runners do not ship it. The local [`install-protoc`](../.github/actions/install-protoc/action.yml) action downloads the pinned 36.2 archive for the runner's platform, verifies its SHA-256, and adds it to `PATH`; a runner platform with no recorded digest fails the step. [`.gitattributes`](../.gitattributes) checks text out with LF on every platform, because rustfmt (`newline_style = "Unix"`) and the byte-for-byte generated-output comparisons reject the CRLF checkout that Git for Windows otherwise produces.
 
 The desktop job's limit is 75 minutes, sized for a run with no cached dependencies. The `macos-15-intel` runner is roughly three times slower than `macos-15` on the Rust steps: at `88983a8` one uncached passing run took 38 minutes, at `1a4bbd0` one took 57, and an earlier one was cancelled by the previous 45-minute limit after every executed step had passed, with about five minutes of work left.

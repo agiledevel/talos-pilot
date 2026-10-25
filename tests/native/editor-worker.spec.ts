@@ -204,11 +204,17 @@ describe("native offline YAML editor under the packaged CSP", () => {
     assert.match(opened.workerAssets, /monacoEditor\.worker/u);
     assert.ok(opened.chunk.includes(opened.origin), "The editor chunk was not same-origin.");
 
-    const diffCount = (opened.diff.match(/batches:/gu) ?? []).length;
+    // YAML validation and Monaco's diff render use independent workers. A YAML
+    // diagnostic is not a readiness signal for the diff's rendered documents.
+    const rendered = await waitFor(
+      (value) => (value.diff.match(/batches:/gu) ?? []).length >= 2,
+      "The diff did not render both documents.",
+    );
+    const diffCount = (rendered.diff.match(/batches:/gu) ?? []).length;
     assert.ok(diffCount >= 2, "The diff did not render both documents.");
-    assert.match(opened.diff, /Malformed sample/u);
-    assert.match(opened.diff, /Corrected sample/u);
-    assert.match(opened.diff, /Synthetic release preview/u);
+    assert.match(rendered.diff, /Malformed sample/u);
+    assert.match(rendered.diff, /Corrected sample/u);
+    assert.match(rendered.diff, /Synthetic release preview/u);
 
     const beforeCorrection = counts(opened.runtime);
     await clickButton("Apply correction");

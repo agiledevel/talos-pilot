@@ -93,8 +93,15 @@ queued work or stale results.
   `documentBounds.ts` measures with an allocation-conscious scan: it rejects by
   string length first, then counts code units and stops at the first byte above
   the limit. Well-formed surrogate pairs cost four bytes and an unpaired
-  surrogate costs three, matching `TextEncoder`. The worker re-checks the same
-  ceiling on each request as defense in depth.
+  surrogate costs three, matching `TextEncoder`. Model admission additionally
+  projects Monaco 0.57's normalized representation: a strict majority of
+  CR-containing endings selects CRLF, otherwise LF; all CR/LF/CRLF endings are
+  rewritten to that EOL and a leading BOM is stripped. Both source and projected
+  model bytes must fit before model creation/replacement. The projection scans
+  only an already raw-bounded string and allocates no normalized copy; admission
+  returns the supplied text unchanged. Real-Monaco browser regressions verify
+  this version-dependent projection. The worker re-checks the raw byte ceiling
+  on each request as defense in depth.
 - **Admission precedes every model and worker transfer.** The editor checks the
   initial value, each controlled replacement, and every user mutation that
   reaches `onDidChangeContent` — typing, paste and undo/redo. An oversized edit

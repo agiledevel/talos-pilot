@@ -9,6 +9,8 @@
  * the YAML worker boundary. A user edit is admitted from Monaco's content event
  * and synchronously reverted if oversized; the rejected text is not retained in
  * the model after that event, the worker queue or the owner's accepted state.
+ * Model admission also checks the size after Monaco's newline normalization,
+ * which can expand mixed or standalone-CR line endings to CRLF.
  */
 
 /** Largest UTF-8 document accepted by the editor, the diff and the worker, in bytes. */
@@ -21,7 +23,7 @@ export type DocumentAdmission =
       readonly accepted: true;
       /** The admitted text, unchanged. */
       readonly text: string;
-      /** Its UTF-8 byte length, at most {@link YAML_DOCUMENT_LIMIT_BYTES}. */
+      /** Source UTF-8 byte length; source and normalized model both fit the ceiling. */
       readonly bytes: number;
     }
   | {
@@ -81,8 +83,9 @@ export function utf8ByteLengthAtMost(
 /**
  * Reports whether a document fits the UTF-8 byte ceiling.
  *
- * This is the single predicate used by the editor model guard, the diff pair
- * guard, the validation queue and the worker request boundary.
+ * This raw-byte predicate bounds the validation queue and worker request
+ * boundary. Model and diff admission use {@link admitDocument} to additionally
+ * account for Monaco's newline normalization.
  *
  * @param text Document text, such as a user paste, controlled replacement or worker message.
  * @param limit Maximum accepted UTF-8 byte length.
@@ -110,12 +113,45 @@ export function documentLimitMessage(limit: number = YAML_DOCUMENT_LIMIT_BYTES):
 }
 
 /**
+ * Projects the stored model size without allocating a normalized string.
+ *
+ * Monaco 0.57's PieceTreeTextBufferBuilder selects CRLF when CR-containing line
+ * endings (CR and CRLF) form a strict majority; ties select LF. It then rewrites
+ * every CR/LF/CRLF ending and strips a leading BOM. With no line endings the
+ * platform default EOL cannot affect the stored size. Keep this projection
+ * covered against real Monaco models when upgrading the editor dependency.
+ */
+function normalizedModelBytes(text: string, sourceBytes: number): number {
+  let cr = 0;
+  let lf = 0;
+  let crlf = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    if (code === 13) {
+      if (text.charCodeAt(index + 1) === 10) {
+        crlf += 1;
+        index += 1;
+      } else {
+        cr += 1;
+      }
+    } else if (code === 10) {
+      lf += 1;
+    }
+  }
+  const bomBytes = text.charCodeAt(0) === 0xfeff ? 3 : 0;
+  const newlineDelta = cr + crlf > (cr + lf + crlf) / 2 ? cr + lf : -crlf;
+  return sourceBytes - bomBytes + newlineDelta;
+}
+
+/**
  * Admits or rejects one complete document before an owned model update or worker transfer.
  *
- * Rejected text is never truncated: the caller keeps its previous accepted
- * document and shows {@link DocumentAdmission.message}. Callers must apply this
- * check before `createModel`, `setValue`, a diff-side replacement and
- * `Worker.postMessage`.
+ * Both the source and Monaco's normalized model representation must fit the
+ * ceiling. The returned text is unchanged: admission does not normalize or
+ * truncate it. The caller keeps its previous accepted document on rejection
+ * and shows {@link DocumentAdmission.message}. Callers must apply this check
+ * before `createModel`, `setValue`, a diff-side replacement and
+ * `Worker.postMessage`. Worker-only raw-byte checks use {@link isWithinDocumentLimit}.
  *
  * @param text Proposed document text.
  * @param limit Maximum accepted UTF-8 byte length.
@@ -126,7 +162,7 @@ export function admitDocument(
   limit: number = YAML_DOCUMENT_LIMIT_BYTES,
 ): DocumentAdmission {
   const bytes = utf8ByteLengthAtMost(text, limit);
-  if (bytes === null) {
+  if (bytes === null || normalizedModelBytes(text, bytes) > limit) {
     return { accepted: false, message: documentLimitMessage(limit) };
   }
   return { accepted: true, text, bytes };
