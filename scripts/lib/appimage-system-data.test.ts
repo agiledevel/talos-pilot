@@ -1,7 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
-  existsSync,
   mkdirSync,
   mkdtempSync,
   rmSync,
@@ -15,9 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   APPIMAGE_DATA_LIMITS,
-  APPIMAGE_REFERENCE_LIMITS,
   isAppImageSystemDataPath,
-  snapshotAppImageSystemData,
   verifyAppImageSystemData,
 } from "./appimage-system-data";
 
@@ -44,132 +41,6 @@ function write(root: string, path: string, bytes: string | Buffer, mode: number)
 function verify(path = copyright) {
   return verifyAppImageSystemData(join(fixture, "payload"), path, join(fixture, "system"));
 }
-
-describe.skipIf(process.platform === "win32")("pre-bundle AppImage reference", () => {
-  beforeEach(() => {
-    mkdirSync(join(fixture, "system/usr/share/doc"), { recursive: true });
-    mkdirSync(join(fixture, "system/usr/share/glib-2.0/schemas"), { recursive: true });
-  });
-
-  it("survives subsequent source chmod without trusting the mutated live OS", () => {
-    const source = write("system", copyright, text, 0o644);
-    write("payload", copyright, text, 0o755);
-    const reference = join(fixture, "reference");
-    expect(snapshotAppImageSystemData(join(fixture, "system"), reference)).toEqual({
-      files: 1,
-      bytes: Buffer.byteLength(text),
-      skipped: 0,
-    });
-    const captured = join(reference, copyright);
-    expect(statSync(captured).mode & 0o777).toBe(0o444);
-    expect(statSync(captured).ino).not.toBe(statSync(source).ino);
-    chmodSync(source, 0o755);
-    // Reproduces qualification 40401994013's post-build live-reference failure.
-    expect(() => verify()).toThrow("regular non-executable system file");
-    expect(verifyAppImageSystemData(join(fixture, "payload"), copyright, reference).bytes).toBe(
-      Buffer.byteLength(text),
-    );
-    expect(statSync(captured).mode & 0o777).toBe(0o444);
-    // A changed live source cannot authorize changed payload bytes afterward.
-    write("system", copyright, "printf 'tampered'\n", 0o644);
-    write("payload", copyright, "printf 'tampered'\n", 0o755);
-    expect(() => verifyAppImageSystemData(join(fixture, "payload"), copyright, reference)).toThrow(
-      "payload bytes differ",
-    );
-  });
-
-  it.each([
-    { bytes: text, mode: 0o755 },
-    { bytes: "#!/bin/sh\necho bad\n", mode: 0o644 },
-    { bytes: Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0]), mode: 0o644 },
-    { bytes: Buffer.from([0xff]), mode: 0o644 },
-    { bytes: Buffer.alloc(APPIMAGE_DATA_LIMITS.fileBytes + 1, 0x61), mode: 0o644 },
-  ])("omits unsupported originals, which cannot become proof later: $mode", ({ bytes, mode }) => {
-    write("system", copyright, bytes, mode);
-    write("payload", copyright, text, 0o755);
-    const reference = join(fixture, "reference");
-    const reports: string[] = [];
-    expect(
-      snapshotAppImageSystemData(join(fixture, "system"), reference, (message) =>
-        reports.push(message),
-      ),
-    ).toEqual({ files: 0, bytes: 0, skipped: 1 });
-    expect(reports[0]).toContain(copyright);
-    expect(existsSync(join(reference, copyright))).toBe(false);
-    expect(() => verifyAppImageSystemData(join(fixture, "payload"), copyright, reference)).toThrow(
-      "Cannot verify AppImage system data",
-    );
-  });
-
-  it("never reuses or removes a stale reference destination", () => {
-    write("reference", "marker", "existing owner data", 0o644);
-    expect(() =>
-      snapshotAppImageSystemData(join(fixture, "system"), join(fixture, "reference")),
-    ).toThrow("EEXIST");
-    expect(existsSync(join(fixture, "reference/marker"))).toBe(true);
-  });
-
-  it("removes its partial snapshot if reporting an omitted source fails", () => {
-    write("system", copyright, text, 0o755);
-    const reference = join(fixture, "reference");
-    expect(() =>
-      snapshotAppImageSystemData(join(fixture, "system"), reference, () => {
-        throw new Error("synthetic log sink failure");
-      }),
-    ).toThrow("synthetic log sink failure");
-    expect(existsSync(reference)).toBe(false);
-  });
-
-  it("omits source symlink escapes instead of copying arbitrary files", () => {
-    const outside = write("system", "outside", text, 0o644);
-    mkdirSync(dirname(join(fixture, "system", copyright)), { recursive: true });
-    symlinkSync(outside, join(fixture, "system", copyright));
-    const reports: string[] = [];
-    const reference = join(fixture, "reference");
-    const result = snapshotAppImageSystemData(join(fixture, "system"), reference, (message) =>
-      reports.push(message),
-    );
-    expect(result.skipped).toBe(1);
-    expect(reports[0]).toContain("source symlink escapes");
-    expect(existsSync(join(reference, copyright))).toBe(false);
-  });
-
-  it("bounds source enumeration before writing a reference", () => {
-    for (let index = 0; index <= APPIMAGE_REFERENCE_LIMITS.entries; index += 1)
-      write("system", `usr/share/doc/${index}`, "", 0o644);
-    const reference = join(fixture, "reference");
-    expect(() => snapshotAppImageSystemData(join(fixture, "system"), reference)).toThrow(
-      "entry bound exceeded",
-    );
-    expect(existsSync(reference)).toBe(false);
-  });
-
-  it("runs the real CLI with spaced paths and rejects missing/unknown arguments", () => {
-    write("system", schema, "<schemalist/>\n", 0o644);
-    const cli = resolve("scripts/snapshot-appimage-system-data.ts");
-    const reference = join(fixture, "reference with spaces");
-    const output = execFileSync(
-      process.execPath,
-      [cli, "--directory", reference, "--system-root", join(fixture, "system")],
-      { encoding: "utf8", timeout: 5_000 },
-    );
-    expect(output).toContain("1 files");
-    expect(statSync(join(reference, schema)).mode & 0o111).toBe(0);
-    for (const args of [
-      [],
-      ["--directory"],
-      ["--wrong", reference],
-      ["--directory", reference, "--system-root", "--wrong"],
-    ]) {
-      const result = spawnSync(process.execPath, [cli, ...args], {
-        encoding: "utf8",
-        timeout: 5_000,
-      });
-      expect(result.status).toBe(1);
-      expect(result.stderr).toContain("Usage:");
-    }
-  });
-});
 
 describe("AppImage system-data proof", () => {
   it.each([

@@ -100,9 +100,9 @@ const platform = valueOf(args, "--platform");
 const root = valueOf(args, "--root");
 const releaseOutput = valueOf(args, "--release-output");
 const target = valueOf(args, "--target");
-// The hosted recipe supplies a private copy captured before packaging, not the
-// live OS tree after the bundler has run. Offline callers also need a trusted
-// reference; choosing a root is not OS/publisher authentication.
+// Hosted checks use a private reference extracted from authenticated Ubuntu
+// archives, not the runner image's altered modes. Offline callers also need a
+// trusted reference; choosing a root alone is not OS/publisher authentication.
 const appimageSystemRoot = valueOf(args, "--appimage-system-root");
 if (
   appimageSystemRoot !== undefined &&

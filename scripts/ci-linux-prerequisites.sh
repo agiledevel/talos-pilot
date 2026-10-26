@@ -8,14 +8,50 @@ apt_get() {
 }
 
 # Bound network-only phases, never kill dpkg halfway through configuration.
-fetch_packages() {
+update_metadata() {
   local mirror=$1
-  shift
   printf 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] %s %s main restricted universe multiverse\n' "$mirror" "$VERSION_CODENAME" > "$apt_root/sources.list"
   printf 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] %s %s-updates main restricted universe multiverse\n' "$mirror" "$VERSION_CODENAME" >> "$apt_root/sources.list"
   printf 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://security.ubuntu.com/ubuntu %s-security main restricted universe multiverse\n' "$VERSION_CODENAME" >> "$apt_root/sources.list"
-  timeout 90s sudo --preserve-env=APT_CONFIG apt-get update --error-on=any &&
+  timeout 90s sudo --preserve-env=APT_CONFIG apt-get update --error-on=any
+}
+
+fetch_packages() {
+  local mirror=$1
+  shift
+  update_metadata "$mirror" &&
     timeout 180s sudo --preserve-env=APT_CONFIG apt-get install -y --no-install-recommends --download-only "$@"
+}
+
+# Download exact installed versions without installing or changing the host.
+# Metadata and package hashes retain the same signed Ubuntu-only trust policy.
+fetch_references() {
+  local mirror=$1
+  shift
+  update_metadata "$mirror" &&
+    (cd "$reference_archives" && ulimit -f 65536 && timeout 180s apt-get download "$@")
+}
+
+download_references() {
+  reference_archives=${1:?reference archive destination required}
+  shift
+  if [[ $# -eq 0 || $# -gt 256 ]]; then
+    echo 'Reference package count must be between 1 and 256.' >&2
+    return 1
+  fi
+  local spec
+  for spec in "$@"; do
+    if [[ ! $spec =~ ^[a-z0-9][a-z0-9+.-]*(:[a-z0-9]+)?=[0-9][A-Za-z0-9.+:~_-]*$ ]]; then
+      echo 'Invalid exact reference package version.' >&2
+      return 1
+    fi
+  done
+  # The caller owns this new private directory and removes it on every outcome.
+  mkdir -m 700 -- "$reference_archives" || return $?
+  if ! fetch_references https://archive.ubuntu.com/ubuntu "$@"; then
+    echo '::warning title=Ubuntu reference mirror::Primary download failed; trying the official Azure Ubuntu mirror once.'
+    fetch_references https://azure.archive.ubuntu.com/ubuntu "$@" || return $?
+  fi
 }
 
 install_packages() {
@@ -77,6 +113,11 @@ main() {
   sudo chown _apt "$apt_root/lists/partial" "$apt_root/archives/partial"
   printf 'Dir::Etc::sourcelist "%s/sources.list";\nDir::Etc::sourceparts "%s/sourceparts";\nDir::State::lists "%s/lists";\nDir::Cache::archives "%s/archives";\nAcquire::Retries "1";\nAcquire::http::Timeout "15";\nAcquire::https::Timeout "15";\nAPT::Get::Assume-Yes "true";\n' "$apt_root" "$apt_root" "$apt_root" "$apt_root" > "$APT_CONFIG"
   local mode=${1:-}
+  if [[ $mode == appimage-reference ]]; then
+    shift
+    download_references "$@"
+    return
+  fi
   local packages=(libwebkit2gtk-4.1-dev libgtk-3-dev libdbus-1-dev libxdo-dev build-essential pkg-config)
   case "$mode" in
     security) ;;

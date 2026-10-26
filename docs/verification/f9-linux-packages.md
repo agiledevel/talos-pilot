@@ -450,3 +450,63 @@ Broader final gates and actual Ubuntu validation are pending at this checkpoint.
 The branch qualification will exercise this correction before protected delivery;
 its source is not an accepted-main F9-01 candidate. B12, F9-01 and installed-runtime
 rows stay pending until their own evidence exists.
+
+### Actual Ubuntu diagnosis and archive-authoritative correction
+
+The pre-bundle hypothesis was tested rather than merged. Branch qualification
+[40407825315](https://github.com/agiledevel/talos-pilot/actions/runs/40407825315)
+for `f3275d90b8be57a29c6ef2ff749468bfbc7c9f36` failed Linux: **before Tauri**,
+`libatk-bridge2.0-0/copyright` and affected schema originals were already
+`regular=true, mode=0100777`. Capture preserved 112 files / 2,143,917 bytes but
+omitted 1,552 unsuitable originals; the payload correctly failed for its missing
+reference. The draft PR #9 was not merged based on fixtures or green ordinary
+CI. This disproves a timing-only correction and the pre-bundle implementation
+is removed, not left as dead code. The code checkpoint's local aggregate did
+pass 440 tests / 51 files, browser 31/31 and native 31/31, followed by production
+rebuild/exclusion/advisories; none established the reference's Ubuntu validity.
+
+The failed-payload diagnostic worked. Downloaded the explicitly **unqualified**
+`diagnostic-appimage-f3275d90b8be57a29c6ef2ff749468bfbc7c9f36` artifact (101,729,222
+zip bytes), verified the enclosed AppImage hash against the job's diagnostic
+hash, and extracted it privately. AppImage SHA-256:
+`e19956f0491ed4dc2701862669b54974449742cb0482ee232b31584e8f867259`.
+The actual copyright is valid Debian copyright-format text and mode 0777.
+An official Ubuntu
+[`libatk-bridge2.0-0_2.38.0-3_amd64.deb`](https://archive.ubuntu.com/ubuntu/pool/main/a/at-spi2-atk/libatk-bridge2.0-0_2.38.0-3_amd64.deb)
+contains the **same 4,460 bytes**, but its archive declares mode **0644**.
+The checked-in extractor preserved 0644 and the actual data verifier matched
+SHA-256 `87368802a069bed7640702c5932e4b2424b41f896fc4fdeea75ac5c212a5709b`.
+A 1,000-byte truncated archive failed exit 1 with `Truncated input file`, leaving
+no output directory. This local retrieval used HTTPS and the cached private
+Ubuntu libarchive tool, not a system install; it does **not** claim local signed
+APT authentication or full AppImage qualification. Paths/logs:
+`/tmp/tp-appimage-diagnostic-40407825315/`,
+`/tmp/tp-prebundle-ubuntu-branch.log`, `/tmp/tp-deb-data-truncated.log`.
+
+Chosen correction: obtain intended data metadata from authenticated **package
+archives**, not the runner image. For each actual executable-mode data candidate,
+resolve its canonical declared OS path, unique dpkg owner and exact installed
+package/version/architecture; download only those exact versions through the
+existing isolated signed Ubuntu metadata/package-hash policy. Check identities,
+counts and archive sizes, log archive hashes, and extract only each declared
+member with original archive permissions (no ownership/ACL/xattr restoration).
+The archive member must still be regular non-executable UTF-8/nonbinary data
+and match the actual AppImage bytes. Then write independent read-only reference
+copies for the unchanged payload checker. No package is installed, no OS or
+installer permissions are changed, and there is no unavailable-version/live-tree
+fallback. The non-executable-original invariant is retained against the
+**archive original**, rather than weakened to accept the image's 0777 modes.
+
+Bounds: 10,000 discovered payload entries, 256 data files / 1 MiB each / 32 MiB
+total; 256 requested packages, 64 MiB per archive and 512 MiB maximum archive set
+before inspection; existing 90/180-second metadata/download limits and one
+mirror retry; 60-second / 1-MiB extraction bounds. Existing destinations are
+never overwritten/deleted; partial references and owned temporary downloads/
+extractions are cleaned. Authentication, ambiguous ownership, wrong identities,
+missing versions, corruption, escapes, executable archive members and changed
+bytes all fail closed. New process/filesystem regressions exercise the 0777
+runner/0644 archive distinction, aliases, malformed metadata, failed downloads,
+changed data, original modes, symlink escapes, count/byte bounds and cleanup.
+The next checkpoint's **84 tests / 6 files**, lint/types, ShellCheck and actionlint
+passed; broader final gates and the actual authenticated Ubuntu run still need
+execution before delivery. B12, F9-01 and installed-runtime rows remain pending.

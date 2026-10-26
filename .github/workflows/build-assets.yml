@@ -104,9 +104,6 @@ jobs:
       - run: rustup toolchain install 1.99.1 --profile minimal --target ${{ matrix.target }}
       - uses: ./.github/actions/install-protoc
       - run: pnpm icons:check
-      - name: Capture pristine AppImage system data
-        if: runner.os == 'Linux'
-        run: node scripts/snapshot-appimage-system-data.ts --directory "$RUNNER_TEMP/appimage-system-data"
       - name: Build preview packages
         # PowerShell/pnpm command forwarding dropped the Cargo separator on
         # Windows. Invoke the pinned Node CLI directly from bash on every OS.
@@ -157,8 +154,10 @@ jobs:
             cd "$work/appimage"
             "$package" --appimage-extract > /dev/null
           )
+          node scripts/prepare-appimage-reference.ts --root "$work/appimage/squashfs-root" \
+            --directory "$work/appimage/reference"
           node scripts/check-payload.ts --platform linux-appimage --root "$work/appimage/squashfs-root" \
-            --appimage-system-root "$RUNNER_TEMP/appimage-system-data"
+            --appimage-system-root "$work/appimage/reference"
       # Never upload these failed bytes under release-* or feed them to a
       # release collector. They are diagnosis only, retained for one day.
       - name: Bound failed Linux AppImage diagnostic

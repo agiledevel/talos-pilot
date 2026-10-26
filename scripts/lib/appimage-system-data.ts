@@ -1,17 +1,6 @@
 import { createHash } from "node:crypto";
-import {
-  closeSync,
-  constants,
-  fstatSync,
-  mkdirSync,
-  openSync,
-  readdirSync,
-  readSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname, join, sep } from "node:path";
+import { closeSync, constants, fstatSync, openSync, readSync, realpathSync } from "node:fs";
+import { join, sep } from "node:path";
 
 /** Bounds on the few distro data files linuxdeploy can copy with execute bits. */
 export const APPIMAGE_DATA_LIMITS = {
@@ -33,7 +22,14 @@ export function isAppImageSystemDataPath(path: string): boolean {
   );
 }
 
-function readData(path: string, requireNonExecutable: boolean): Buffer {
+/**
+ * Reads one bounded regular UTF-8 data file, rejecting scripts/binary content
+ * and size changes. Archive originals require non-executable modes; payload
+ * reads retain their actual execute bits. The caller enforces path containment.
+ * Descriptors close even on rejection; FIFOs are opened nonblocking.
+ * @throws When the file is unsuitable, unreadable or exceeds its byte bound.
+ */
+export function readAppImageDataFile(path: string, requireNonExecutable: boolean): Buffer {
   // Nonblocking open lets fstat reject a FIFO/device without waiting on it.
   const fd = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK);
   try {
@@ -72,89 +68,13 @@ export interface VerifiedAppImageData {
   readonly sha256: string;
 }
 
-/** Bounds for the pre-bundle OS reference, which includes data not ultimately bundled. */
-export const APPIMAGE_REFERENCE_LIMITS = { entries: 10_000, bytes: 256 * 1024 * 1024 } as const;
-
-/** The number and size of reference files preserved, and explicitly rejected candidates. */
-export interface AppImageReferenceSummary {
-  readonly files: number;
-  readonly bytes: number;
-  readonly skipped: number;
-}
-
-/**
- * Copies eligible OS data before any bundler can change its modes or contents.
- *
- * Creates a new private destination and independent read-only files, never hard
- * links. Unsupported candidates are reported and omitted; verification of a
- * bundled omitted file still fails because no reference exists. Bounds or I/O
- * failures while writing abort and remove only this function's new directory.
- * Existing destinations are never reused, overwritten or removed.
- *
- * @throws When roots are unreadable, the destination exists, a reference bound
- * is exceeded, or the snapshot cannot be written/reported completely.
- */
-export function snapshotAppImageSystemData(
-  systemRoot: string,
-  destination: string,
-  reportSkip: (message: string) => void = (message) => console.warn(message),
-): AppImageReferenceSummary {
-  const doc = "usr/share/doc";
-  const schemas = "usr/share/glib-2.0/schemas";
-  const docs = readdirSync(join(systemRoot, doc), { withFileTypes: true });
-  const schemaFiles = readdirSync(join(systemRoot, schemas), { withFileTypes: true });
-  if (docs.length + schemaFiles.length > APPIMAGE_REFERENCE_LIMITS.entries)
-    throw new Error("AppImage reference entry bound exceeded.");
-  const candidates = [
-    ...docs
-      .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
-      .map((entry) => `${doc}/${entry.name}/copyright`),
-    ...schemaFiles.map((entry) => `${schemas}/${entry.name}`),
-  ]
-    .filter(isAppImageSystemDataPath)
-    .sort();
-  mkdirSync(destination, { mode: 0o700 });
-  let files = 0;
-  let bytes = 0;
-  let skipped = 0;
-  try {
-    for (const path of candidates) {
-      let data: Buffer;
-      try {
-        const subtree = path.startsWith(`${doc}/`) ? doc : schemas;
-        const root = realpathSync(join(systemRoot, subtree));
-        const source = realpathSync(join(systemRoot, path));
-        if (!source.startsWith(`${root}${sep}`))
-          throw new Error("source symlink escapes its data subtree");
-        data = readData(source, true);
-      } catch (error) {
-        skipped += 1;
-        const cause = error instanceof Error ? error.message : String(error);
-        reportSkip(`Omitted AppImage reference ${path}: ${cause}`);
-        continue;
-      }
-      bytes += data.length;
-      if (bytes > APPIMAGE_REFERENCE_LIMITS.bytes)
-        throw new Error("AppImage reference byte bound exceeded.");
-      const file = join(destination, path);
-      mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
-      writeFileSync(file, data, { flag: "wx", mode: 0o444 });
-      files += 1;
-    }
-    return { files, bytes, skipped };
-  } catch (error) {
-    rmSync(destination, { recursive: true, force: true });
-    throw error;
-  }
-}
-
 /**
  * Proves that a candidate is unchanged non-executable data from the build OS.
  *
  * Both roots are caller-owned/trusted inspection inputs, never renderer inputs.
- * `systemRoot` defaults to the build OS. Hosted packaging must instead pass
- * the private reference captured before bundling; the live tree after a build
- * is not a pristine reference. Tests inject a synthetic OS tree.
+ * `systemRoot` defaults to a pristine build OS. Hosted packaging instead
+ * supplies a private reference derived from authenticated exact-version Ubuntu
+ * archives, since runner-image data modes are not pristine. Tests use fixtures.
  * Symlinks must resolve within the matching doc/schema subtree. No file is
  * modified, installed or executed. Unknown paths and any missing, changed,
  * executable, binary, oversized or unreadable source fail closed.
@@ -179,8 +99,8 @@ export function verifyAppImageSystemData(
     const payloadPath = realpathSync(join(payloadRoot, path));
     if (!payloadPath.startsWith(`${realPayloadRoot}${sep}`))
       throw new Error("payload symlink escapes its root");
-    const source = readData(sourcePath, true);
-    const payload = readData(payloadPath, false);
+    const source = readAppImageDataFile(sourcePath, true);
+    const payload = readAppImageDataFile(payloadPath, false);
     if (!source.equals(payload)) throw new Error("payload bytes differ from the build OS data");
     return { bytes: payload.length, sha256: createHash("sha256").update(payload).digest("hex") };
   } catch (error) {

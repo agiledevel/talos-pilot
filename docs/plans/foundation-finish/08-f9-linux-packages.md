@@ -2,8 +2,9 @@
 
 Plan revision: 3, 2026-10-26. **F9 in progress: shared packaging is on main;
 qualification 40401994013 passed Windows/macOS but Linux upload is blocked by
-AppImage reference validation (B12). A pre-bundle reference correction is being
-verified; hosted acceptance remains pending.**
+AppImage reference validation (B12). Branch probe 40407825315 established that
+runner data is already mode 0777 before bundling; authenticated package-archive
+references are being verified. Hosted acceptance remains pending.**
 Original planning branch: `ft-linux-package-qualification`, from merged `main`
 `4a2f9914ddac222433ba99437e8aa39d54314078` (PR #5). Local results and remaining
 rows: [F9 evidence](../../verification/f9-linux-packages.md).

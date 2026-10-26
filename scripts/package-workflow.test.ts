@@ -25,20 +25,16 @@ afterEach(() => {
 
 /** Executes the actual shared workflow command against an argv-recording CLI. */
 describe("shared package build invocation", () => {
-  it("captures the trusted reference before bundling and consumes it afterward", () => {
+  it("constructs an archive-proven reference before payload validation, not from live OS modes", () => {
     const workflow = readFileSync(workflowPath, "utf8");
-    const capture = workflow.indexOf("      - name: Capture pristine AppImage system data");
-    const build = workflow.indexOf("      - name: Build preview packages");
-    const inspect = workflow.indexOf("      - name: Inspect packaged Linux payloads");
-    expect(capture).toBeGreaterThan(0);
-    expect(capture).toBeLessThan(build);
-    expect(build).toBeLessThan(inspect);
-    expect(workflow.slice(capture, build)).toContain(
-      'node scripts/snapshot-appimage-system-data.ts --directory "$RUNNER_TEMP/appimage-system-data"',
+    const prepare = workflow.indexOf(
+      'node scripts/prepare-appimage-reference.ts --root "$work/appimage/squashfs-root"',
     );
-    expect(workflow.slice(inspect)).toContain(
-      '--appimage-system-root "$RUNNER_TEMP/appimage-system-data"',
-    );
+    const check = workflow.indexOf("node scripts/check-payload.ts --platform linux-appimage");
+    expect(prepare).toBeGreaterThan(0);
+    expect(prepare).toBeLessThan(check);
+    expect(workflow.slice(prepare)).toContain('--appimage-system-root "$work/appimage/reference"');
+    expect(workflow).not.toContain("snapshot-appimage-system-data");
     expect(workflow).not.toContain("continue-on-error");
   });
 
