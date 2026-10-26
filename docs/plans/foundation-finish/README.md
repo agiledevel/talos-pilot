@@ -36,11 +36,12 @@ its candidate CI/native/DEB payload evidence remains separately attributed.
 Exact-merge main Foundation [40313099783](https://github.com/agiledevel/talos-pilot/actions/runs/40313099783)
 and Security [40313099694](https://github.com/agiledevel/talos-pilot/actions/runs/40313099694)
 were in progress at planning entry; consult the ledger for the final observation.
-S4/[document 08](08-f9-linux-packages.md) is READY on
-`ft-linux-package-qualification`, with the [readiness review](../../verification/f8-review-s4-readiness.md)
-and [copy-ready S4 launch prompt](s4-launch-prompt.md). F9 implementation is
-**not started**. Begin S4-A shared tag-free artifacts, then clean guest/runtime
-and artifact qualification. The S1/S2/S3 launch prompts are historical. No push,
+S4/[document 08](08-f9-linux-packages.md) is **in progress** on
+`ft-linux-package-qualification`, with the [readiness review](../../verification/f8-review-s4-readiness.md),
+the [S4 launch prompt](s4-launch-prompt.md) and the [F9 evidence
+record](../../verification/f9-linux-packages.md). S4-A's shared tag-free
+artifact path is implemented and locally verified; a hosted qualification run
+and every installed-package row are still pending. The S1/S2/S3 launch prompts are historical. No push,
 PR, dispatch, merge, tag or release authority is granted by this handoff.
 
 **Historical branch context for S2 preparation:** PR #3 merged into `main` at `a7ada06`, including

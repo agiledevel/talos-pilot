@@ -293,10 +293,13 @@ do not call C7 globally done. Stop before S4 in the S3 implementation launch.
 
 ### S4 — F9 Linux installer and vault qualification
 
-**READY, not started.** Use the [S4 launch prompt](s4-launch-prompt.md) on
-`ft-linux-package-qualification`, starting with **S4-A only**, then the
-S4-B/C/D checkpoints and F9-01–F9-10 matrix in
-[document 08](08-f9-linux-packages.md). The [readiness
+**S4-A implemented locally; hosted artifact production blocked.** Use the
+[S4 launch prompt](s4-launch-prompt.md) on `ft-linux-package-qualification`.
+The shared packaging recipe, tag-free qualification wrapper, provenance,
+exporter exclusion and payload allowlist exist with local evidence in the
+[F9 record](../../verification/f9-linux-packages.md); F9-01 needs an
+owner-authorised default-branch publication and dispatch. Then the S4-B/C/D
+checkpoints and F9-01–F9-10 matrix in [document 08](08-f9-linux-packages.md). The [readiness
 review](../../verification/f8-review-s4-readiness.md) records source findings,
 merged baseline and remaining evidence. No remote authority is inferred by the
 local planning branch. Build the same release-config artifacts for a chosen revision without a tag/release, reusing packaging steps.

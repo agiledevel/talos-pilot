@@ -1,4 +1,4 @@
-import { isRecord } from "./validation.ts";
+import { isCommitSha, isRecord } from "./validation.ts";
 
 /** A successful `Foundation checks` run that may hold earlier desktop evidence. */
 export interface WorkflowRunSummary {
@@ -6,12 +6,8 @@ export interface WorkflowRunSummary {
   readonly headSha: string;
 }
 
-const COMMIT_SHA = /^[0-9a-f]{40}$/u;
-
 /** Rejects anything but a full lowercase commit SHA before it reaches a Git argument. */
-export function isCommitSha(value: unknown): value is string {
-  return typeof value === "string" && COMMIT_SHA.test(value);
-}
+export { isCommitSha };
 
 /**
  * Reads the run list returned by the GitHub workflow-runs API.

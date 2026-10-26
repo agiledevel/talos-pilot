@@ -1,8 +1,10 @@
 # 08 — F9 on Linux: installer artifacts and clean-target runtime
 
-Plan revision: 2, 2026-10-26. **READY for FLASH implementation; F9 is not
-started.** Preparation branch: `ft-linux-package-qualification`, from merged
-`main` `4a2f9914ddac222433ba99437e8aa39d54314078` (PR #5).
+Plan revision: 2, 2026-10-26. **F9 in progress (S4-A implemented locally;
+hosted artifact production blocked on owner-authorised publication/dispatch).**
+Branch: `ft-linux-package-qualification`, from merged `main`
+`4a2f9914ddac222433ba99437e8aa39d54314078` (PR #5). Local results and remaining
+rows: [F9 evidence](../../verification/f9-linux-packages.md).
 Read the series [README](README.md), [ledger](ledger.md), [readiness
 review](../../verification/f8-review-s4-readiness.md) and [S4 launch
 prompt](s4-launch-prompt.md). This replaces the earlier F9 task detail, not the
@@ -46,7 +48,7 @@ work around it.
 | Version/provenance            | `scripts/release-metadata.ts`, `scripts/lib/release.ts`, `scripts/release-assets.ts` and their tests. The source validator requires a real tag and main ancestry; it cannot validate an untagged qualification build unchanged. The collector requires `RELEASE_TAG`, target-specific output directories and exactly one installer per format.                           |
 | AppImage                      | `scripts/appimage-resources.ts`, `.github/actions/linux-prerequisites/action.yml`, `scripts/ci-linux-prerequisites.sh`. Preserve the pinned runtime hash and executable WebKit helper gate; an AppDir scan alone is not rendered launch evidence.                                                                                                                        |
 | Payload and production checks | `scripts/check-production-exclusion.ts`, `scripts/advisory-baseline.ts`, `scripts/lib/notices/payload.ts`, [decision 0020](../../decisions/0020-dependency-notice-generation.md). Existing production/advisory scripts inspect the local default release executable, not downloaded installers. Extend narrow check inputs/tests instead of scanning the wrong artifact. |
-| Packaged binaries             | `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `src-tauri/src/bin/export_ipc_types.rs`, `scripts/build-helper.ts`, `src-tauri/build.rs`, `scripts/contracts.ts`. The DEB includes a maintainer exporter today; choose and verify its exclusion while preserving deterministic generation.                                                                          |
+| Packaged binaries             | `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `src-tauri/examples/export_ipc_types.rs`, `scripts/build-helper.ts`, `src-tauri/build.rs`, `scripts/contracts.ts`. The F8 DEB included a maintainer exporter; it is now a Cargo example, and a payload allowlist keeps a future `src/bin` tool out. Preserve deterministic generation.                              |
 | Runtime ownership             | `src-tauri/src/helper/`, `helper/cmd/talos-pilot-helper/`, `docs/protocol/helper-v1.md`, `docs/protocol/application-ipc.md`. Inspect actual packaged-path resolution, build identity, deadlines and crash/shutdown ownership before designing faults.                                                                                                                    |
 | Vault/import                  | `src-tauri/src/storage/`, `src/features/settings/`, [decision 0004](../../decisions/0004-native-vault-integration.md), [decision 0005](../../decisions/0005-native-kubeconfig-import.md), [storage v1](../../storage/storage-v1.md). Startup must not open the vault; synthetic credential bytes never cross renderer IPC.                                               |
 | Native and CI harness         | `tests/native/`, `scripts/test-native.ts`, `.github/workflows/native.yml`, `.github/workflows/check.yml`, `scripts/lib/ci-scope.ts` and its tests. Test-feature builds are distinct from the ordinary installed product.                                                                                                                                                 |
