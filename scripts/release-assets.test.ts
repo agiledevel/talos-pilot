@@ -258,6 +258,124 @@ describe("release asset collection", () => {
     expect(verify).toThrow("must contain exactly");
   });
 
+  const linuxTarget = "x86_64-unknown-linux-gnu";
+  const windowsTarget = "x86_64-pc-windows-msvc";
+
+  function artifactDirectory(
+    name: string,
+    target: string,
+    files: readonly (readonly [string, string])[],
+  ): string {
+    const directory = join(fixture, name);
+    mkdirSync(directory, { recursive: true });
+    const installers = files.map(([file, contents]) => ({
+      file,
+      sha256: createHash("sha256").update(contents).digest("hex"),
+      bytes: Buffer.byteLength(contents),
+    }));
+    for (const [file, contents] of files) writeFileSync(join(directory, file), contents);
+    writeFileSync(
+      join(directory, `${target}-provenance.json`),
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          mode: "qualification",
+          source: {
+            repository: "agiledevel/talos-pilot",
+            revision,
+            version,
+            ref: "refs/heads/main",
+            event: "workflow_dispatch",
+          },
+          workflow: {
+            name: "Package qualification",
+            path: "agiledevel/talos-pilot/.github/workflows/qualification.yml@refs/heads/main",
+            runId: "1",
+            runAttempt: "1",
+            serverUrl: "https://github.com",
+          },
+          target,
+          build: {
+            buildIdentity: revision,
+            releaseConfig: ".github/tauri.release.conf.json",
+            releaseConfigSha256: "a".repeat(64),
+            tauriConfigSha256: "b".repeat(64),
+            applicationSha256: "c".repeat(64),
+            helperSha256: "d".repeat(64),
+          },
+          installers,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    writeFileSync(
+      join(directory, `${target}-SHA256SUMS.txt`),
+      `${installers.map((installer) => `${installer.sha256}  ${installer.file}`).join("\n")}\n`,
+    );
+    return directory;
+  }
+
+  function verifyDirectory(directory: string, target: string): string {
+    return execFileSync(
+      process.execPath,
+      [
+        verifier,
+        "--directory",
+        directory,
+        "--mode",
+        "qualification",
+        "--revision",
+        revision,
+        "--version",
+        version,
+        "--targets",
+        target,
+      ],
+      { cwd: fixture, encoding: "utf8", stdio: "pipe" },
+    );
+  }
+
+  describe("downloaded artifact format enforcement", () => {
+    const complete = [
+      [`${linuxTarget}-Talos Pilot_0.1.0_amd64.deb`, "deb bytes"],
+      [`${linuxTarget}-Talos Pilot-0.1.0-1.x86_64.rpm`, "rpm bytes"],
+      [`${linuxTarget}-Talos Pilot_0.1.0_amd64.AppImage`, "appimage bytes"],
+    ] as const;
+
+    it("accepts a complete Linux set and rejects an incomplete one", () => {
+      const completeDirectory = artifactDirectory("complete", linuxTarget, complete);
+      expect(verifyDirectory(completeDirectory, linuxTarget)).toContain(
+        "Verified 1 targets and 3 installers",
+      );
+      const debOnly = artifactDirectory("deb-only", linuxTarget, [complete[0]]);
+      expect(() => verifyDirectory(debOnly, linuxTarget)).toThrow(
+        "must contain exactly one .rpm installer; found 0",
+      );
+      const noAppImage = artifactDirectory("no-appimage", linuxTarget, [complete[0], complete[1]]);
+      expect(() => verifyDirectory(noAppImage, linuxTarget)).toThrow(
+        "must contain exactly one .AppImage installer; found 0",
+      );
+    });
+
+    it("rejects duplicated formats and installers named for another target", () => {
+      const duplicated = artifactDirectory("duplicated", linuxTarget, [
+        [`${linuxTarget}-first.deb`, "first"],
+        [`${linuxTarget}-second.deb`, "second"],
+        complete[1],
+        complete[2],
+      ]);
+      expect(() => verifyDirectory(duplicated, linuxTarget)).toThrow(
+        "must contain exactly one .deb installer; found 2",
+      );
+      const foreign = artifactDirectory("foreign", linuxTarget, [
+        ...complete,
+        [`${windowsTarget}-Talos Pilot_0.1.0_x64-setup.exe`, "windows bytes"],
+      ]);
+      expect(() => verifyDirectory(foreign, linuxTarget)).toThrow("for another target");
+    });
+  });
+
   it("rejects incomplete WebKit packaging and accepts both executable helper resources", () => {
     const directory = join(
       fixture,

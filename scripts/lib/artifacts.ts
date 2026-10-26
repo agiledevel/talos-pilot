@@ -2,7 +2,12 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
 
-import { releaseModeFrom, validatePackageVersion, validateSourceRevision } from "./release.ts";
+import {
+  releaseModeFrom,
+  requiredAssetExtensions,
+  validatePackageVersion,
+  validateSourceRevision,
+} from "./release.ts";
 import { isCommitSha, isRecord } from "./validation.ts";
 
 /** One installer copied out of a target's bundle directory. */
@@ -243,6 +248,45 @@ export function validateProvenanceFor(
   }
   if (provenance.target !== expected.target) {
     throw new Error(`Provenance target ${provenance.target} is not ${expected.target}.`);
+  }
+}
+
+/**
+ * Requires one installer per declared format for the target, with target-prefixed
+ * names.
+ *
+ * Provenance alone cannot establish a complete artifact set: a build, upload or
+ * hand-edit can drop a format while keeping a self-consistent document. The
+ * declared target's required extensions are therefore enforced independently,
+ * so an incomplete or foreign artifact set fails verification even when its
+ * checksums and digests agree.
+ */
+export function requireInstallerFormats(
+  target: string,
+  installers: readonly ArtifactInstaller[],
+): void {
+  const required = requiredAssetExtensions(target);
+  const prefix = `${target}-`;
+  const counts = new Map<string, number>(required.map((extension) => [extension, 0]));
+  for (const installer of installers) {
+    if (!installer.file.startsWith(prefix) || installer.file.length === prefix.length) {
+      throw new Error(`The ${target} provenance lists ${installer.file} for another target.`);
+    }
+    const extension = required.find((candidate) => installer.file.endsWith(candidate));
+    if (extension === undefined) {
+      throw new Error(
+        `The ${target} provenance lists ${installer.file}, which is not a declared installer format.`,
+      );
+    }
+    counts.set(extension, (counts.get(extension) ?? 0) + 1);
+  }
+  for (const extension of required) {
+    const count = counts.get(extension) ?? 0;
+    if (count !== 1) {
+      throw new Error(
+        `The ${target} artifact set must contain exactly one ${extension} installer; found ${count}.`,
+      );
+    }
   }
 }
 

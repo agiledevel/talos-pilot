@@ -139,3 +139,33 @@ says otherwise.
   `pnpm release:verify` for the recorded revision/version, and record F9-01.
 - Local logs and the extracted payload live under `/tmp`; the extraction
   directory and the ignored `release-assets/` output were removed after use.
+
+## S4-A review corrections
+
+An independent review of the S4-A diff found two defects. Both are fixed with
+regressions; the review's reproductions were synthetic and no hosted AppImage or
+downloaded artifact exists yet, so F9-01 and every installed-runtime row stay
+pending. The earlier "387 tests" row above describes the tree before these
+corrections; the numbers below are the final tree.
+
+| Finding                                                                                                                                                                                        | Reproduction                                                            | Correction                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Downloaded-artifact verification trusted the provenance's installer list and accepted an incomplete Linux set (for example only a synthetic DEB) as `Verified 1 targets and 1 installers`      | Synthetic DEB plus matching provenance/checksums                        | `requireInstallerFormats(target, installers)` in `scripts/lib/artifacts.ts`, called by `scripts/verify-artifacts.ts` before checksum and digest checks. It requires target-prefixed names and exactly one installer for every extension the target declares (DEB/RPM/AppImage for Linux, DMG for macOS, NSIS for Windows), and rejects foreign-target names or undeclared extensions |
+| `isProgram` excluded `.so`, `.dylib` and `.dll` but not versioned Linux shared objects such as `libglib-2.0.so.0.8600.0`, so a valid payload was rejected as carrying an undeclared executable | Synthetic AppImage payload with an executable `libglib-2.0.so.0.8600.0` | `isProgram` now treats `so`, `so.<digits>[.<digits>…]`, `dylib` and `dll` suffixes as libraries. Arbitrary executables, and library-looking names with other suffixes such as `libnotreally.so.debug`, still fail the allowlist                                                                                                                                                      |
+
+Regressions: `scripts/lib/artifacts.test.ts` covers complete, missing, duplicated,
+foreign-target and undeclared-format sets for all three platform shapes;
+`scripts/release-assets.test.ts` reproduces the incomplete/duplicated/foreign
+sets through the `pnpm release:verify` CLI and keeps the complete Linux set
+passing; `scripts/lib/payload.test.ts` adds positive versioned-library coverage
+and retains the undeclared-program negatives.
+
+Re-run on the final tree: `pnpm exec vitest run scripts` → **151 tests / 19
+files** (`/tmp/tp-s4a-r1-scripts.log`); `pnpm lint`, `pnpm format:check` and
+`git diff --check` pass; `pnpm check:ci` → **394 tests / 49 files**, coverage
+71.37 % statements / 74.17 % branches, `svelte-check` 0/0, production build
+(`/tmp/tp-s4a-r1-check-ci.log`); `pnpm test:e2e` → **31/31** in 26.5 s
+(`/tmp/tp-s4a-r1-e2e.log`). The payload and verifier evidence classes are still
+synthetic fixture bytes plus the earlier real local DEB; the versioned-library
+case was not observed in a hosted AppImage extraction, and the format rule is
+enforced by the verifier rather than inferred from the collector.

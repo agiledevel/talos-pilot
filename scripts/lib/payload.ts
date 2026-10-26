@@ -110,9 +110,16 @@ function basename(path: string): string {
   return separator === -1 ? path : path.slice(separator + 1);
 }
 
-/** Shared objects are libraries even when a platform marks them executable. */
+/**
+ * Shared objects are libraries even when a platform marks them executable.
+ *
+ * Linux versioned shared objects keep the `so` stem before numeric components
+ * (`libglib-2.0.so.0.8600.0`), macOS versioned dylibs keep the extension
+ * (`libfoo.1.dylib`), and Windows keeps `.dll`. Only those suffixes are
+ * excluded: an arbitrary executable is still a program.
+ */
 function isProgram(path: string, executable: boolean): boolean {
-  return executable && !/\.(?:so|dylib|dll)$/u.test(path);
+  return executable && !/\.(?:so(?:\.[0-9]+)*|dylib|dll)$/u.test(path);
 }
 
 function assertNoForbiddenTools(entries: readonly PayloadEntry[]): void {

@@ -77,6 +77,42 @@ describe("packaged payload allowlists", () => {
     ).not.toThrow();
   });
 
+  it("treats versioned shared libraries as libraries, not undeclared programs", () => {
+    const libraries = entries(
+      [main, true],
+      [helper, true],
+      ["usr/lib/x86_64-linux-gnu/libglib-2.0.so.0.8600.0", true],
+      ["usr/lib/x86_64-linux-gnu/libgobject-2.0.so.0.8600.0", true],
+      ["usr/lib/x86_64-linux-gnu/libfoo.so.1", true],
+      ["usr/lib/x86_64-linux-gnu/libbar.so", true],
+    );
+    expect(() => validatePayload("linux-deb", libraries)).not.toThrow();
+    expect(() =>
+      validatePayload(
+        "macos-app",
+        entries(
+          ["Contents/MacOS/talos-pilot", true],
+          ["Contents/Resources/binaries/talos-pilot-helper", true],
+          ["Contents/Frameworks/libfoo.1.dylib", true],
+          ["Contents/Frameworks/libbar.dylib", true],
+        ),
+      ),
+    ).not.toThrow();
+    // A library-looking name that is not a shared-object suffix is still a program.
+    expect(() =>
+      validatePayload("linux-deb", [
+        ...libraries,
+        { path: "usr/bin/libnotreally.so.debug", executable: true },
+      ]),
+    ).toThrow("undeclared executable");
+    expect(() =>
+      validatePayload("linux-deb", [
+        ...libraries,
+        { path: "usr/bin/really-a-program", executable: true },
+      ]),
+    ).toThrow("undeclared executable");
+  });
+
   it("requires the AppImage runtime and WebKit helpers explicitly", () => {
     const appimage = entries(
       [main, true],

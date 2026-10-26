@@ -4,7 +4,9 @@ import {
   parseChecksums,
   parseProvenance,
   renderChecksums,
+  requireInstallerFormats,
   validateProvenanceFor,
+  type ArtifactInstaller,
   type ArtifactProvenance,
 } from "./artifacts";
 
@@ -159,5 +161,82 @@ describe("checksum files", () => {
       parseChecksums(`${digest("a")}  file.deb\n${digest("b")}  file.deb\n`, "sums"),
     ).toThrow("repeats file.deb");
     expect(() => parseChecksums(`${digest("a")}  ../file.deb\n`, "sums")).toThrow("malformed");
+  });
+});
+
+describe("required installer formats", () => {
+  const installer = (file: string): ArtifactInstaller => ({
+    file,
+    sha256: digest("a"),
+    bytes: 1,
+  });
+
+  it("accepts one installer per declared Linux format", () => {
+    expect(() =>
+      requireInstallerFormats("x86_64-unknown-linux-gnu", [
+        installer("x86_64-unknown-linux-gnu-Talos Pilot_0.1.0_amd64.deb"),
+        installer("x86_64-unknown-linux-gnu-Talos Pilot-0.1.0-1.x86_64.rpm"),
+        installer("x86_64-unknown-linux-gnu-Talos Pilot_0.1.0_amd64.AppImage"),
+      ]),
+    ).not.toThrow();
+    expect(() =>
+      requireInstallerFormats("aarch64-apple-darwin", [
+        installer("aarch64-apple-darwin-Talos Pilot_0.1.0_aarch64.dmg"),
+      ]),
+    ).not.toThrow();
+    expect(() =>
+      requireInstallerFormats("x86_64-pc-windows-msvc", [
+        installer("x86_64-pc-windows-msvc-Talos Pilot_0.1.0_x64-setup.exe"),
+      ]),
+    ).not.toThrow();
+  });
+
+  it("rejects an incomplete or duplicated format set", () => {
+    expect(() =>
+      requireInstallerFormats("x86_64-unknown-linux-gnu", [
+        installer("x86_64-unknown-linux-gnu-Talos Pilot_0.1.0_amd64.deb"),
+      ]),
+    ).toThrow("exactly one .rpm installer; found 0");
+    expect(() =>
+      requireInstallerFormats("x86_64-unknown-linux-gnu", [
+        installer("x86_64-unknown-linux-gnu-first.deb"),
+        installer("x86_64-unknown-linux-gnu-second.deb"),
+        installer("x86_64-unknown-linux-gnu-package.rpm"),
+        installer("x86_64-unknown-linux-gnu-package.AppImage"),
+      ]),
+    ).toThrow("exactly one .deb installer; found 2");
+    expect(() => requireInstallerFormats("aarch64-apple-darwin", [])).toThrow("exactly one .dmg");
+  });
+
+  it("rejects names for another target or an undeclared format", () => {
+    expect(() =>
+      requireInstallerFormats("x86_64-unknown-linux-gnu", [
+        installer("x86_64-pc-windows-msvc-Talos Pilot_0.1.0_x64-setup.exe"),
+      ]),
+    ).toThrow("lists x86_64-pc-windows-msvc-");
+    expect(() =>
+      requireInstallerFormats("x86_64-unknown-linux-gnu", [
+        installer("x86_64-unknown-linux-gnu-package.deb"),
+        installer("x86_64-unknown-linux-gnu-package.rpm"),
+        installer("x86_64-unknown-linux-gnu-package.AppImage"),
+        installer("x86_64-unknown-linux-gnu-package.dmg"),
+      ]),
+    ).toThrow("not a declared installer format");
+    expect(() =>
+      requireInstallerFormats("aarch64-apple-darwin", [
+        installer("aarch64-apple-darwin-package.deb"),
+      ]),
+    ).toThrow("not a declared installer format");
+  });
+
+  it("rejects a bare target prefix with no package name", () => {
+    expect(() =>
+      requireInstallerFormats("aarch64-apple-darwin", [installer("aarch64-apple-darwin-.dmg")]),
+    ).not.toThrow();
+    expect(() =>
+      requireInstallerFormats("aarch64-apple-darwin", [
+        { file: "aarch64-apple-darwin-", sha256: digest("a"), bytes: 1 },
+      ]),
+    ).toThrow("for another target");
   });
 });

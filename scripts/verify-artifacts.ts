@@ -4,6 +4,7 @@ import { join } from "node:path";
 import {
   parseChecksums,
   parseProvenance,
+  requireInstallerFormats,
   sha256File,
   validateProvenanceFor,
   type ArtifactProvenance,
@@ -84,6 +85,7 @@ for (const target of targets) {
   }
   const parsed = parseProvenance(JSON.parse(readFileSync(join(directory, provenanceFile), "utf8")));
   validateProvenanceFor(parsed, { mode, revision, version, target });
+  requireInstallerFormats(target, parsed.installers);
   const checksums = parseChecksums(readFileSync(join(directory, sumsFile), "utf8"), sumsFile);
   const recorded = new Map(checksums.map((entry) => [entry.file, entry.sha256]));
   if (recorded.size !== parsed.installers.length) {
