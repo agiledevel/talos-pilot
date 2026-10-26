@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import { compareCodeUnits, describe, readBoundedFile, sha256Hex } from "./files.ts";
+import { compareCodeUnits, decodeUtf8, describe, readBoundedFile, sha256Hex } from "./files.ts";
 import { NOTICE_LIMITS, type NoticeEcosystem, type NoticeText, type TextOrigin } from "./types.ts";
 import { isRecord } from "../validation.ts";
 
@@ -314,7 +314,7 @@ export function readCuratedText(
     );
   }
   const base = {
-    body: new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+    body: decodeUtf8(bytes, `curated text ${path}`),
     bytes: bytes.byteLength,
     origin,
     path: absolute,

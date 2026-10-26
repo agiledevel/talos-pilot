@@ -37,7 +37,12 @@ component is no longer in the locked graph is stale and fails `pnpm notices:chec
 
 Every file is covered by a SHA-256 entry in `registry.json`. The generator rejects
 an unlisted file, a digest mismatch, a missing file, a path outside this directory
-and an override entry that duplicates or contradicts a component identity.
+and an override entry that duplicates or contradicts a component identity. A
+shared file (the twelve `objc2`-family entries use one committed `LICENSE.md`) is
+digest-verified once; each component's `source` URL is a recorded provenance
+statement naming the upstream commit its copy was taken from, and those copies
+were byte-identical when fetched. An override or vendored entry whose component
+leaves the locked graph fails the check as stale rather than disappearing.
 
 `upstream/` and the generated artifacts are excluded from `oxfmt`
 (`.oxfmtrc.json`): they must stay byte-identical to what upstream published, so

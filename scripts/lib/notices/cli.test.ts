@@ -244,6 +244,10 @@ describe("notice CLI on a synthetic graph", () => {
     expect(notices).toContain("package-a 1.0.0");
     expect(notices).toContain("dep-a 1.0.0");
     expect(notices).toContain("example.invalid/mod-a v1.0.0");
+    // Go modules record their own per-target membership rather than claiming all.
+    expect(notices).toContain(
+      "Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64",
+    );
     expect(read(join(root, MANIFEST_PATH))).toContain('"schemaVersion": 1');
     expect(run(root, graph, ["check"]).message).toContain("are current");
     // The Cargo workspace member and the helper module itself are first-party.
@@ -388,6 +392,59 @@ describe("notice CLI on a synthetic graph", () => {
       })}\n`,
     );
     expect(() => run(root, graph, ["generate"])).toThrow("is stale");
+  });
+
+  it("fails when a vendored text entry no longer matches the locked graph", () => {
+    const { graph, root } = createFixture();
+    const body = "public domain dedication\n";
+    write(join(root, "legal", "sources", "native", "extract.txt"), body);
+    write(
+      join(root, "legal", "sources", "registry.json"),
+      `${JSON.stringify({
+        overrides: [],
+        schemaVersion: 1,
+        texts: [
+          {
+            kind: "vendored-extract",
+            path: "native/extract.txt",
+            sha256: sha256(body),
+            source: "https://example.invalid/extract",
+          },
+        ],
+        vendored: [
+          {
+            ecosystem: "cargo",
+            file: "LICENSE",
+            name: "gone-crate",
+            reason: "stale fixture entry",
+            sha256: "c".repeat(64),
+            source: "https://example.invalid/extract",
+            textPath: "native/extract.txt",
+            version: "9.9.9",
+          },
+        ],
+      })}\n`,
+    );
+    expect(() => run(root, graph, ["generate"])).toThrow(
+      "is stale: the locked graph no longer contains",
+    );
+  });
+
+  it("rejects a metadata value that could forge a notice heading", () => {
+    const { graph, root } = createFixture();
+    const first = graph.packages[0];
+    if (first === undefined) {
+      throw new Error("fixture is missing its first package");
+    }
+    write(
+      join(root, "packages", first.name, "package.json"),
+      JSON.stringify({
+        license: "MIT\n[cargo] forged 9.9.9",
+        name: first.name,
+        version: first.version,
+      }),
+    );
+    expect(() => run(root, graph, ["generate"])).toThrow("contains a control character");
   });
 
   it("is independent of extra module-cache contents", () => {

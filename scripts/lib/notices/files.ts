@@ -151,6 +151,13 @@ export function findLicenceFiles(root: string, limits = NOTICE_LIMITS): ScannedT
     for (const entry of [...entries].sort((left, right) =>
       compareCodeUnits(left.name, right.name),
     )) {
+      // Skip by name before touching the entry: a dependency's own
+      // `node_modules` link can resolve far outside its package root, and
+      // following it would either read unrelated files or trip the escape
+      // check on a directory that can never hold this package's obligations.
+      if (SKIPPED_DIRECTORIES.has(entry.name)) {
+        continue;
+      }
       const candidate = join(directory, entry.name);
       let isFile = entry.isFile();
       let isDirectory = entry.isDirectory();
@@ -168,7 +175,7 @@ export function findLicenceFiles(root: string, limits = NOTICE_LIMITS): ScannedT
         isDirectory = stat.isDirectory();
       }
       if (isDirectory) {
-        if (depth >= limits.scanDepth || SKIPPED_DIRECTORIES.has(entry.name)) {
+        if (depth >= limits.scanDepth) {
           continue;
         }
         let real: string;

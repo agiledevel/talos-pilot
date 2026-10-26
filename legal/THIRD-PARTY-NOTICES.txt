@@ -94286,7 +94286,7 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Declared license: BSD-3-Clause
 Selected license: BSD-3-Clause
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/ProtonMail/go-crypto@v1.4.1
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/ProtonMail/go-crypto@v1.4.1/LICENSE
@@ -94326,7 +94326,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ================================================================================
 Declared license: MIT
 Selected license: MIT
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/ProtonMail/gopenpgp/v3@v3.4.1
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/ProtonMail/gopenpgp/v3@v3.4.1/LICENSE
@@ -94360,7 +94360,7 @@ IN THE SOFTWARE.
 ================================================================================
 Declared license: MIT
 Selected license: MIT
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/adrg/xdg@v0.5.3
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/adrg/xdg@v0.5.3/LICENSE
@@ -94394,7 +94394,7 @@ THE SOFTWARE.
 ================================================================================
 Declared license: MIT
 Selected license: MIT
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/blang/semver/v4@v4.0.0
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/blang/semver/v4@v4.0.0/LICENSE
@@ -94429,7 +94429,7 @@ THE SOFTWARE.
 ================================================================================
 Declared license: MIT
 Selected license: MIT
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/cenkalti/backoff/v4@v4.3.0
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/cenkalti/backoff/v4@v4.3.0/LICENSE
@@ -94462,7 +94462,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ================================================================================
 Declared license: BSD-3-Clause
 Selected license: BSD-3-Clause
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/cloudflare/circl@v1.6.4
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/cloudflare/circl@v1.6.4/LICENSE
@@ -94564,7 +94564,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ================================================================================
 Declared license: Apache-2.0
 Selected license: Apache-2.0
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/containerd/go-cni@v1.1.13
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/containerd/go-cni@v1.1.13/LICENSE
@@ -94778,7 +94778,7 @@ sha256 c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4, 11357 b
 ================================================================================
 Declared license: Apache-2.0
 Selected license: Apache-2.0
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/containernetworking/cni@v1.3.0
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/containernetworking/cni@v1.3.0/LICENSE
@@ -94993,7 +94993,7 @@ sha256 c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08, 11358 b
 ================================================================================
 Declared license: MPL-2.0
 Selected license: MPL-2.0
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/cosi-project/runtime@v1.16.3
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/cosi-project/runtime@v1.16.3/LICENSE
@@ -95379,7 +95379,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 ================================================================================
 Declared license: MIT
 Selected license: MIT
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/dustin/go-humanize@v1.0.1
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/dustin/go-humanize@v1.0.1/LICENSE
@@ -95413,7 +95413,7 @@ SOFTWARE.
 ================================================================================
 Declared license: MIT
 Selected license: MIT
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/gertd/go-pluralize@v0.2.1
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/gertd/go-pluralize@v0.2.1/LICENSE
@@ -95449,7 +95449,7 @@ SOFTWARE.
 ================================================================================
 Declared license: BSD-3-Clause
 Selected license: BSD-3-Clause
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/grpc-ecosystem/grpc-gateway/v2@v2.30.0
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/grpc-ecosystem/grpc-gateway/v2@v2.30.0/LICENSE
@@ -95580,7 +95580,7 @@ proto_file: {
 ================================================================================
 Declared license: MPL-2.0
 Selected license: MPL-2.0
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/hashicorp/errwrap@v1.1.0
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/hashicorp/errwrap@v1.1.0/LICENSE
@@ -95947,7 +95947,7 @@ Exhibit B - “Incompatible With Secondary Licenses” Notice
 ================================================================================
 Declared license: MPL-2.0
 Selected license: MPL-2.0
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/hashicorp/go-multierror@v1.1.1
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/hashicorp/go-multierror@v1.1.1/LICENSE
@@ -96313,7 +96313,7 @@ Exhibit B - “Incompatible With Secondary Licenses” Notice
 ================================================================================
 Declared license: Apache-2.0
 Selected license: Apache-2.0
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/opencontainers/runtime-spec@v1.3.0
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/opencontainers/runtime-spec@v1.3.0/LICENSE
@@ -96517,7 +96517,7 @@ sha256 a964a27c435167bdd78827ff83e4bd4473eca53d583a39598d2f445894a9225d, 10767 b
 ================================================================================
 Declared license: BSD-2-Clause
 Selected license: BSD-2-Clause
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/pkg/browser@v0.0.0-20240102092130-5ac0b6a4141c
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/pkg/browser@v0.0.0-20240102092130-5ac0b6a4141c/LICENSE
@@ -96553,7 +96553,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ================================================================================
 Declared license: BSD-3-Clause
 Selected license: BSD-3-Clause
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/planetscale/vtprotobuf@v0.6.1-0.20260702190614-8ae5a48058df
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/planetscale/vtprotobuf@v0.6.1-0.20260702190614-8ae5a48058df/LICENSE
@@ -96622,7 +96622,7 @@ SOFTWARE.
 ================================================================================
 Declared license: MPL-2.0
 Selected license: MPL-2.0
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/siderolabs/crypto@v0.6.5
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/siderolabs/crypto@v0.6.5/LICENSE
@@ -97008,7 +97008,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 ================================================================================
 Declared license: MPL-2.0
 Selected license: MPL-2.0
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/siderolabs/gen@v0.8.8
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/siderolabs/gen@v0.8.8/LICENSE
@@ -97394,7 +97394,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 ================================================================================
 Declared license: MPL-2.0
 Selected license: MPL-2.0
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/siderolabs/go-api-signature@v0.3.13
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/siderolabs/go-api-signature@v0.3.13/LICENSE
@@ -97780,7 +97780,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 ================================================================================
 Declared license: MPL-2.0
 Selected license: MPL-2.0
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/siderolabs/go-pointer@v1.0.1
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/siderolabs/go-pointer@v1.0.1/LICENSE
@@ -98166,7 +98166,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 ================================================================================
 Declared license: MPL-2.0
 Selected license: MPL-2.0
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/siderolabs/protoenc@v0.2.4
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/siderolabs/protoenc@v0.2.4/LICENSE
@@ -98552,7 +98552,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 ================================================================================
 Declared license: MPL-2.0
 Selected license: MPL-2.0
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/github.com/siderolabs/talos/pkg/machinery@v1.14.2
 --------------------------------------------------------------------------------
 Text: upstream file at go:github.com/siderolabs/talos/pkg/machinery@v1.14.2/LICENSE
@@ -98938,7 +98938,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 ================================================================================
 Declared license: MIT
 Selected license: MIT
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/go.uber.org/multierr@v1.11.0
 --------------------------------------------------------------------------------
 Text: upstream file at go:go.uber.org/multierr@v1.11.0/LICENSE.txt
@@ -98970,7 +98970,7 @@ THE SOFTWARE.
 ================================================================================
 Declared license: MIT
 Selected license: MIT
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/go.uber.org/zap@v1.28.0
 --------------------------------------------------------------------------------
 Text: upstream file at go:go.uber.org/zap@v1.28.0/LICENSE
@@ -99002,7 +99002,7 @@ THE SOFTWARE.
 ================================================================================
 Declared license: Apache-2.0
 Selected license: Apache-2.0
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/go.yaml.in/yaml/v4@v4.0.0-rc.6
 --------------------------------------------------------------------------------
 Text: upstream file at go:go.yaml.in/yaml/v4@v4.0.0-rc.6/LICENSE
@@ -99244,7 +99244,7 @@ http://www.apache.org/licenses/LICENSE-2.0
 ================================================================================
 Declared license: BSD-3-Clause
 Selected license: BSD-3-Clause
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/golang.org/x/crypto@v0.57.0
 --------------------------------------------------------------------------------
 Text: upstream file at go:golang.org/x/crypto@v0.57.0/LICENSE
@@ -99284,7 +99284,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ================================================================================
 Declared license: BSD-3-Clause
 Selected license: BSD-3-Clause
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/golang.org/x/net@v0.60.0
 --------------------------------------------------------------------------------
 Text: upstream file at go:golang.org/x/net@v0.60.0/LICENSE
@@ -99324,7 +99324,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ================================================================================
 Declared license: BSD-3-Clause
 Selected license: BSD-3-Clause
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/golang.org/x/sys@v0.48.0
 --------------------------------------------------------------------------------
 Text: upstream file at go:golang.org/x/sys@v0.48.0/LICENSE
@@ -99364,7 +99364,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ================================================================================
 Declared license: BSD-3-Clause
 Selected license: BSD-3-Clause
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/golang.org/x/text@v0.42.0
 --------------------------------------------------------------------------------
 Text: upstream file at go:golang.org/x/text@v0.42.0/LICENSE
@@ -99404,7 +99404,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ================================================================================
 Declared license: BSD-3-Clause
 Selected license: BSD-3-Clause
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/golang.org/x/time@v0.15.0
 --------------------------------------------------------------------------------
 Text: upstream file at go:golang.org/x/time@v0.15.0/LICENSE
@@ -99444,7 +99444,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ================================================================================
 Declared license: Apache-2.0
 Selected license: Apache-2.0
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/google.golang.org/genproto/googleapis/api@v0.0.0-20260810153831-ec0a7760b754
 --------------------------------------------------------------------------------
 Text: upstream file at go:google.golang.org/genproto/googleapis/api@v0.0.0-20260810153831-ec0a7760b754/LICENSE
@@ -99659,7 +99659,7 @@ sha256 cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30, 11358 b
 ================================================================================
 Declared license: Apache-2.0
 Selected license: Apache-2.0
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/google.golang.org/genproto/googleapis/rpc@v0.0.0-20260810153831-ec0a7760b754
 --------------------------------------------------------------------------------
 Text: upstream file at go:google.golang.org/genproto/googleapis/rpc@v0.0.0-20260810153831-ec0a7760b754/LICENSE
@@ -99874,7 +99874,7 @@ sha256 cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30, 11358 b
 ================================================================================
 Declared license: Apache-2.0
 Selected license: Apache-2.0
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/google.golang.org/grpc@v1.83.2
 --------------------------------------------------------------------------------
 Text: upstream file at go:google.golang.org/grpc@v1.83.2/LICENSE
@@ -100108,7 +100108,7 @@ limitations under the License.
 ================================================================================
 Declared license: BSD-3-Clause
 Selected license: BSD-3-Clause
-Redistributed by: every declared target
+Redistributed by: darwin/amd64, darwin/arm64, linux/amd64, windows/amd64
 Source: https://pkg.go.dev/google.golang.org/protobuf@v1.36.12
 --------------------------------------------------------------------------------
 Text: upstream file at go:google.golang.org/protobuf@v1.36.12/LICENSE

@@ -58,6 +58,11 @@ export function createCommandRunner(limits = NOTICE_LIMITS): CommandRunner {
         encoding: "utf8",
         env: { ...process.env, ...invocation.env },
         maxBuffer: limits.commandMaxBytes,
+        // Node cannot spawn a Windows `.cmd` shim (pnpm installs one) without a
+        // shell, and the repository already uses this convention for the same
+        // binary in scripts/test-native.ts. The argument lists are literal
+        // flags and paths without shell metacharacters.
+        shell: process.platform === "win32",
         timeout: limits.commandTimeoutMs,
         windowsHide: true,
       });
@@ -485,7 +490,7 @@ function collectGo(
   const modules: unknown[] = splitJsonObjects(modulesOutput).map(
     (chunk) => JSON.parse(chunk) as unknown,
   );
-  const linked = new Set<string>();
+  const linked = new Map<string, Set<string>>();
   for (const target of GO_TARGETS) {
     const label = `${target.goos}/${target.goarch}`;
     const packagesOutput = run({
@@ -507,7 +512,9 @@ function collectGo(
       if (module.Main === true) {
         continue;
       }
-      linked.add(module.Path);
+      const targets = linked.get(module.Path) ?? new Set<string>();
+      targets.add(label);
+      linked.set(module.Path, targets);
       count += 1;
     }
     if (count === 0) {
@@ -519,7 +526,8 @@ function collectGo(
     if (!isRecord(item) || typeof item.Path !== "string") {
       throw new Error("go list module entry is missing a path.");
     }
-    if (item.Main === true || !linked.has(item.Path)) {
+    const moduleTargets = linked.get(item.Path);
+    if (item.Main === true || moduleTargets === undefined) {
       continue;
     }
     const modulePath = item.Path;
@@ -566,7 +574,7 @@ function collectGo(
           notes: [],
           selectedLicense: classified,
           source: `https://pkg.go.dev/${modulePath}@${version}`,
-          targets: [],
+          targets: [...moduleTargets].sort(compareCodeUnits),
           texts: [],
           version,
         },
@@ -582,6 +590,21 @@ function collectGo(
 }
 
 /**
+ * Rejects control characters in a rendered identity or licence expression.
+ *
+ * Package metadata is untrusted input: a newline inside a crate's `license`
+ * value would otherwise forge a component heading inside the attribution record.
+ */
+function requirePrintable(value: string, label: string): void {
+  for (const character of value) {
+    const codePoint = character.codePointAt(0) ?? 0;
+    if (codePoint < 0x20 || codePoint === 0x7f) {
+      throw new Error(`${label} contains a control character and cannot be rendered safely.`);
+    }
+  }
+}
+
+/**
  * Applies the curated override for one component, or keeps its own texts.
  *
  * An override for a component that already ships licence text is rejected: a
@@ -594,6 +617,10 @@ function finalizeComponent(
   registry: NoticeRegistry,
   limits: typeof NOTICE_LIMITS,
 ): NoticeComponent {
+  requirePrintable(component.name, `${component.ecosystem} component name`);
+  requirePrintable(component.version, `${component.ecosystem} ${component.name} version`);
+  requirePrintable(component.declaredLicense, `${component.ecosystem} ${component.name} license`);
+  requirePrintable(component.selectedLicense, `${component.ecosystem} ${component.name} license`);
   const key = componentKey(component.ecosystem, component.name, component.version);
   const override = registry.overrides.get(key);
   if (override !== undefined) {
@@ -751,6 +778,14 @@ export function collectNotices(options: CollectOptions): CollectedNotices {
     if (!seen.has(key)) {
       throw new Error(
         `Curated override for ${override.ecosystem}:${override.name}@${override.version} is stale: the locked graph no longer contains it.`,
+      );
+    }
+  }
+  for (const entry of registry.vendored) {
+    const key = componentKey(entry.ecosystem, entry.name, entry.version);
+    if (!seen.has(key)) {
+      throw new Error(
+        `Vendored text entry for ${entry.ecosystem}:${entry.name}@${entry.version} (${entry.file}) is stale: the locked graph no longer contains that component.`,
       );
     }
   }

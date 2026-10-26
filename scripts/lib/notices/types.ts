@@ -102,7 +102,10 @@ export interface NoticeComponent {
   readonly declaredLicense: string;
   /** The alternative the notices rely on, or the declared expression when it is not a choice. */
   readonly selectedLicense: string;
-  /** Cargo targets whose closure contains the crate; empty for npm and Go. */
+  /**
+   * Where the component is redistributed: Cargo target triples or Go
+   * `os/arch` labels. Empty for npm, which is the same on every target.
+   */
   readonly targets: readonly string[];
   /** Where recipients obtain the exact source (crates.io, pkg.go.dev, npm). */
   readonly source: string;

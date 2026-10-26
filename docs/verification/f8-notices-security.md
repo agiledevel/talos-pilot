@@ -250,7 +250,11 @@ the owner review.
   installer scans, clean Ubuntu/Fedora installation and vault/runtime rows are
   F9 work; the known openSUSE AppImage problem was not reopened.
 - Hosted Foundation/Security results and the hosted Trivy/CodeQL scans for this
-  revision are pending owner-authorised push/PR (F8-07).
+  revision are pending owner-authorised push/PR (F8-07). That run also has to
+  exercise `pnpm notices:check` on the macOS and Windows desktop runners, which
+  this host cannot execute: the check needs cross-target Go module resolution
+  and `cargo metadata` on those platforms, so a platform-specific failure there
+  would leave F8-03's enforcement row incomplete rather than accepted.
 - The notices describe the resolved dependency graph; they do not prove that a
   given installer contains every bundled file beyond the measured DEB payload.
 - `export_ipc_types` ships in the DEB and needs an explicit F9 packaging

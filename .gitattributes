@@ -11,7 +11,6 @@
 # copies would change their digests on a fresh checkout, so they are stored
 # byte for byte instead of as normalized text.
 legal/THIRD-PARTY-NOTICES.txt -text
-legal/third-party-manifest.json -text
 legal/sources/upstream/** -text
 legal/sources/canonical/** -text
 legal/sources/native/** -text

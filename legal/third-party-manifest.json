@@ -15560,7 +15560,12 @@
       "notes": [],
       "selectedLicense": "BSD-3-Clause",
       "source": "https://pkg.go.dev/github.com/ProtonMail/go-crypto@v1.4.1",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1479,
@@ -15578,7 +15583,12 @@
       "notes": [],
       "selectedLicense": "MIT",
       "source": "https://pkg.go.dev/github.com/ProtonMail/gopenpgp/v3@v3.4.1",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1085,
@@ -15596,7 +15606,12 @@
       "notes": [],
       "selectedLicense": "MIT",
       "source": "https://pkg.go.dev/github.com/adrg/xdg@v0.5.3",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1107,
@@ -15614,7 +15629,12 @@
       "notes": [],
       "selectedLicense": "MIT",
       "source": "https://pkg.go.dev/github.com/blang/semver/v4@v4.0.0",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1103,
@@ -15632,7 +15652,12 @@
       "notes": [],
       "selectedLicense": "MIT",
       "source": "https://pkg.go.dev/github.com/cenkalti/backoff/v4@v4.3.0",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1077,
@@ -15650,7 +15675,12 @@
       "notes": [],
       "selectedLicense": "BSD-3-Clause",
       "source": "https://pkg.go.dev/github.com/cloudflare/circl@v1.6.4",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 3028,
@@ -15674,7 +15704,12 @@
       "notes": [],
       "selectedLicense": "Apache-2.0",
       "source": "https://pkg.go.dev/github.com/containerd/go-cni@v1.1.13",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 11357,
@@ -15692,7 +15727,12 @@
       "notes": [],
       "selectedLicense": "Apache-2.0",
       "source": "https://pkg.go.dev/github.com/containernetworking/cni@v1.3.0",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 11358,
@@ -15710,7 +15750,12 @@
       "notes": [],
       "selectedLicense": "MPL-2.0",
       "source": "https://pkg.go.dev/github.com/cosi-project/runtime@v1.16.3",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 16725,
@@ -15728,7 +15773,12 @@
       "notes": [],
       "selectedLicense": "MIT",
       "source": "https://pkg.go.dev/github.com/dustin/go-humanize@v1.0.1",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1136,
@@ -15746,7 +15796,12 @@
       "notes": [],
       "selectedLicense": "MIT",
       "source": "https://pkg.go.dev/github.com/gertd/go-pluralize@v0.2.1",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1126,
@@ -15764,7 +15819,12 @@
       "notes": [],
       "selectedLicense": "BSD-3-Clause",
       "source": "https://pkg.go.dev/github.com/grpc-ecosystem/grpc-gateway/v2@v2.30.0",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1511,
@@ -15794,7 +15854,12 @@
       "notes": [],
       "selectedLicense": "MPL-2.0",
       "source": "https://pkg.go.dev/github.com/hashicorp/errwrap@v1.1.0",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 15977,
@@ -15812,7 +15877,12 @@
       "notes": [],
       "selectedLicense": "MPL-2.0",
       "source": "https://pkg.go.dev/github.com/hashicorp/go-multierror@v1.1.1",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 15976,
@@ -15830,7 +15900,12 @@
       "notes": [],
       "selectedLicense": "Apache-2.0",
       "source": "https://pkg.go.dev/github.com/opencontainers/runtime-spec@v1.3.0",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 10767,
@@ -15848,7 +15923,12 @@
       "notes": [],
       "selectedLicense": "BSD-2-Clause",
       "source": "https://pkg.go.dev/github.com/pkg/browser@v0.0.0-20240102092130-5ac0b6a4141c",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1312,
@@ -15866,7 +15946,12 @@
       "notes": [],
       "selectedLicense": "BSD-3-Clause",
       "source": "https://pkg.go.dev/github.com/planetscale/vtprotobuf@v0.6.1-0.20260702190614-8ae5a48058df",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1596,
@@ -15890,7 +15975,12 @@
       "notes": [],
       "selectedLicense": "MPL-2.0",
       "source": "https://pkg.go.dev/github.com/siderolabs/crypto@v0.6.5",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 16725,
@@ -15908,7 +15998,12 @@
       "notes": [],
       "selectedLicense": "MPL-2.0",
       "source": "https://pkg.go.dev/github.com/siderolabs/gen@v0.8.8",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 16725,
@@ -15926,7 +16021,12 @@
       "notes": [],
       "selectedLicense": "MPL-2.0",
       "source": "https://pkg.go.dev/github.com/siderolabs/go-api-signature@v0.3.13",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 16725,
@@ -15944,7 +16044,12 @@
       "notes": [],
       "selectedLicense": "MPL-2.0",
       "source": "https://pkg.go.dev/github.com/siderolabs/go-pointer@v1.0.1",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 16725,
@@ -15962,7 +16067,12 @@
       "notes": [],
       "selectedLicense": "MPL-2.0",
       "source": "https://pkg.go.dev/github.com/siderolabs/protoenc@v0.2.4",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 16725,
@@ -15980,7 +16090,12 @@
       "notes": [],
       "selectedLicense": "MPL-2.0",
       "source": "https://pkg.go.dev/github.com/siderolabs/talos/pkg/machinery@v1.14.2",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 16725,
@@ -15998,7 +16113,12 @@
       "notes": [],
       "selectedLicense": "MIT",
       "source": "https://pkg.go.dev/go.uber.org/multierr@v1.11.0",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1072,
@@ -16016,7 +16136,12 @@
       "notes": [],
       "selectedLicense": "MIT",
       "source": "https://pkg.go.dev/go.uber.org/zap@v1.28.0",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1072,
@@ -16034,7 +16159,12 @@
       "notes": [],
       "selectedLicense": "Apache-2.0",
       "source": "https://pkg.go.dev/go.yaml.in/yaml/v4@v4.0.0-rc.6",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 11365,
@@ -16058,7 +16188,12 @@
       "notes": [],
       "selectedLicense": "BSD-3-Clause",
       "source": "https://pkg.go.dev/golang.org/x/crypto@v0.57.0",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1453,
@@ -16076,7 +16211,12 @@
       "notes": [],
       "selectedLicense": "BSD-3-Clause",
       "source": "https://pkg.go.dev/golang.org/x/net@v0.60.0",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1453,
@@ -16094,7 +16234,12 @@
       "notes": [],
       "selectedLicense": "BSD-3-Clause",
       "source": "https://pkg.go.dev/golang.org/x/sys@v0.48.0",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1453,
@@ -16112,7 +16257,12 @@
       "notes": [],
       "selectedLicense": "BSD-3-Clause",
       "source": "https://pkg.go.dev/golang.org/x/text@v0.42.0",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1453,
@@ -16130,7 +16280,12 @@
       "notes": [],
       "selectedLicense": "BSD-3-Clause",
       "source": "https://pkg.go.dev/golang.org/x/time@v0.15.0",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1453,
@@ -16148,7 +16303,12 @@
       "notes": [],
       "selectedLicense": "Apache-2.0",
       "source": "https://pkg.go.dev/google.golang.org/genproto/googleapis/api@v0.0.0-20260810153831-ec0a7760b754",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 11358,
@@ -16166,7 +16326,12 @@
       "notes": [],
       "selectedLicense": "Apache-2.0",
       "source": "https://pkg.go.dev/google.golang.org/genproto/googleapis/rpc@v0.0.0-20260810153831-ec0a7760b754",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 11358,
@@ -16184,7 +16349,12 @@
       "notes": [],
       "selectedLicense": "Apache-2.0",
       "source": "https://pkg.go.dev/google.golang.org/grpc@v1.83.2",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 11358,
@@ -16208,7 +16378,12 @@
       "notes": [],
       "selectedLicense": "BSD-3-Clause",
       "source": "https://pkg.go.dev/google.golang.org/protobuf@v1.36.12",
-      "targets": [],
+      "targets": [
+        "darwin/amd64",
+        "darwin/arm64",
+        "linux/amd64",
+        "windows/amd64"
+      ],
       "texts": [
         {
           "bytes": 1479,
@@ -16240,9 +16415,9 @@
     ]
   },
   "notices": {
-    "bytes": 5405724,
+    "bytes": 5406879,
     "path": "legal/THIRD-PARTY-NOTICES.txt",
-    "sha256": "2522d9de607c459cc1db23f4d35699ce6c731b0782513be2fc7e2ea6fd3f0c3f"
+    "sha256": "39a7c887a94f796927991c16464de29319ceaaef59ba226e5a37b051739842ba"
   },
   "policy": "docs/decisions/0020-dependency-notice-generation.md",
   "schemaVersion": 1
