@@ -25,8 +25,8 @@ A document is `done` only when every acceptance case in it has recorded evidence
 | [04 F5 Kubernetes version fixtures](04-f5-kubernetes-version-fixtures.md)       | F5               | not started | —           | 2026-10-22 | Run 04a and 04b after A2 or when a fixture window is prepared; use pinned kind and the explicit fixture workflow                                                   |
 | [05 F6 editor workers and CSP](05-f6-editor-workers-csp.md)                     | F6               | done        | this change | 2026-10-25 | Preserve accepted editor/bounds evidence; F7 is now accepted; remaining C6 rows are installed packages and deferred WebViews                                       |
 | [06 F7 terminal and chart wrappers](06-f7-terminal-chart.md)                    | F7               | done        | `41b1e00`   | 2026-10-26 | Accepted on Linux; PR #4 merged, exact main Foundation/Security passed/read. Preserve attributed corrective/native evidence; S3 entry gate met                     |
-| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | not started | this change | 2026-10-26 | READY plan/launch prompt on `ft-dependency-notices-security` from `41b1e00`; implement S3-A–D/F8-01–08; explicit exception re-proof before 2026-11-30              |
-| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | —           | 2026-10-22 | After document 07; use QEMU user-mode Linux VMs and record image digests                                                                                           |
+| [07 F8 dependencies, notices, security](07-f8-dependencies-notices-security.md) | F8               | done        | `4a2f991`   | 2026-10-26 | Accepted on Linux with candidate hosted results; merged PR #5; preserve F8 evidence. S4/F9 is next; exact-main result tracked in the planning entry                |
+| [08 F9 Linux packages](08-f9-linux-packages.md)                                 | F9.0, F9.1, F9.4 | not started | this change | 2026-10-26 | READY on `ft-linux-package-qualification`; use S4 launch prompt, starting S4-A shared tag-free artifacts; then QEMU user-mode Ubuntu/Fedora qualification          |
 | [09 F10 budgets and Linux close](09-f10-budgets-and-linux-close.md)             | F10              | not started | —           | 2026-10-22 | After documents 01 to 08; the owner review is required before it is done                                                                                           |
 | [10 Platform revisit](10-platform-revisit.md)                                   | F9.2, F9.3       | deferred    | —           | 2026-10-12 | Owner has no macOS or Windows machine; revisit when they are available                                                                                             |
 
@@ -43,14 +43,17 @@ with S2-R1 fixed in `5e306a5` (committed failing-before/passing-after browser
 regression), S2-R2 reconciled, all affected local gates rerun, and the corrective
 candidate's hosted Foundation/Security checks passed — see
 [S2-R1 corrective evidence](../../verification/s2-r1-chart-frame-coalescing.md).
-**S3 entry gate met:** PR #4 merged at `41b1e00`, and that exact main revision's
-Foundation [40245086906](https://github.com/agiledevel/talos-pilot/actions/runs/40245086906)
-and Security [40245086864](https://github.com/agiledevel/talos-pilot/actions/runs/40245086864)
-passed; job/step results were read on 2026-10-26. S3's plan and
-[launch prompt](s3-launch-prompt.md) are READY on `ft-dependency-notices-security`;
-F8 implementation remains not started. These main runs are entry evidence, not
-S3/native/package acceptance. C6 stays in progress for installed packages and
-deferred WebViews; C7, remaining Linux packets, owner review and M2.0 stay gated.
+**S3/F8 accepted on Linux:** all F8-01–08 results, including candidate hosted
+Foundation/Security, are recorded in [F8 evidence](../../verification/f8-notices-security.md)
+and the append-only acceptance entry below. PR #5 merged at `4a2f991`.
+Exact-main Foundation [40313099783](https://github.com/agiledevel/talos-pilot/actions/runs/40313099783)
+and Security [40313099694](https://github.com/agiledevel/talos-pilot/actions/runs/40313099694)
+were in progress at planning entry; the planning log records the final observation.
+**S4/F9 is READY, implementation not started** on `ft-linux-package-qualification`:
+use [document 08](08-f9-linux-packages.md), [S4 launch prompt](s4-launch-prompt.md)
+and [readiness review](../../verification/f8-review-s4-readiness.md). The S3 prompt
+is historical. C6/C7 stay in progress for installed/format and deferred-platform
+rows. F1a/F5, F9/F10, Q13 owner review and M2.0 stay open.
 
 | Finding                     | Current status                                                                                                                                                                                                                               | Owner and acceptance                                                                                                              |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -58,7 +61,7 @@ deferred WebViews; C7, remaining Linux packets, owner review and M2.0 stay gated
 | F6-B1 editor bounds         | Resolved and accepted on Linux 2026-10-25: S1 `812c4fb`, P2 corrections `cac672b`, final corrective evidence in this change                                                                                                                  | Preserve owning drafts/inline markers and released rejected initial options as implemented; closed                                |
 | S2-R1 chart resize          | Resolved and accepted on Linux 2026-10-25: `5e306a5` services data and size in one drain; the committed regression fails on the reviewed attachment (`292` vs `726`) and passes after; hosted Foundation/Security green at PR head `4fcc9d2` | PR #4 merged at `41b1e00`, exact main results passed/read 2026-10-26; S3 entry gate met, F7-05 requalified                        |
 | S2-R2 final evidence        | Resolved 2026-10-25: the F7 record now carries the 319-test count and three digests of the execution it describes, with the superseded values named as stale                                                                                 | Keep corrective-revision artifacts in their own record; do not copy a digest between executions                                   |
-| C7 notice/status correction | F8 not started; earlier complete-on-Linux checkpoint label overstated notice obligations                                                                                                                                                     | Document 07 / S3: generated/packaged notices, drift enforcement and current security evidence before acceptance                   |
+| C7 notice/status correction | F8 accepted on Linux 2026-10-26, merged via PR #5; generated notice/build enforcement and candidate hosted results recorded                                                                                                                  | Preserve F8 evidence; C7 remains open for F9/document 10 final-format/installed-runtime and deferred-platform rows                |
 
 No new product-scope or owner authorization is inferred by this plan. The Q13
 owner review remains required before document 09 closes and M2.0 starts.
@@ -95,9 +98,9 @@ Add a row when the owner decides something new. Quote the owner's words or cite 
 
 ## Dates that matter
 
-| Date       | What happens                                                                                                                                | Owner document |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| 2026-11-30 | Both Trivy exceptions in `.trivyignore.yaml` expire. The security workflow and the release gate fail afterwards until they are re-evidenced | 07             |
+| Date       | What happens                                                                                                                                                                       | Owner document     |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 2027-02-28 | Both Trivy exceptions in `.trivyignore.yaml` expire after re-proof/renewal on 2026-10-26 (F8 evidence); this supersedes 2026-11-30. Re-prove before renewal; never widen IDs/paths | 07 / active packet |
 
 ## Blockers
 
@@ -112,8 +115,9 @@ Foundation/Security passed for the corrective candidate, all recorded in the
 [S2-R1 corrective evidence](../../verification/s2-r1-chart-frame-coalescing.md).
 The owner merged PR #4 at `41b1e00` and that exact main revision's successful
 Foundation/Security job/step results were read on 2026-10-26; the S3 entry block
-is resolved. F8 is ready for implementation, not accepted. B11 stays a carried
-residual risk, not a new corrective gate. The historical B1–B10 resolutions
+is resolved. F8 is now accepted on Linux and merged via PR #5; S4/F9 is prepared,
+not implemented. No Linux installed-runtime acceptance is implied. B11 stays a
+carried residual risk, not a new corrective gate. The historical B1–B10 resolutions
 below are unchanged.
 
 | ID  | Opened     | Blocker                                                                                                                                                                                                                          | Affects                                                          | Status                                                                                                                                                                                                                                  |
@@ -1916,3 +1920,13 @@ Copy this block, fill every field, and append it to the session log. Write `none
 - **Assumptions confirmed or refuted:** the notices gate is host-independent across Linux, macOS and Windows hosted runners (confirmed); the renewed Trivy exceptions leave the filesystem scan at 0 results (confirmed); the pull-request scope rules count the new `legal/` inputs as code and run the full matrix (confirmed).
 - **Questions and blockers raised:** none. The next implementation task needs a fresh owner launch.
 - **Next:** S4/[document 08](../foundation-finish/08-f9-linux-packages.md) (F9 Linux installer and vault qualification) when the owner launches it — not started or prepared by this session. F1a/F5 fixture work is independent and still open under Q11.
+
+### 2026-10-26 — progress review and S4/F9 FLASH implementation preparation
+
+- **Owner request / scope:** “Review current progress and prepare the next phase of the development for a FLASH agent to implement. Create the new branch and commit all documentations created or updated here.” Documentation preparation only, not an implementation launch. Started from clean `main` at `4a2f9914ddac222433ba99437e8aa39d54314078`; `git fetch origin` and `git rev-parse HEAD origin/main` confirmed matching heads. `gh pr view 5 --json number,state,mergedAt,mergeCommit,headRefOid,url` confirmed PR #5 merged at that SHA. Created local `ft-linux-package-qualification` from it. No push, PR operation, dispatch, tag, release, fixture, guest, credential or host/service change.
+- **Progress disposition:** F8/document 07 was already accepted on Linux by the previous entry and is now merged. The status board/top-level summaries lagged that append-only acceptance; they are reconciled, not a new acceptance decision. S4/F9 is **READY; implementation not started**. Documents 01/04 live fixtures, Linux package qualification, budgets, Q13 owner review and M2.0 remain open; document 10 is owner-deferred, not passed. S0's B11 exception remains unresolved/not fixed. No C/FND row is newly promoted by planning.
+- **Hosted results read:** `gh run list --branch main --commit <full-sha>` and `gh run view <id> --json headSha,status,conclusion,jobs,url` identified exact-main Foundation [40313099783](https://github.com/agiledevel/talos-pilot/actions/runs/40313099783) and Security [40313099694](https://github.com/agiledevel/talos-pilot/actions/runs/40313099694), both in progress at entry. At the **11:22 UTC observation**, Security was **completed/success**: fresh Trivy and all three CodeQL jobs completed successfully, including their zero-results steps. Foundation was **still in progress**: renderer, Ubuntu 22.04, macOS 15 ARM and Windows Server 2022 passed; macOS 15 Intel was still running and the final result was not yet available. Full main execution is not PR evidence reuse. Do not label Foundation green from the completed subset; the next implementing session reads its final disposition before S4 acceptance. These are merged-source CI results, not installed-runtime or new S4 evidence. F8's candidate results remain attributed in its evidence file.
+- **Review / concrete refinement:** added [progress/readiness review](../../verification/f8-review-s4-readiness.md) with source findings S4-R1–R7; refined [document 08](08-f9-linux-packages.md) into S4-A shared tag-free artifacts, S4-B clean desktop guests, S4-C installed runtime/faults and S4-D final payload/security/review, with F9-01–F9-10 pending acceptance IDs; added the [copy-ready S4 launch prompt](s4-launch-prompt.md), starting **S4-A only**. The task now separates strict release-tag validation from qualification source/version validation, binds checkout/Rust/Go/artifact identities, preserves the shared release recipe/publication DAG, requires source-level exclusion of the maintainer exporter without breaking contracts, and checks actual payload binaries rather than the local default build. It also covers cloud-image desktop/vault prerequisites, ordinary production interaction without test bypasses, real offline/failure/cleanup observations, all-format notices/scans and truthful blocked states. No image/dependency/API pin was researched or changed here.
+- **Documentation reconciliation:** updated README's current next action, the normative completion plan, series README/current ledger, follow-up sequence, C6 checkpoint summary and M2 entry/exception-expiry reminders; marked the S3 launch prompt historical. Actual renewed expiry is **2027-02-28**, not the superseded 2026-11-30. Corrected the completion plan's broken F8 evidence relative link. Historical series session entries are preserved unchanged.
+- **Verification / separate final review:** private Node 26.12.1, pnpm 12.15.0 and existing Oxfmt verified. `pnpm exec oxfmt <changed/new Markdown paths>`, `pnpm format:check` (284 files), `python3 /tmp/talos-pilot-s4-doc-links.py` (local paths/heading anchors, code spans/fences excluded) and `git diff --check` passed. The first ad-hoc link checker incorrectly treated a historical inline-code CodeQL diagnostic's `(1)` as a link; excluding code spans fixed the checker, not the history. Separate final diff/prompt review checked source claims, normative packet agreement, allowed/deferred scope, source/artifact provenance, publication/remote authority, failure/cleanup coverage, evidence classes and next-packet boundaries; no unresolved documentation finding remains. No skills or executable inputs changed.
+- **Limits / next:** local application/unit/browser/native/build/security/fixture/package/performance suites were **not rerun**, because this change is documentation only; no fresh behavior qualification is claimed. This local branch has no candidate hosted result. No new remote authority is inferred from historical permissions. Next implementing task: use the S4 prompt, read the pending Foundation result, set document 08 in progress before code, open the F9 evidence matrix and implement the smallest coherent S4-A increment. If remote artifact production needs push/PR/default-branch publication/dispatch, obtain the active owner's authorization and leave missing hosted evidence blocked; do not use a release/tag workaround. Stop at the S4-A handoff, not F10 or M2.

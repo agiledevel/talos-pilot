@@ -30,20 +30,18 @@ Two shared documents support them:
 
 The older [closeout-plan.md](closeout-plan.md) retains host setup, owner decisions and historical session detail; its starting snapshot and completed A/A1/A2/B instructions are not the next task. The saved [Session B launch prompt](session-b-prompt.md) is historical and must not be used to restart the editor implementation from scratch.
 
-**Current review/CI context:** [PR #4](https://github.com/agiledevel/talos-pilot/pull/4)
-merged on 2026-10-25 at `41b1e008abbcb9a663d02f425bdc67775f4170b6`.
-That exact `main` revision passed Foundation
-[40245086906](https://github.com/agiledevel/talos-pilot/actions/runs/40245086906)
-(renderer and all four desktop runners executed) and Security
-[40245086864](https://github.com/agiledevel/talos-pilot/actions/runs/40245086864)
-(all three CodeQL languages and Trivy freshly executed). Job/step results were
-read on 2026-10-26. The
-[review corrections](../../verification/s2-review-s3-readiness.md) are applied:
-[S2-R1 fixed and requalified, S2-R2 reconciled](../../verification/s2-r1-chart-frame-coalescing.md).
-The S3 entry gate is met; main CI is not S3/native/installed-package evidence.
-Document 07 now defines S3-A–D and F8-01–08 for deterministic full notices,
-target coverage, real Linux payload/native checks and security renewal.
-The preparation branch is local; no push or PR is authorized by this handoff.
+**Next implementation/CI context:** [PR #5](https://github.com/agiledevel/talos-pilot/pull/5)
+merged at `4a2f9914ddac222433ba99437e8aa39d54314078`. F8 is accepted on Linux;
+its candidate CI/native/DEB payload evidence remains separately attributed.
+Exact-merge main Foundation [40313099783](https://github.com/agiledevel/talos-pilot/actions/runs/40313099783)
+and Security [40313099694](https://github.com/agiledevel/talos-pilot/actions/runs/40313099694)
+were in progress at planning entry; consult the ledger for the final observation.
+S4/[document 08](08-f9-linux-packages.md) is READY on
+`ft-linux-package-qualification`, with the [readiness review](../../verification/f8-review-s4-readiness.md)
+and [copy-ready S4 launch prompt](s4-launch-prompt.md). F9 implementation is
+**not started**. Begin S4-A shared tag-free artifacts, then clean guest/runtime
+and artifact qualification. The S1/S2/S3 launch prompts are historical. No push,
+PR, dispatch, merge, tag or release authority is granted by this handoff.
 
 **Historical branch context for S2 preparation:** PR #3 merged into `main` at `a7ada06`, including
 the normalized editor-bounds correction. Old branch names, PR #2/#3 commands
@@ -53,7 +51,10 @@ branch and discover its current PR/runs with `gh`; record the starting
 revision's results. The S2 documentation preparation leaves F7 `not started`.
 Do not count a green main build as F7 native evidence.
 
-Work the documents in order. Documents 05 to 07 do not depend on the fixture and may be taken while a fixture document is blocked, but only if the ledger records why the earlier one is blocked.
+Work the current [follow-up sequence](follow-up-to-m2.md). Under owner Q11,
+non-fixture documents 05–08 may proceed while documents 01/04 await a prepared
+fixture window. Record those open rows; S4 does not close them, and they must
+finish before document 09/Linux close. Do not restart accepted documents.
 
 ## What the owner has decided
 

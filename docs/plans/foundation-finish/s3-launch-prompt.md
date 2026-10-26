@@ -1,6 +1,9 @@
 # S3 launch prompt: dependency notices and security
 
-Status: **LAUNCHED; S3 in progress** (S3-A recorded 2026-10-26; evidence in the ledger and document 07). Prepared on
+Status: **HISTORICAL — S3/F8 accepted on Linux 2026-10-26**, merged via PR #5
+at `4a2f991`. Do not re-execute this prompt. Use the [S4 launch
+prompt](s4-launch-prompt.md) and [document 08](08-f9-linux-packages.md).
+The original launch below is retained for provenance. Prepared on
 `ft-dependency-notices-security` from merged `main`
 `41b1e008abbcb9a663d02f425bdc67775f4170b6`. S2/document 06 is accepted on Linux,
 merged via PR #4, and that exact main revision's Foundation
