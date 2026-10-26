@@ -1,8 +1,9 @@
 # 08 — F9 on Linux: installer artifacts and clean-target runtime
 
-Plan revision: 2, 2026-10-26. **F9 in progress (S4-A implemented locally;
-hosted artifact production blocked on owner-authorised publication/dispatch).**
-Branch: `ft-linux-package-qualification`, from merged `main`
+Plan revision: 3, 2026-10-26. **F9 in progress: shared packaging is on main;
+qualification 40361473939 passed Windows/macOS but Linux upload is blocked by
+AppImage payload validation (B12). Correction/requalification is in progress.**
+Original planning branch: `ft-linux-package-qualification`, from merged `main`
 `4a2f9914ddac222433ba99437e8aa39d54314078` (PR #5). Local results and remaining
 rows: [F9 evidence](../../verification/f9-linux-packages.md).
 Read the series [README](README.md), [ledger](ledger.md), [readiness
@@ -64,7 +65,8 @@ Use S4-A → S4-B → S4-C → S4-D. Each may span sessions; one coherent number
 subpart per checkpoint is sufficient. Mark the ledger in progress before code,
 open `docs/verification/f9-linux-packages.md` with the acceptance IDs below,
 record commands and pending rows, and leave a runnable result. That evidence
-file does not exist yet; do not copy planned results into it as passes.
+file is now an append-only record of local and hosted attempts; do not copy
+planned or failed results into it as passes.
 
 ### S4-A — Shared, tag-free artifact production (F9.0)
 

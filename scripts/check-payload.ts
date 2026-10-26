@@ -2,6 +2,11 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  APPIMAGE_DATA_LIMITS,
+  isAppImageSystemDataPath,
+  verifyAppImageSystemData,
+} from "./lib/appimage-system-data.ts";
+import {
   isPayloadPlatform,
   validatePayload,
   validateReleaseOutput,
@@ -35,8 +40,15 @@ function isExecutable(path: string, mode: number): boolean {
   return (mode & 0o111) !== 0;
 }
 
-function collect(root: string, recursive: boolean): PayloadEntry[] {
+function collect(
+  root: string,
+  recursive: boolean,
+  verifySystemData = false,
+  systemRoot = "/",
+): PayloadEntry[] {
   const entries: PayloadEntry[] = [];
+  let dataFiles = 0;
+  let dataBytes = 0;
   const walk = (relative: string): void => {
     const directory = relative === "" ? root : join(root, relative);
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -52,7 +64,20 @@ function collect(root: string, recursive: boolean): PayloadEntry[] {
       }
       if (!entry.isFile()) continue;
       const mode = statSync(join(root, path)).mode;
-      entries.push({ path, executable: isExecutable(path, mode) });
+      const executable = isExecutable(path, mode);
+      if (verifySystemData && executable && isAppImageSystemDataPath(path)) {
+        if (dataFiles >= APPIMAGE_DATA_LIMITS.files)
+          throw new Error("AppImage data file count exceeds its bound.");
+        const proof = verifyAppImageSystemData(root, path, systemRoot);
+        dataFiles += 1;
+        dataBytes += proof.bytes;
+        if (dataBytes > APPIMAGE_DATA_LIMITS.totalBytes)
+          throw new Error("AppImage data bytes exceed their total bound.");
+        console.info(`Verified unchanged AppImage system data ${path}: ${proof.sha256}`);
+        entries.push({ path, executable, verifiedSystemData: true });
+      } else {
+        entries.push({ path, executable });
+      }
     }
   };
   walk("");
@@ -63,7 +88,9 @@ const args = process.argv.slice(2);
 for (const argument of args) {
   if (
     argument.startsWith("--") &&
-    !["--platform", "--root", "--release-output", "--target"].includes(argument)
+    !["--platform", "--root", "--release-output", "--target", "--appimage-system-root"].includes(
+      argument,
+    )
   ) {
     throw new Error(`Unknown option ${argument}.`);
   }
@@ -73,6 +100,15 @@ const platform = valueOf(args, "--platform");
 const root = valueOf(args, "--root");
 const releaseOutput = valueOf(args, "--release-output");
 const target = valueOf(args, "--target");
+// Offline inspection may supply a trusted copy of the exact build OS's data.
+// The hosted recipe never overrides this: it compares against its own OS root.
+const appimageSystemRoot = valueOf(args, "--appimage-system-root");
+if (
+  appimageSystemRoot !== undefined &&
+  (platform !== "linux-appimage" || releaseOutput !== undefined)
+) {
+  throw new Error("--appimage-system-root requires a linux-appimage payload root.");
+}
 
 if (releaseOutput !== undefined) {
   if (platform !== undefined || root !== undefined) {
@@ -96,7 +132,7 @@ if (releaseOutput !== undefined) {
   if (!isPayloadPlatform(platform)) {
     throw new Error(`Unsupported payload platform ${platform}.`);
   }
-  const entries = collect(root, true);
+  const entries = collect(root, true, platform === "linux-appimage", appimageSystemRoot);
   validatePayload(platform, entries);
   console.info(
     `The ${platform} payload contains only declared programs (${entries.length} entries).`,
