@@ -1,15 +1,18 @@
 # F8 — dependency notices and security evidence
 
-Status: **in progress, locally qualified on Linux; not accepted** (2026-10-26).
-Every applicable row below has executed local evidence. F8-07 (candidate hosted
-results) is unexecuted because the branch is local and no push/PR is
-authorised, so F8 is **not** accepted and document 07 stays in progress.
+Status: **accepted and done on Linux (2026-10-26)**. Every F8-01–F8-08 row has
+executed evidence, including the candidate hosted Foundation and Security runs
+for the pull-request head (F8-07). F8 does not qualify installed packages,
+non-Linux runtimes, the remaining Linux package formats or release-artifact
+scans; those remain F9/document 10, and C7 stays in progress for them.
 
-- **Branch / revision:** `ft-dependency-notices-security` at
-  `0c93868d33aefd0f2bc17f93b141d6b0cf41bf54`, based on merged `main`
-  `41b1e008abbcb9a663d02f425bdc67775f4170b6`.
-- **Recording:** this record is committed immediately after `5810c15` as a
-  documentation-only checkpoint; no executable input changed between them.
+- **Branch / revision:** `ft-dependency-notices-security`; candidate head
+  `0bf8d75707e58a73a18c7445a0ad4ea918bb194e` in pull request
+  [#5](https://github.com/agiledevel/talos-pilot/pull/5), based on merged `main`
+  `41b1e008abbcb9a663d02f425bdc67775f4170b6`. The local evidence below was
+  produced on `5810c15` (the review-fix commit; `d5535f8`, `9aa03ae`,
+  `0c93868` and `d3d277e` build up to it) and on `0bf8d75`, which differs from
+  it only by documentation.
 - **Contract:** [document 07](../plans/foundation-finish/07-f8-dependencies-notices-security.md),
   [dependencies](../dependencies.md#third-party-notices-and-redistribution),
   [decision 0020](../decisions/0020-dependency-notice-generation.md).
@@ -125,7 +128,9 @@ synthetic fixture graph:
   fail separately.
 
 Enforcement and exit propagation: `pnpm notices:check` is the first command in
-`beforeBuildCommand` and a Linux desktop CI step. In the clean worktree, adding
+`beforeBuildCommand` and a step in every desktop CI job; the hosted run above
+executed it on Ubuntu 22.04, macOS 15 and Windows Server 2022 with identical
+coverage. In the clean worktree, adding
 nine bytes to the committed notices file made
 `pnpm tauri build --no-bundle -- --locked` exit 1 **before compiling**
 (`legal/THIRD-PARTY-NOTICES.txt: stale — committed 5406888 bytes, regenerated
@@ -221,17 +226,44 @@ scanner was weakened, and the renewal is recorded in
 
 ### F8-07 — candidate hosted results
 
-**Unexecuted / blocked.** `gh pr list --state open --head
-ft-dependency-notices-security` returns nothing, `gh run list --branch
-ft-dependency-notices-security` returns nothing, and `git ls-remote --heads
-origin ft-dependency-notices-security` shows the branch is not on the remote.
-No push, PR or dispatch authority was granted to this session, so no Foundation
-or Security run exists for this revision. The `main` runs listed above are
-entry evidence only. This row cannot be satisfied from local output.
+**Passed.** With owner authorisation the branch was pushed without force and
+pull request [#5](https://github.com/agiledevel/talos-pilot/pull/5) opened
+against `main` from base `41b1e00`. The candidate head is
+`0bf8d75707e58a73a18c7445a0ad4ea918bb194e` (`headSha` of both runs), so both
+runs executed the final tree:
+
+| Run                                                                                          | Result     | Executed jobs                                                                                                                                                |
+| -------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Foundation [40294023817](https://github.com/agiledevel/talos-pilot/actions/runs/40294023817) | **passed** | scope, `renderer` 2 m 13 s, `desktop (ubuntu-22.04)` 6 m 43 s, `desktop (macos-15)` 8 m 14 s, `desktop (windows-2022)` 10 m 35 s, `Foundation checks result` |
+| Security [40294023939](https://github.com/agiledevel/talos-pilot/actions/runs/40294023939)   | **passed** | scope, Trivy filesystem scan 20 s, `CodeQL (actions)` 44 s, `CodeQL (javascript-typescript)` 59 s, `CodeQL (rust)` 9 m 20 s                                  |
+
+Everything was executed freshly: no reused or unchanged-input evidence exists in
+either run. Both scope jobs chose RUN — “desktop: RUN — 40 affected path(s)
+since 41b1e00”, “renderer: RUN — 40 affected path(s)”, and RUN for `actions`,
+`javascript-typescript` and `rust` — so nothing is format-only reuse. Step
+results confirm the substance, not only the green status:
+
+- `renderer`: `svelte-check` 0/0, **353 tests / 47 files**, coverage 70.19 %
+  statements / 73.3 % branches, production build, and **31/31 browser flows in
+  51.4 s**, matching the local figures.
+- `desktop` on every operating system: `pnpm install --frozen-lockfile` on a
+  clean runner, **`pnpm notices:check` → “Notice artifacts are current: 639
+  components (102 npm, 502 cargo, 35 go), 1059 texts, 4816465 bytes”** (in the
+  explicit CI step and again inside `beforeBuildCommand`), the inventory check
+  current on Linux, Clippy/tests/rustdoc, locked builds, `pnpm desktop:build`,
+  `pnpm production:check` (“no driver listener”), the pinned `cargo audit` plus
+  `pnpm advisories:check`, and `pnpm contracts:check`. This is the first
+  execution of the notice gate on macOS and Windows, and it reports identical
+  coverage there — the one part of the enforcement row this host could not
+  prove.
+- `Trivy filesystem scan`: pinned Trivy 0.74.0, **0 results** with the renewed
+  exception file, so no exception was widened or bypassed.
+- `CodeQL`: **0 results** for actions, JavaScript/TypeScript and Rust on freshly
+  analysed code.
 
 ### F8-08 — final review and documentation agreement
 
-**Passed (local).** The final tree was reviewed separately after the gates:
+**Passed.** The final tree was reviewed separately after the gates:
 collection/rendering/CLI/payload separation, the fail-closed bounds and path
 handling, the curated-override policy, the packaging step and the renewed
 exceptions. Findings fixed in this session: the licence-name matcher read
@@ -269,12 +301,10 @@ the owner review.
 - Only the DEB payload was inspected. RPM and AppImage payload checks, all-format
   installer scans, clean Ubuntu/Fedora installation and vault/runtime rows are
   F9 work; the known openSUSE AppImage problem was not reopened.
-- Hosted Foundation/Security results and the hosted Trivy/CodeQL scans for this
-  revision are pending owner-authorised push/PR (F8-07). That run also has to
-  exercise `pnpm notices:check` on the macOS and Windows desktop runners, which
-  this host cannot execute: the check needs cross-target Go module resolution
-  and `cargo metadata` on those platforms, so a platform-specific failure there
-  would leave F8-03's enforcement row incomplete rather than accepted.
+- The hosted runs are CI evidence, not native or installed-package
+  qualification: they compile and test on hosted images but do not install a
+  bundle, run the WebView or exercise the vault/helper lifecycle. That remains
+  F9 work below.
 - The notices describe the resolved dependency graph; they do not prove that a
   given installer contains every bundled file beyond the measured DEB payload.
 - `export_ipc_types` ships in the DEB and needs an explicit F9 packaging

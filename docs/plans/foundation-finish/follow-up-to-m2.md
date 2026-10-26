@@ -262,7 +262,7 @@ implementation launch stopped before S3.
 
 ### S3 — F8 notices, dependencies and security
 
-**IN PROGRESS; S3-A–C and every local S3-D row are recorded (2026-10-26), with F8-07 blocked on candidate hosted results (no push/PR authority).** Branch
+**S3/F8 ACCEPTED ON LINUX (2026-10-26); document 07 done.** Candidate head `0bf8d75` in [PR #5](https://github.com/agiledevel/talos-pilot/pull/5) passed Foundation [40294023817](https://github.com/agiledevel/talos-pilot/actions/runs/40294023817) (renderer plus desktop on Ubuntu 22.04, macOS 15 and Windows Server 2022, each executing `pnpm notices:check`) and Security [40294023939](https://github.com/agiledevel/talos-pilot/actions/runs/40294023939) (Trivy 0 results with the renewed exceptions; CodeQL 0 results in all three languages, all freshly analysed). Installed packages, non-Linux runtimes and RPM/AppImage payloads remain F9/document 10, so C7 stays in progress for them. Branch
 `ft-dependency-notices-security` starts from merged `main` `41b1e00`; exact
 Foundation/Security job/step results have been read. Execute
 [document 07](07-f8-dependencies-notices-security.md) using the

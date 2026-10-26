@@ -1,12 +1,19 @@
 # 07 — F8: dependency, notices, and security evidence
 
-Status: **IN PROGRESS — S3-A–C and every local S3-D row recorded 2026-10-26** on
-`ft-dependency-notices-security`. F8 is **not accepted**: F8-07 (candidate
-hosted Foundation/Security results) is unexecuted because the branch is local
-and no push/PR is authorised. Notices are generated, committed, bundled into a
-verified Linux DEB payload, drift-enforced in the build and CI, and both Trivy
-exceptions are re-proved and renewed to 2027-02-28; the per-row evidence is in
-[the F8 record](../../verification/f8-notices-security.md).
+Status: **DONE on Linux — F8 accepted 2026-10-26.** All F8-01–F8-08 rows have
+executed evidence, including the candidate hosted Foundation
+[40294023817](https://github.com/agiledevel/talos-pilot/actions/runs/40294023817)
+and Security
+[40294023939](https://github.com/agiledevel/talos-pilot/actions/runs/40294023939)
+runs for pull request [#5](https://github.com/agiledevel/talos-pilot/pull/5) at
+head `0bf8d75`. Notices are generated and committed, bundled into a verified
+Linux DEB payload, drift-enforced in every Tauri build and on all three desktop
+CI operating systems, and both Trivy exceptions are re-proved and renewed to
+2027-02-28. The per-row record is
+[the F8 evidence](../../verification/f8-notices-security.md).
+**Not done globally:** installed packages, macOS/Windows runtimes, RPM/AppImage
+payload checks, clean-VM installation and release-artifact scans remain
+F9/document 10, and C7 stays in progress for them.
 S2/document 06 is accepted on the development Linux WebView and merged via
 [PR #4](https://github.com/agiledevel/talos-pilot/pull/4) at
 `41b1e008abbcb9a663d02f425bdc67775f4170b6`. That exact `main` revision passed
@@ -348,8 +355,11 @@ with production-graph absence evidence.
   2027-02-28 with a re-run negative expiry check. `pnpm check:ci` (351 tests),
   `pnpm test:e2e` (31 flows), a frozen install plus locked build from a clean
   checkout, pinned actionlint/ShellCheck, formatting and links all pass.
-- **Remaining blocker:** F8-07. No candidate Foundation/Security run exists for
-  `0c93868`; the owner must authorise pushing
-  `ft-dependency-notices-security` and opening a pull request, after which a
-  session reads that exact run's jobs/steps. Until then F8 stays in progress and
-  C7 stays open.
+- **Hosted acceptance (F8-07):** the owner authorised the push and pull request.
+  PR [#5](https://github.com/agiledevel/talos-pilot/pull/5) head `0bf8d75`
+  passed Foundation 40294023817 (renderer 353 tests / 31 browser flows;
+  desktop Ubuntu 22.04, macOS 15 and Windows Server 2022 each running
+  `pnpm notices:check` with identical coverage) and Security 40294023939
+  (Trivy 0 results with the renewed exceptions; CodeQL 0 results for actions,
+  JavaScript/TypeScript and Rust, all freshly analysed). No evidence was reused.
+  This closes F8 on Linux; the remaining rows belong to F9/document 10.
