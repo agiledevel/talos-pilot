@@ -8,6 +8,8 @@ authorised, so F8 is **not** accepted and document 07 stays in progress.
 - **Branch / revision:** `ft-dependency-notices-security` at
   `0c93868d33aefd0f2bc17f93b141d6b0cf41bf54`, based on merged `main`
   `41b1e008abbcb9a663d02f425bdc67775f4170b6`.
+- **Recording:** this record is committed immediately after `5810c15` as a
+  documentation-only checkpoint; no executable input changed between them.
 - **Contract:** [document 07](../plans/foundation-finish/07-f8-dependencies-notices-security.md),
   [dependencies](../dependencies.md#third-party-notices-and-redistribution),
   [decision 0020](../decisions/0020-dependency-notice-generation.md).
@@ -24,15 +26,15 @@ authorised, so F8 is **not** accepted and document 07 stays in progress.
 
 | Artifact                                                        | Bytes      | SHA-256                                                            |
 | --------------------------------------------------------------- | ---------- | ------------------------------------------------------------------ |
-| `legal/THIRD-PARTY-NOTICES.txt`                                 | 5,405,724  | `2522d9de607c459cc1db23f4d35699ce6c731b0782513be2fc7e2ea6fd3f0c3f` |
-| `legal/third-party-manifest.json`                               | 512,625    | `9e3cea8f6d1ba94998bac6dbd3ad24d45f2b94e7388d534d3ca5567a636b7537` |
+| `legal/THIRD-PARTY-NOTICES.txt`                                 | 5,406,879  | `39a7c887a94f796927991c16464de29319ceaaef59ba226e5a37b051739842ba` |
+| `legal/third-party-manifest.json`                               | 516,195    | `e79cedfa4a699d027b745d87d3097238eee761e41b3a6fe2811ba7623f16f9f2` |
 | `legal/sources/registry.json`                                   | —          | `b15d5449ade55135c798f7f0be6d0d56e3aed6ccf8eb624310dcd2d37924f97e` |
-| `Talos Pilot_0.1.0_amd64.deb` (DEB bundle)                      | 27,811,862 | `c49da3e3118d7b88b536a3b9cebc9d65aa264ee88ca776c9e3a6410037983795` |
-| packaged `/usr/lib/Talos Pilot/legal/THIRD-PARTY-NOTICES.txt`   | 5,405,724  | `2522d9de…` (identical)                                            |
-| packaged `/usr/lib/Talos Pilot/legal/third-party-manifest.json` | 512,625    | `9e3cea8f…` (identical)                                            |
-| packaged `/usr/bin/talos-pilot`                                 | —          | `7854b30f2150bbb1e486c8855f8475824a67bf4949595bd09f10ce025df5adc9` |
-| packaged `/usr/lib/Talos Pilot/binaries/talos-pilot-helper`     | —          | `a356db93a0f10197fb171787b9fbed3f3f85f9011283c5880388b1f25cd49d95` |
-| final ordinary Linux executable (after the bundle patch)        | —          | `01e4531907f60038631d2acc4566abd5124a6c31ddc054a0b5203ef428effd02` |
+| `Talos Pilot_0.1.0_amd64.deb` (DEB bundle)                      | 27,812,232 | `cb2398618a8ed4b9c7b478f20db582d52a323acbe801da458a1b088abd04e360` |
+| packaged `/usr/lib/Talos Pilot/legal/THIRD-PARTY-NOTICES.txt`   | 5,406,879  | `39a7c887…` (identical)                                            |
+| packaged `/usr/lib/Talos Pilot/legal/third-party-manifest.json` | 516,195    | `e79cedfa…` (identical)                                            |
+| packaged `/usr/bin/talos-pilot`                                 | —          | `f132290db52b2477efffc0d6caa166713aa2fa756e79c0f4bcf3f994dca4fb83` |
+| packaged `/usr/lib/Talos Pilot/binaries/talos-pilot-helper`     | —          | `1c6c2e746b9735b1bf5545db9b63773c62a30840b78ab7d5ebe1f7c3efd39e69` |
+| final ordinary Linux executable (after the bundle patch)        | —          | `12f62c43530f3ded654e34acbabc234feb0a335c77540f0b1104ecc4456c9e0a` |
 
 Contents: **639 components** (102 npm, 502 Cargo, 35 Go), **1,059 texts**,
 4,816,465 text bytes, 30 digest-checked curated overrides, 2 canonical SPDX
@@ -48,12 +50,12 @@ windows/amd64.
 
 ### F8-01 — frozen install, locked clean-checkout build, provenance, determinism
 
-**Passed (local).** A detached worktree of `0c93868` with no working changes ran
+**Passed (local).** A detached worktree of `5810c15` with no working changes ran
 `pnpm install --frozen-lockfile`, `pnpm notices:check` (**current**, 639
 components), `pnpm inventory:check` (**current**, 538 npm / 614 Cargo / 143 Go,
 35 linked) and a locked build (`pnpm tauri build --no-bundle -- --locked`,
-1 min 21 s), producing `/tmp/tp-f8-clean-tree/.../talos-pilot`
-(`2fa8be0b…`). The checked-out artifacts hash to exactly the values above, so
+1 min 04 s), producing `/tmp/tp-f8-clean-tree/.../talos-pilot`
+(`7d35fac9…`). The checked-out artifacts hash to exactly the values above, so
 the committed bytes survive a fresh checkout (`.gitattributes` stores them
 without line-ending normalization for that reason).
 
@@ -123,8 +125,8 @@ Enforcement and exit propagation: `pnpm notices:check` is the first command in
 `beforeBuildCommand` and a Linux desktop CI step. In the clean worktree, adding
 nine bytes to the committed notices file made
 `pnpm tauri build --no-bundle -- --locked` exit 1 **before compiling**
-(`legal/THIRD-PARTY-NOTICES.txt: stale — committed 5405733 bytes, regenerated
-5405724 bytes`); restoring the file made the check pass again. The real payload
+(`legal/THIRD-PARTY-NOTICES.txt: stale — committed 5406888 bytes, regenerated
+5406879 bytes`); restoring the file made the check pass again. The real payload
 negatives below exit 1 through `pnpm` as well. `scripts/lib/ci-scope.test.ts`
 asserts that legal artifacts and curated inputs are code (not documentation), so
 a change to them cannot reuse stale analysis.
@@ -169,8 +171,8 @@ process remained, and the temporary XDG root was removed afterwards
 (`/tmp/tp-f8-native.log`). Then, in order, `pnpm desktop:build`,
 `pnpm production:check` (no WebDriver, no driver listener) and
 `pnpm advisories:check` passed; the DEB build afterwards patched the release
-executable (`be5ee74f…` → `f95c94c0…` → final `01e45319…`), so both gates were
-re-run on the final output and passed.
+executable (ordinary build `be5ee74f…`, patched bundle input `f95c94c0…`, final
+`12f62c43…`), so both gates were re-run on the final output and passed.
 
 ### F8-05 — current npm, Go and Cargo evidence
 
@@ -180,7 +182,7 @@ packages, 1 in a required module (GO-2026-5932). `cargo audit --file
 src-tauri/Cargo.lock` (cargo-audit 0.22.2, advisory database
 `21d909e4c8bd4e14c7aea58bf980c881a0053ab1`, 1,352 entries) → exit 0 with the
 five recorded warnings and nothing unexplained. `pnpm advisories:check` passed
-on the final `01e45319…` executable: 67,079 demangled symbols against the five
+on the final `12f62c43…` executable: 67,079 demangled symbols against the five
 recorded advisories, reverse paths unchanged, inactive crates still absent from
 the resolved graph, and **0** `VariantStrIter` symbols. Decisions
 [0006](../decisions/0006-gtk3-advisory-applicability.md) and
@@ -233,9 +235,17 @@ exceptions. Findings fixed in this session: the licence-name matcher read
 `src/copying.rs` as a licence, Go licence classification was confused by nested
 subcomponent texts, rendering trusted caller order, `pnpm run --` forwarded its
 separator to the payload check, and the initial local Trivy run scanned `.tools/`
-instead of a CI-equivalent tree. `pnpm check:ci` (**351 tests / 47 files**,
-coverage 69.73 % statements / 72.78 % branches, production build) and
-`pnpm test:e2e` (**31 passed**, 33.5 s) passed on the final relevant tree;
+instead of a CI-equivalent tree. The separate adversarial review then found and
+this session fixed four more: `pnpm` could not be spawned from the Windows
+desktop job or before its Tauri build (Node cannot launch the installed `.cmd`
+shim without a shell), a curated vendored entry was silently dropped when its
+component left the graph instead of failing as stale, Go components claimed
+"every declared target" instead of recording their per-target membership, and
+untrusted crate metadata could forge a notice heading through control
+characters. Those fixes carry regression tests and are in `5810c15`; every gate
+below was re-run on that revision. `pnpm check:ci` (**353 tests / 47 files**,
+coverage 70.19 % statements / 73.3 % branches, production build) and
+`pnpm test:e2e` (**31 passed**, 27.5 s) passed on the final relevant tree;
 `pnpm format:check`, `pnpm lint`, `git diff --check`, actionlint and ShellCheck
 pass; documentation links, plan/ledger/README statuses and the dependency record
 agree. Remaining limits are listed below and are carried by F9 / document 10 and
