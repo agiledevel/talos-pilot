@@ -39,6 +39,11 @@ Every file is covered by a SHA-256 entry in `registry.json`. The generator rejec
 an unlisted file, a digest mismatch, a missing file, a path outside this directory
 and an override entry that duplicates or contradicts a component identity.
 
+`upstream/` and the generated artifacts are excluded from `oxfmt`
+(`.oxfmtrc.json`): they must stay byte-identical to what upstream published, so
+formatting them would falsify the provenance the digest records. `canonical/` and
+`native/` hold plain `.txt`, which the formatter does not rewrite.
+
 ## Overrides in force
 
 | Component                                                              | Reason                                                                        | Upstream source                                                                             |

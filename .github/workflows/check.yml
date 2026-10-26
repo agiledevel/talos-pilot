@@ -205,6 +205,10 @@ jobs:
       - name: Verify the generated dependency inventory
         if: runner.os == 'Linux'
         run: pnpm inventory:check
+      # The legal artifacts are checked against the live locked graphs before
+      # the build below, so a bundle can never be produced from stale notices.
+      - name: Verify the generated third-party notices
+        run: pnpm notices:check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --all-targets
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --features native-test -- -D warnings
