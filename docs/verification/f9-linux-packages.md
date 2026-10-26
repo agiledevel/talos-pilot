@@ -253,3 +253,144 @@ corresponding [ledger entry](../plans/foundation-finish/ledger.md). A fresh
 four-target qualification plus downloaded Linux artifact verification remains
 required before accepting F9-01; no previous run or local reproduction substitutes
 for it.
+
+## Owner-authorized qualification dispatch and blocked Linux download (2026-10-26)
+
+Owner requested dispatch, then Linux artifact download and verification. Source
+was merged `main` **`21e5ea6650a5c7aea5d8512ee6809f9e1d8cbbfe`** (PR #7).
+Before dispatch, the exact revision's Foundation
+[40341836260](https://github.com/agiledevel/talos-pilot/actions/runs/40341836260)
+was read **successful**, including renderer, all four desktop runners and the
+aggregate gate. Security
+[40341836345](https://github.com/agiledevel/talos-pilot/actions/runs/40341836345)
+was read **successful**, including all three CodeQL languages and Trivy.
+These are exact-main results, not reuse of PR checks.
+
+Executed:
+
+```sh
+gh workflow run qualification.yml --ref main \
+  -f revision=21e5ea6650a5c7aea5d8512ee6809f9e1d8cbbfe
+gh run watch 40361473939 --interval 45 --exit-status
+```
+
+Qualification [40361473939](https://github.com/agiledevel/talos-pilot/actions/runs/40361473939),
+attempt 1, completed **failure**:
+
+| Target / job                      | Result   | Observed boundary                                                                                                                                    |
+| --------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Validate qualification source     | pass     | Immutable revision validated                                                                                                                         |
+| macOS ARM `aarch64-apple-darwin`  | pass     | Build, app payload, release-output checks, collection and upload                                                                                     |
+| macOS Intel `x86_64-apple-darwin` | pass     | Same gates and upload; 17 m 24 s                                                                                                                     |
+| Windows `x86_64-pc-windows-msvc`  | pass     | NSIS build, release-output check, collection and upload; 8 m 49 s                                                                                    |
+| Linux `x86_64-unknown-linux-gnu`  | **fail** | DEB/RPM/AppImage built; resource gate, DEB allowlist/notices and RPM extraction/allowlist passed; AppImage allowlist failed before collection/upload |
+
+Linux job [121708016540](https://github.com/agiledevel/talos-pilot/actions/runs/40361473939/job/121708016540)
+reported `The linux-appimage payload contains undeclared executable files`.
+The rejected paths include `AppRun.wrapped`, `usr/share/doc/<library>/copyright`
+(for example `libglib2.0-0`), and `usr/share/glib-2.0/schemas/` data such as
+`gschema.dtd`, `.gschema.xml` and `.gschema.override`. The log establishes their
+classification as executable, not a review of their contents. No broad data-path
+exception or gate suppression was applied. This is newly reached validation:
+the earlier Windows argument and Ubuntu RPM extraction fixes passed on hosted
+runners, but Linux qualification is still not complete.
+
+The run's artifact API listed only the Windows and two macOS artifacts, not
+`release-x86_64-unknown-linux-gnu`. The requested download was attempted:
+
+```sh
+gh run download 40361473939 \
+  --name release-x86_64-unknown-linux-gnu \
+  --dir /tmp/talos-pilot-qualification-40361473939/linux
+```
+
+It returned exit 1: `no artifact matches any of the names or patterns provided`.
+**There are no downloaded Linux bytes, checksums or provenance to verify.**
+`pnpm release:verify` was therefore **unexecuted**, not passed or substituted
+with a local build. No retry of this deterministic failure, tag, release,
+installed guest, cluster operation or host-service change was performed.
+Local logs: `/tmp/tp-qualification-40361473939-{watch,failed}.log`.
+
+**F9-01 stays pending**, blocked by the AppImage payload gate (ledger B12).
+Next: investigate the actual AppImage launch wrapper/data modes, implement a
+narrow reviewed correction with positive/negative coverage and no executable
+bypass, then qualify a newly accepted immutable revision and download/verify
+the Linux artifact. All installed-runtime acceptance rows remain pending.
+
+## B12 correction: explicit launcher and source-proven data (2026-10-26)
+
+Owner requested fixing the failed qualification and starting another run after
+the fix is pushed. Session base: `21e5ea6650a5c7aea5d8512ee6809f9e1d8cbbfe`;
+branch `fix/appimage-payload-inspection`. The preceding uncommitted dispatch
+record is included with this correction rather than discarded.
+
+Acceptance criteria: declare linuxdeploy's real launcher chain, allow no unknown
+program or data-path bypass, reject changed/script/binary data and untrusted
+source escapes, preserve every existing payload/identity/format gate, and use a
+new immutable revision for requalification. No tag/release, dependency refresh,
+installer rewriting or removal of checks is permitted.
+
+### Inspection and choice
+
+A real local release-config AppImage was built with the pinned toolchain,
+locked Cargo and the workflow's digest-checked AppImage runtime. The extracted
+`AppRun` is linuxdeploy's generated Bash launcher: it sources the GTK hook and
+then `exec`s `AppRun.wrapped`. The latter is an ELF program whose SHA-256
+`f30140a43a0a59e46db21bdefdf749b9e9f2c6946e92afabbacf98b8ae73fb4f` equals
+Tauri's downloaded `AppRun-x86_64`. Both are now exact required executable
+paths, not a wildcard allowance. This matches the pinned
+[Tauri 2.12.1 bundler source](https://github.com/tauri-apps/tauri/blob/tauri-cli-v2.12.1/crates/tauri-bundler/src/bundle/linux/appimage/linuxdeploy.rs).
+
+The failed Ubuntu run provides executable-mode path classifications but no
+artifact bytes. Local openSUSE data modes differ: the extracted `gschema.dtd`
+is 0644, matching its source. Therefore this change does **not** presume all
+rejected Ubuntu paths to be harmless text and does not grant blanket directory
+or extension exceptions. Instead it verifies each execute-bit data candidate
+against the exact trusted build OS original before classifying it as data:
+
+- only distro `usr/share/doc/<package>/copyright` and GLib XML/DTD/override
+  paths are eligible; every other executable still needs an explicit program rule;
+- originals must resolve inside their expected data subtree and be regular,
+  non-executable files; payload symlinks cannot escape the extraction root;
+- both files must be bounded UTF-8 data, with no NUL or shebang prefix, and
+  compare byte for byte; missing, changed, binary, executable-source and
+  oversized files fail instead of falling back;
+- limits are 256 files, 1 MiB/file and 32 MiB total; reads detect growth/shrinkage,
+  nonblocking opens reject FIFOs, descriptors close on every outcome, and each
+  successful comparison logs its path and SHA-256;
+- the checker retains the actual execute-bit metadata plus an internal
+  `verifiedSystemData` proof flag; the pure validator honors it **only** for
+  AppImage data candidates. A forged flag on an unknown path or another format
+  cannot suppress the program rule. Maintainer/test-tool rejection is unchanged.
+
+Hosted inspection uses its own `/` source tree. The AppImage-only
+`--appimage-system-root` option permits an operator-supplied trusted copy of the
+exact build OS data for offline inspection/testing. That root is a trust input,
+not an authenticated OS/publisher claim; arbitrary directories or another OS
+must not be substituted. The source snapshot must be retained/reproduced when
+independently rechecking copied data on another system.
+
+### Evidence boundaries
+
+Local AppImage SHA-256:
+`f7bba269c12d3349a09c03eb5bc0f4b6775f41db2bd63d433f87f49f973c19bd`.
+Only a disposable extracted copy's `gschema.dtd` mode was changed to 0755 to
+exercise the reported permission condition; installer bytes were not changed.
+The new verifier matched its 2,917 bytes to the host original with SHA-256
+`44a12f339042a3f5568a9cc86bb617fabaf4a25836b8c9510aa9de22431930c6`.
+This host's AppImage lacks the Ubuntu WebKit helper layout, so its full payload
+gate remains unverified/failing at the required helper check; it is **not** a
+hosted Ubuntu or installed-runtime pass. Logs: `/tmp/tp-appimage-b12-build.log`
+and `/tmp/tp-b12-local-before.log`.
+
+Regression coverage in `scripts/lib/{appimage-system-data,payload}.test.ts`
+executes byte comparisons, same-name disguised scripts without shebangs,
+binary/shebang/non-UTF-8 data, executable/missing/oversized originals, oversized
+payloads, source/payload symlink escapes, FIFO rejection, missing wrapper and
+forged-proof negatives. The CLI case uses separate synthetic payload/OS roots,
+keeps unchanged data passing and rejects an unknown tool and changed data.
+No test treats a filename alone as proof or rewrites the inspected files.
+
+Final local gates and delivery/qualification identities are recorded in the
+ledger. B12 remains open for hosted requalification; F9-01 and all installed
+runtime rows remain pending until their own complete evidence exists.

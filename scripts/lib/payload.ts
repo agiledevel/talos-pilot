@@ -10,12 +10,16 @@
  * the AppImage runtime and the WebKit helper processes are listed explicitly.
  */
 
+import { isAppImageSystemDataPath } from "./appimage-system-data.ts";
+
 /** A regular file inside an extracted payload or a release output directory. */
 export interface PayloadEntry {
   /** POSIX-style path relative to the inspected root. */
   readonly path: string;
   /** Whether the file carries an execute bit. */
   readonly executable: boolean;
+  /** Set only after byte-for-byte verification against non-executable build-OS data. */
+  readonly verifiedSystemData?: true;
 }
 
 /** A payload layout that can be inspected without installing anything. */
@@ -67,9 +71,16 @@ const PAYLOAD_RULES: Readonly<Record<PayloadPlatform, PayloadRules>> = {
     allowed: [exact(MAIN_BINARY), exact(BUNDLED_HELPER)],
   },
   "linux-appimage": {
-    required: [MAIN_BINARY, BUNDLED_HELPER, "AppRun"],
+    // linuxdeploy's GTK hook launcher execs the original Tauri AppRun here.
+    required: [MAIN_BINARY, BUNDLED_HELPER, "AppRun", "AppRun.wrapped"],
     requiredBasenames: [...WEBKIT_HELPERS],
-    allowed: [exact(MAIN_BINARY), exact(BUNDLED_HELPER), exact("AppRun"), APPIMAGE_WEBKIT],
+    allowed: [
+      exact(MAIN_BINARY),
+      exact(BUNDLED_HELPER),
+      exact("AppRun"),
+      exact("AppRun.wrapped"),
+      APPIMAGE_WEBKIT,
+    ],
   },
   "macos-app": {
     required: [MACOS_MAIN, MACOS_HELPER],
@@ -135,13 +146,26 @@ function assertNoForbiddenTools(entries: readonly PayloadEntry[]): void {
  *
  * Required programs must be present and executable, every executable file must
  * be declared, and no maintainer or test tool may exist anywhere in the payload.
+ * AppImage data at the narrowly recognized paths is exempt only after its bytes
+ * have been verified against the build OS's non-executable original; names or
+ * text-like content alone never establish that proof.
  * Throws with the offending path list so a packaging regression names its file.
  */
 export function validatePayload(platform: PayloadPlatform, entries: readonly PayloadEntry[]): void {
   const rules = PAYLOAD_RULES[platform];
   const paths = new Set(entries.map((entry) => entry.path));
   const executable = new Set(
-    entries.filter((entry) => isProgram(entry.path, entry.executable)).map((entry) => entry.path),
+    entries
+      .filter(
+        (entry) =>
+          isProgram(entry.path, entry.executable) &&
+          !(
+            platform === "linux-appimage" &&
+            entry.verifiedSystemData === true &&
+            isAppImageSystemDataPath(entry.path)
+          ),
+      )
+      .map((entry) => entry.path),
   );
   assertNoForbiddenTools(entries);
   for (const required of rules.required) {

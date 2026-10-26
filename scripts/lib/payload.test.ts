@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { APPIMAGE_DATA_LIMITS } from "./appimage-system-data";
 import {
   releaseOutputProgram,
   validatePayload,
@@ -32,6 +33,44 @@ function writeExecutable(path: string, contents = "synthetic program"): void {
   mkdirSync(join(target, ".."), { recursive: true });
   writeFileSync(target, contents);
   chmodSync(target, 0o755);
+}
+
+function prepareAppImageCli(): () => string {
+  for (const path of [
+    main,
+    helper,
+    "AppRun",
+    "AppRun.wrapped",
+    "usr/lib/webkit2gtk-4.1/WebKitNetworkProcess",
+    "usr/lib/webkit2gtk-4.1/WebKitWebProcess",
+  ])
+    writeExecutable(`appimage/${path}`);
+  return () =>
+    execFileSync(
+      process.execPath,
+      [
+        script,
+        "--platform",
+        "linux-appimage",
+        "--root",
+        join(fixture, "appimage"),
+        "--appimage-system-root",
+        join(fixture, "system"),
+      ],
+      { encoding: "utf8", stdio: "pipe", timeout: 5_000 },
+    );
+}
+
+function writeSystemData(path: string, bytes: string | Buffer): void {
+  for (const [root, mode] of [
+    ["system", 0o644],
+    ["appimage", 0o755],
+  ] as const) {
+    const file = join(fixture, root, path);
+    mkdirSync(join(file, ".."), { recursive: true });
+    writeFileSync(file, bytes);
+    chmodSync(file, mode);
+  }
 }
 
 describe("packaged payload allowlists", () => {
@@ -118,6 +157,7 @@ describe("packaged payload allowlists", () => {
       [main, true],
       [helper, true],
       ["AppRun", true],
+      ["AppRun.wrapped", true],
       ["usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitNetworkProcess", true],
       ["usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitWebProcess", true],
       [
@@ -129,6 +169,31 @@ describe("packaged payload allowlists", () => {
     expect(() =>
       validatePayload(
         "linux-appimage",
+        appimage.filter((entry) => entry.path !== "AppRun.wrapped"),
+      ),
+    ).toThrow("missing AppRun.wrapped");
+    const data = { path: "usr/share/doc/libglib2.0-0/copyright", executable: true };
+    expect(() => validatePayload("linux-appimage", [...appimage, data])).toThrow(
+      "undeclared executable",
+    );
+    expect(() =>
+      validatePayload("linux-appimage", [...appimage, { ...data, verifiedSystemData: true }]),
+    ).not.toThrow();
+    expect(() =>
+      validatePayload("linux-appimage", [
+        ...appimage,
+        { path: "usr/share/doc/hidden-tool", executable: true, verifiedSystemData: true },
+      ]),
+    ).toThrow("undeclared executable");
+    expect(() =>
+      validatePayload("linux-deb", [
+        ...entries([main, true], [helper, true]),
+        { ...data, verifiedSystemData: true },
+      ]),
+    ).toThrow("undeclared executable");
+    expect(() =>
+      validatePayload(
+        "linux-appimage",
         appimage.filter((entry) => !entry.path.endsWith("WebKitWebProcess")),
       ),
     ).toThrow("WebKitWebProcess");
@@ -137,6 +202,7 @@ describe("packaged payload allowlists", () => {
       [main, true],
       [helper, true],
       ["AppRun", true],
+      ["AppRun.wrapped", true],
       ["usr/libexec/webkit2gtk-4.1/WebKitNetworkProcess", true],
       ["usr/libexec/webkit2gtk-4.1/WebKitWebProcess", true],
     );
@@ -225,6 +291,49 @@ describe("payload CLI", () => {
     expect(check()).toContain("only the application program");
     writeExecutable("binaries/export_ipc_types");
     expect(check).toThrow("maintainer or test tool");
+  });
+
+  it("verifies executable-mode AppImage data against a separate trusted OS root", () => {
+    const check = prepareAppImageCli();
+    const data = "usr/share/glib-2.0/schemas/org.example.gschema.xml";
+    writeSystemData(data, "<schemalist/>\n");
+    expect(check()).toContain("Verified unchanged AppImage system data");
+    const hidden = "appimage/usr/share/doc/libfoo/not-copyright";
+    writeExecutable(hidden);
+    expect(check).toThrow("undeclared executable");
+    rmSync(join(fixture, hidden));
+    writeExecutable(`appimage/${data}`, "printf 'hidden script without shebang'\n");
+    expect(check).toThrow("payload bytes differ");
+  });
+
+  it("bounds the verified data file count without relaxing the inclusive limit", () => {
+    const check = prepareAppImageCli();
+    for (let index = 0; index < APPIMAGE_DATA_LIMITS.files; index += 1)
+      writeSystemData(`usr/share/doc/libfixture${index}/copyright`, "synthetic copyright\n");
+    expect(check()).toContain("only declared programs");
+    writeSystemData("usr/share/doc/libextra/copyright", "synthetic copyright\n");
+    expect(check).toThrow("data file count exceeds its bound");
+  });
+
+  it("bounds cumulative verified bytes independently of per-file limits", () => {
+    const check = prepareAppImageCli();
+    const bytes = Buffer.alloc(APPIMAGE_DATA_LIMITS.fileBytes, 0x61);
+    const count = APPIMAGE_DATA_LIMITS.totalBytes / APPIMAGE_DATA_LIMITS.fileBytes;
+    for (let index = 0; index < count; index += 1)
+      writeSystemData(`usr/share/doc/libfixture${index}/copyright`, bytes);
+    expect(check()).toContain("only declared programs");
+    writeSystemData("usr/share/doc/libextra/copyright", bytes);
+    expect(check).toThrow("data bytes exceed their total bound");
+  });
+
+  it("rejects a system-data override outside AppImage inspection", () => {
+    expect(() =>
+      execFileSync(
+        process.execPath,
+        [script, "--platform", "linux-deb", "--root", fixture, "--appimage-system-root", fixture],
+        { stdio: "pipe" },
+      ),
+    ).toThrow("requires a linux-appimage payload root");
   });
 
   it("rejects unknown options and unsupported payload platforms", () => {
