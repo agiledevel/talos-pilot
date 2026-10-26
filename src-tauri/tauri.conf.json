@@ -28,6 +28,10 @@
   "bundle": {
     "active": false,
     "icon": ["icons/icon.png", "icons/icon.ico"],
-    "resources": ["binaries/"]
+    "resources": {
+      "binaries/": "binaries/",
+      "../legal/THIRD-PARTY-NOTICES.txt": "legal/THIRD-PARTY-NOTICES.txt",
+      "../legal/third-party-manifest.json": "legal/third-party-manifest.json"
+    }
   }
 }

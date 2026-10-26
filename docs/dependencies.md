@@ -125,7 +125,7 @@ cannot select). `pnpm advisories:check` re-proves that record against the scanne
 report, the reverse dependency paths, and the 37,865 demangled symbols in the
 built Linux executable, where neither affected symbol appears. See [decision
 0006](decisions/0006-gtk3-advisory-applicability.md) for the accepted
-applicability decision, the alternatives, and the 2026-11-30 review date.
+applicability decision, the alternatives, and the 2026-10-26 renewal review that set the 2027-02-28 expiry.
 
 A 2026-10-22 re-run against advisory database commit
 `640bf5a9f06e66d8721e8772766531fe77c8630d` added six patched `rustls`-family
@@ -160,7 +160,7 @@ F8 replaces the earlier "installer notice packaging remains a release task" note
 
 `pnpm notices:check` is part of `beforeBuildCommand` in `src-tauri/tauri.conf.json`, so every Tauri build (including the release overlay) checks the committed artifacts _before_ compiling, and a build that would regenerate them cannot hide a stale file. The Linux desktop CI job runs the same check explicitly, next to `pnpm inventory:check`.
 
-The resources are mapped into the bundle under `legal/`, and the measured installed location is recorded in [the F8 verification record](verification/f8-notices-security.md). Recipients read the files with ordinary tools and no network access; the application does not open them, so no filesystem capability is granted.
+The resources are mapped into the bundle under `legal/`. In the measured Linux DEB (`Talos Pilot_0.1.0_amd64.deb`) they install to **`/usr/lib/Talos Pilot/legal/`** as `THIRD-PARTY-NOTICES.txt` (5,405,724 bytes) and `third-party-manifest.json` (512,625 bytes), next to the bundled helper in `/usr/lib/Talos Pilot/binaries/`; the executable is `/usr/bin/talos-pilot`. Recipients read the files with ordinary tools and no network access; the application does not open them, so no filesystem capability is granted. The release workflow extracts the built DEB in a temporary directory and runs `pnpm notices:check-packaged` against that directory before upload. The [F8 verification record](verification/f8-notices-security.md) holds the package digest, the payload digests and the negative tamper/missing/unexpected cases; the RPM and AppImage payloads, and every installed-package runtime row, remain F9 work.
 
 ### Coverage and target strategy
 

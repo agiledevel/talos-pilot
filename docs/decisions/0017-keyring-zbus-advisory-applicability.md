@@ -1,8 +1,8 @@
 # 0017: Record the inactive keyring back-end advisories with an enforced absence check
 
-Date: 2026-10-22. Status: accepted for milestone 1. Review at the document 07
-dependency/security packet, or when keyring moves to a 4.x line, whichever
-comes first.
+Date: 2026-10-22; reviewed at the document 07 packet on 2026-10-26. Status:
+accepted for milestone 1. Next review when keyring moves to a 4.x line, or at
+the M2.0 foundation handoff, whichever comes first.
 
 ## Context
 
@@ -41,6 +41,18 @@ direct application dependency and is not justified by an informational
 `pnpm advisories:check` failed on these three findings, because the recorded set
 did not describe them. Leaving the gate red is not acceptable, and silently
 adding them to the accepted list would record a claim that nothing verifies.
+
+## Document 07 review (2026-10-26, foundation F8)
+
+The packet review re-ran `pnpm advisories:check` and `cargo audit --file
+src-tauri/Cargo.lock` on the `ft-dependency-notices-security` branch. All three
+`unmaintained` advisories are still reported by the scanner and still absent from
+the resolved graph for every declared target, so the enforced absence check
+remains true; no entry was widened or removed. `keyring 4.2.0` (which would pull
+`zbus` 5/6 and `zvariant` 5) is available but stays deferred: it is a major
+upgrade of a direct dependency with vault behaviour to requalify, and the
+advisories cover code this build never compiles. There is no Trivy exception for
+these three findings, so this review does not change an expiry date.
 
 ## Decision
 

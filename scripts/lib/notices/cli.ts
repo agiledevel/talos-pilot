@@ -120,7 +120,11 @@ function summarize(rendered: RenderedNotices): string {
 export function runNoticeCli(argv: readonly string[], options: NoticeCliOptions): NoticeCliResult {
   const limits = options.limits ?? NOTICE_LIMITS;
   const log = options.log ?? (() => undefined);
-  const command = argv[0];
+  // `pnpm run <script> -- <argument>` forwards the separator itself, so the
+  // documented `pnpm notices:check-packaged -- <payload-root>` form arrives as
+  // ["check-packaged", "--", "<payload-root>"].
+  const args = argv.filter((argument) => argument !== "--");
+  const command = args[0];
   if (command !== "generate" && command !== "check" && command !== "check-packaged") {
     throw new Error(
       "Usage: pnpm notices:generate | pnpm notices:check | pnpm notices:check-packaged -- <payload-root>",
@@ -161,8 +165,8 @@ export function runNoticeCli(argv: readonly string[], options: NoticeCliOptions)
     assertArtifactPair(rendered.notices, rendered.manifestJson);
     return { command, message: `Notice artifacts are current: ${summarize(rendered)}.` };
   }
-  const payloadRoot = argv[1];
-  if (payloadRoot === undefined || argv.length > 2) {
+  const payloadRoot = args[1];
+  if (payloadRoot === undefined || args.length > 2) {
     throw new Error("notices:check-packaged needs exactly one payload root argument.");
   }
   const notices = readCommitted(options.root, NOTICES_PATH, limits.noticesBytes);

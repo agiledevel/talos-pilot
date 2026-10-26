@@ -1,26 +1,35 @@
 # Each exception names one finding and path, explains why it is accepted, and
 # expires. After expiry Trivy reports the finding again and the gate fails.
+# Both entries were re-proved on 2026-10-26 (foundation F8 / document 07) and
+# renewed to 2027-02-28; the evidence is in
+# docs/verification/f8-notices-security.md, docs/decisions/0006-gtk3-advisory-applicability.md
+# and docs/verification/automation.md. No ID or path was widened.
 vulnerabilities:
   - id: GHSA-wrw7-89jp-8q8g
     paths:
       - src-tauri/Cargo.lock
     statement: >-
       RUSTSEC-2024-0429, glib 0.18.5 VariantStrIter unsoundness, reached only through
-      Tauri's Linux GTK3 stack. The fixed 0.20 line is incompatible with gtk 0.18.
-      pnpm advisories:check re-proves the recorded applicability decision against the
-      scanner report, the reverse dependency path, and the linked executable; see
-      docs/decisions/0006-gtk3-advisory-applicability.md.
-    expired_at: 2026-11-30
+      Tauri's Linux GTK3 stack. The advisory patches only glib >= 0.20.0; glib 0.18.5 is
+      the final 0.18 release, and the latest wry (0.57.1) still requires gtk ^0.18, which
+      requires glib ^0.18, so no compatible fix exists in the released stack. The affected
+      iterator methods are absent from the unstripped Linux executable, which
+      pnpm advisories:check re-proves against the scanner report and the reverse path; see
+      docs/decisions/0006-gtk3-advisory-applicability.md. Evidence reviewed 2026-10-26;
+      next review 2027-02-28.
+    expired_at: 2027-02-28
   - id: GO-2026-5932
     paths:
       - helper/go.mod
     statement: >-
-      The advisory deprecates the golang.org/x/crypto/openpgp packages in every
-      module version, so no upgrade removes it. The helper builds none of them
-      on any declared target: Talos request signing uses
-      github.com/ProtonMail/go-crypto, the maintained fork the advisory
-      recommends, and x/crypto is required only for other packages. pnpm
-      audit:go (govulncheck) fails once an openpgp symbol is reachable from
-      helper code. Tracked as FND-007; evidence is in
-      docs/verification/automation.md.
-    expired_at: 2026-11-30
+      The advisory deprecates the golang.org/x/crypto/openpgp packages in every module
+      version with no fixed release, so no upgrade removes it. go list -deps for
+      linux/amd64, darwin/amd64, darwin/arm64 and windows/amd64 shows that the helper
+      imports only x/crypto's argon2, blake2b, cast5, cryptobyte, hkdf and sha3 packages on
+      every declared target and no openpgp package; Talos request signing uses
+      github.com/ProtonMail/go-crypto, the maintained fork the advisory recommends.
+      pnpm audit:go (govulncheck) fails once an openpgp symbol is reachable from helper
+      code. Tracked as FND-007; evidence is in docs/verification/automation.md and
+      docs/verification/f8-notices-security.md. Evidence reviewed 2026-10-26; next review
+      2027-02-28.
+    expired_at: 2027-02-28
