@@ -26,22 +26,24 @@ Two shared documents support them:
 - [ledger.md](ledger.md) is the progress record. **Every session must update it.** The rules are in its first section.
 - [fixture-runbook.md](fixture-runbook.md) is the procedure for provisioning, using, and destroying the disposable Talos fixture.
 
-**Current execution entry point (2026-10-25):** [follow-up-to-m2.md](follow-up-to-m2.md), whose step S1 is **done**: S1-P2-1/2/3 and document 05 are accepted on Linux, with the [S1 launch prompt](s1-launch-prompt.md) now historical. S0 is [accepted by owner exception after the real native keyboard pass](../../verification/s0-native-keyboard-acceptance.md), with B11 unresolved/not fixed and diagnostics retained. S2/[document 06](06-f7-terminal-chart.md) is now **done on Linux**: its review findings are corrected, its [corrective record](../../verification/s2-r1-chart-frame-coalescing.md) holds the failing-before/passing-after regression and all rerun gates, and the corrective candidate's hosted Foundation/Security checks passed. S3/[document 07](07-f8-dependencies-notices-security.md) starts only after the owner merges PR [#4](https://github.com/agiledevel/talos-pilot/pull/4) and a session reads that merged revision's `main` results. After that come the remaining Linux packets, final technical evidence, the mandatory owner review, Linux close, and M2.0 only. It does not replace packet acceptance criteria or the ledger. C6 stays in progress for installed packages and deferred WebViews.
+**Current execution entry point (2026-10-26):** [follow-up-to-m2.md](follow-up-to-m2.md), whose step S1 is **done**: S1-P2-1/2/3 and document 05 are accepted on Linux, with the [S1 launch prompt](s1-launch-prompt.md) now historical. S0 is [accepted by owner exception after the real native keyboard pass](../../verification/s0-native-keyboard-acceptance.md), with B11 unresolved/not fixed and diagnostics retained. S2/[document 06](06-f7-terminal-chart.md) is now **done on Linux**: its review findings are corrected, its [corrective record](../../verification/s2-r1-chart-frame-coalescing.md) holds the failing-before/passing-after regression and all rerun gates, and the corrective candidate's hosted Foundation/Security checks passed. S2 merged via PR [#4](https://github.com/agiledevel/talos-pilot/pull/4) at `41b1e00`, and that exact `main` revision's Foundation/Security results passed and were read. S3/[document 07](07-f8-dependencies-notices-security.md) is **done on Linux (F8 accepted 2026-10-26)**: full notices and manifest generated and drift-enforced in every Tauri build and on all three desktop CI systems, a verified Linux DEB payload, native smoke, fresh audits, both Trivy exceptions re-proved and renewed to 2027-02-28, and hosted Foundation/Security passing for PR [#5](https://github.com/agiledevel/talos-pilot/pull/5) head `0bf8d75` with no reused evidence. Installed packages, non-Linux runtimes and the remaining Linux formats stay with F9/document 10, so C7 remains in progress for them. After that come the remaining Linux packets, final technical evidence, the mandatory owner review, Linux close, and M2.0 only. It does not replace packet acceptance criteria or the ledger. C6 stays in progress for installed packages and deferred WebViews.
 
 The older [closeout-plan.md](closeout-plan.md) retains host setup, owner decisions and historical session detail; its starting snapshot and completed A/A1/A2/B instructions are not the next task. The saved [Session B launch prompt](session-b-prompt.md) is historical and must not be used to restart the editor implementation from scratch.
 
 **Current review/CI context:** [PR #4](https://github.com/agiledevel/talos-pilot/pull/4)
-is open and its latest head `4fcc9d2` — the corrective revision plus documentation
-— passed Foundation
-[40243673183](https://github.com/agiledevel/talos-pilot/actions/runs/40243673183)
-and Security
-[40243673202](https://github.com/agiledevel/talos-pilot/actions/runs/40243673202),
-with renderer, desktop and JavaScript/TypeScript freshly executed. The
+merged on 2026-10-25 at `41b1e008abbcb9a663d02f425bdc67775f4170b6`.
+That exact `main` revision passed Foundation
+[40245086906](https://github.com/agiledevel/talos-pilot/actions/runs/40245086906)
+(renderer and all four desktop runners executed) and Security
+[40245086864](https://github.com/agiledevel/talos-pilot/actions/runs/40245086864)
+(all three CodeQL languages and Trivy freshly executed). Job/step results were
+read on 2026-10-26. The
 [review corrections](../../verification/s2-review-s3-readiness.md) are applied:
-[S2-R1 is fixed and requalified, S2-R2 reconciled](../../verification/s2-r1-chart-frame-coalescing.md),
-F7/document 06 is done on Linux, and document 07 step 6 now discovers the
-owner-designated branch/PR instead of naming PR #2. The owner's merge and that
-merged revision's `main` results are what remain before S3 may start.
+[S2-R1 fixed and requalified, S2-R2 reconciled](../../verification/s2-r1-chart-frame-coalescing.md).
+The S3 entry gate is met; main CI is not S3/native/installed-package evidence.
+Document 07 now defines S3-A–D and F8-01–08 for deterministic full notices,
+target coverage, real Linux payload/native checks and security renewal.
+The preparation branch is local; no push or PR is authorized by this handoff.
 
 **Historical branch context for S2 preparation:** PR #3 merged into `main` at `a7ada06`, including
 the normalized editor-bounds correction. Old branch names, PR #2/#3 commands

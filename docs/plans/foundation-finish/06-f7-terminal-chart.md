@@ -9,20 +9,21 @@ review](../../verification/s2-review-s3-readiness.md) at `114fbdb` recorded S2-R
 records the fix in `5e306a5`, the failing-before/passing-after browser
 regression, the rerun renderer, browser, native, trusted-input and ordered
 production gates, and the hosted runs for PR head `4fcc9d2`. PR #4's earlier runs
-covered `114fbdb` only. S3 waits for the owner's merge and that revision's `main`
-results; this packet does not close C6, C7, milestone 1, the Q13 owner review or
-the M2 entry gate.
+covered `114fbdb` only. **Entry update, 2026-10-26:** PR #4 merged at `41b1e00`;
+that exact main revision's Foundation/Security passed and were read, satisfying
+the S3 entry gate (run links in [document 07](07-f8-dependencies-notices-security.md)).
+This packet does not close C6, C7, milestone 1, the Q13 owner review or the M2
+entry gate.
 
 The following is the historical implementation handoff, superseded by that
 review where it describes current acceptance or hosted status. Reviewed against `main` at `a7ada06` on 2026-10-25, after PR #3
 merged the accepted S1 corrections and normalized-model bounds fix. S2-A–D are
 complete on `docs/s2-flash-readiness`; the [F7 evidence
 record](../../verification/f7-terminal-chart.md) lists every F7-01–F7-08
-outcome, bounds, native/X11 evidence and limits. The branch is local without a
-pull request, so no hosted Foundation/Security run exists for this revision and
-F7 is **not yet accepted**; document 06 closes only after those results are read.
-Use the [S2 launch prompt](s2-launch-prompt.md) only to continue this packet,
-not to restart it.
+outcome, bounds, native/X11 evidence and limits. The original pending-hosted
+handoff is superseded by the corrective acceptance above; the
+[S2 launch prompt](s2-launch-prompt.md) is now historical, not a restart or the
+next task. Continue with S3/document 07 in a later implementation task.
 
 Read the series [README](README.md) and current [ledger](ledger.md) status first.
 Plan packet: [F7](../foundation-completion-flash.md#f7--qualify-bounded-terminal-and-chart-wrappers).

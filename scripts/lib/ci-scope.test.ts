@@ -20,6 +20,14 @@ describe("desktop scope path classification", () => {
   it("treats checked inputs, workflows, and nested Markdown outside docs as code", () => {
     for (const path of [
       "docs/verification/dependency-inventory.json",
+      // Legal artifacts are build inputs: `pnpm notices:check` runs before the
+      // Tauri build and compares these exact bytes, so a documentation-only
+      // classification would let stale analysis reuse a changed input.
+      "legal/THIRD-PARTY-NOTICES.txt",
+      "legal/third-party-manifest.json",
+      "legal/sources/registry.json",
+      "legal/sources/README.md",
+      "legal/sources/upstream/kube-LICENSE.txt",
       ".github/workflows/check.yml",
       "src-tauri/src/lib.rs",
       "helper/README.md",

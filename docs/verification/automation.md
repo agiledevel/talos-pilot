@@ -263,3 +263,31 @@ comment that changes the generated TypeScript declaration exits 1 with
 ``Generated IPC declaration `ApplicationErrorDto.ts` is stale``, and the
 restored tree exits 0. macOS and Windows byte behaviour for this step is
 unexecuted and belongs to the next hosted run.
+
+## Amendment: F8 Trivy exception renewal
+
+On 2026-10-26 the F8 session re-proved both registered exceptions before renewing
+them to **2027-02-28**. The pinned Trivy 0.74.0 binary was downloaded from its
+release asset, verified against the workflow's SHA-256
+(`2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a`), and run
+with the workflow arguments (`fs --scanners vuln,secret,misconfig
+--ignorefile … --format sarif .`) against a clean copy of the tracked tree only
+(`git archive HEAD`), because a developer working copy also holds `.tools/` and
+`node_modules/`, which the CI checkout does not.
+
+| Case                                                | Result                                                                                                                                   |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Renewed `.trivyignore.yaml`                         | SARIF result count **0**, which is the CI gate (`test "$count" -eq 0`).                                                                  |
+| Same file with `expired_at: 2026-01-01` (past date) | Count **2**: `GHSA-wrw7-89jp-8q8g` at `src-tauri/Cargo.lock` and `GO-2026-5932` at `helper/go.mod`, so expiry still re-enables the gate. |
+| No ignore file                                      | Count **2**, the same two findings, so the exceptions are the only suppression.                                                          |
+
+The two entries kept their IDs and paths; only the statements and expiry dates
+changed. The applicability evidence behind the renewal is in
+[decision 0006](../decisions/0006-gtk3-advisory-applicability.md),
+`docs/verification/f8-notices-security.md`, and the per-target `go list -deps`
+import scan, which shows no `golang.org/x/crypto/openpgp` package on linux/amd64,
+darwin/amd64, darwin/arm64 or windows/amd64.
+
+Not executed here: the hosted Trivy job for this revision, which is pending until
+the branch is pushed with owner authorisation, and any macOS or Windows scan.
+This local reproduction is Linux x86_64 evidence only.

@@ -1,11 +1,12 @@
 # S2 launch prompt: terminal and chart feasibility
 
-Status: **ready; not executed**. Documentation reviewed on `main` at `a7ada06`
-(2026-10-25), then prepared on `docs/s2-flash-readiness`. S1/document 05 and
-its normalized-model bounds correction are accepted on Linux and merged via
-PR #3. S2/F7 is unblocked but **not started**. This prompt launches only
-[document 06](06-f7-terminal-chart.md); it does not accept any implementation
-or grant new push/PR/host permissions.
+Status: **HISTORICAL; executed and superseded by S2 acceptance** (updated
+2026-10-26). Originally prepared from `main` `a7ada06` on
+`docs/s2-flash-readiness`. S2/F7 is accepted on Linux, its corrective findings are
+resolved, and PR #4 merged at `41b1e00` with successful exact-main results read.
+See [document 06](06-f7-terminal-chart.md) and the ledger for attributed evidence.
+Do not re-run this prompt; the next task is the [S3 launch prompt](s3-launch-prompt.md).
+The original task text below is retained as historical scope, not new authority.
 
 ## Copy-paste task prompt
 

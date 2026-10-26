@@ -1,6 +1,7 @@
 # 0006: Accept the GTK3 advisory pair with verified non-linkage
 
-Date: 2026-10-09. Status: accepted for milestone 1. Review by 2026-11-30.
+Date: 2026-10-09; renewed after re-proof on 2026-10-26. Status: accepted for
+milestone 1. Review by 2027-02-28 (hard Trivy expiry, see the renewal section).
 
 ## Context
 
@@ -53,6 +54,38 @@ milestone 1 instead of pretending a remediation exists in the locked stack:
 3. Re-evaluate when Tauri moves its Linux bindings to `gtk-rs` 0.20 or newer; that
    upstream move resolves both entries at once. Until then milestone 1 keeps the
    findings visible in the evidence record with their residual risk.
+
+## Renewal review (2026-10-26, foundation F8)
+
+The Trivy exception expired on 2026-11-30 and was re-proved before renewal; no
+ID, path or scan setting was widened. Evidence was gathered on the
+`ft-dependency-notices-security` branch with the pinned toolchain and the freshly
+rebuilt unstripped Linux production executable:
+
+- **Current path and constraints.** `cargo tree --locked -i glib -e normal` still
+  reaches `glib 0.18.5` only from `atk 0.18.2`/`gtk 0.18.2` (through `muda
+  0.20.0`, `tao 0.37.1`, `tauri 2.12.1`, `tauri-runtime 2.12.1`,
+  `tauri-runtime-wry 2.12.1` and `webkit2gtk 2.0.2` from `wry 0.57.0`).
+- **Upstream compatible-fix assessment (primary sources).** The
+  `rustsec/advisory-db` entry patches only `glib >= 0.20.0` for the five
+  `glib::VariantStrIter` iterator methods. crates.io shows `glib 0.18.5`
+  (2023-12-30) as the final 0.18 release, so no patch exists inside the `^0.18`
+  range. `gtk 0.19.0` exists and requires `glib ^0.22`, but the latest `wry`
+  (0.57.1, 2026-10-23) still declares `gtk ^0.18` with `webkit2gtk = 2.0.2`, and
+  the latest `tauri` (2.12.5) therefore cannot reach the patched glib line. A
+  fix still requires the upstream GTK bindings move recorded under Decision
+  point 3.
+- **Linked-code evidence.** `pnpm advisories:check` passed on the rebuilt
+  executable, and an independent `nm -C` scan of the same file contains no
+  `VariantStrIter` symbol; the hash of the executable used is recorded in
+  [the F8 evidence record](../verification/f8-notices-security.md).
+- **Residual risk.** The unsound code is compiled but never called by this
+  application; the risk is a latent API defect in a dependency of the GTK3
+  desktop shell, not a reachable path. It disappears only when Tauri's Linux
+  stack moves to the newer gtk-rs series.
+- **Next review/expiry.** 2027-02-28. The exception is not auto-renewed: Trivy
+  reports the finding again after that date and the gate fails, which the
+  renewed evidence re-verified with an expired copy of the same exception file.
 
 ## Alternatives considered
 
