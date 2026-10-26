@@ -204,10 +204,12 @@ built and is checked on every startup.
 build artifact, not committed source. Go output is committed under
 `helper/internal/protocol/helper/v1/` and uses `protoc-gen-go` 1.36.12. Rust
 SerDe application DTOs in `src-tauri/src/contracts.rs` are exported by the
-`export_ipc_types` binary into `src/lib/ipc/generated/`; those declarations
-are formatted with the pinned Oxfmt tool and are never edited by hand.
+`export_ipc_types` example into `src/lib/ipc/generated/`; those declarations
+are formatted with the pinned Oxfmt tool and are never edited by hand. The
+generator is a Cargo example, not a `src/bin` target, so the bundler cannot
+install the maintainer tool in a package payload.
 
-The generator requires the Go toolchain recorded in `helper/go.mod` (1.27.2) and `protoc` 36.2 on `PATH`. The helper
+The generator requires the Go toolchain recorded in `helper/go.mod` (1.27.3) and `protoc` 36.2 on `PATH`. The helper
 module's `go.mod` pins the tool directive and protobuf runtime. The generator
 installs the exact Go plugin into a temporary directory, checks all tool
 versions, generates Go into a temporary directory, and compares generated

@@ -125,7 +125,7 @@ function main(): void {
         "--locked",
         "--manifest-path",
         join(root, "src-tauri/Cargo.toml"),
-        "--bin",
+        "--example",
         "export_ipc_types",
         "--",
         "--output-dir",

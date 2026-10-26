@@ -1,116 +1,282 @@
 # 08 — F9 on Linux: installer artifacts and clean-target runtime
 
-Read the series [README](README.md) and the [ledger](ledger.md) first. This document needs no Talos fixture.
+Plan revision: 2, 2026-10-26. **F9 in progress (S4-A implemented locally;
+hosted artifact production blocked on owner-authorised publication/dispatch).**
+Branch: `ft-linux-package-qualification`, from merged `main`
+`4a2f9914ddac222433ba99437e8aa39d54314078` (PR #5). Local results and remaining
+rows: [F9 evidence](../../verification/f9-linux-packages.md).
+Read the series [README](README.md), [ledger](ledger.md), [readiness
+review](../../verification/f8-review-s4-readiness.md) and [S4 launch
+prompt](s4-launch-prompt.md). This replaces the earlier F9 task detail, not the
+normative scope or its gates.
 
-Plan packet: [F9](../foundation-completion-flash.md#f9--qualify-actual-packages-and-clean-target-runtimes), parts F9.0, F9.1, and the Linux part of F9.4. Maps to checkpoint C8 and tasks FND-002, FND-003, FND-005, FND-006, and FND-008. Prerequisite: document 07 is `done`.
+Plan packet: [F9](../foundation-completion-flash.md#f9--qualify-actual-packages-and-clean-target-runtimes),
+F9.0/F9.1 and Linux F9.4; checkpoint C8, contributing to C1/C2/C3/C6/C7 and
+FND-002/003/005/006/008. Prerequisite: document 07 is done on Linux, supported by
+[the F8 evidence](../../verification/f8-notices-security.md). Read the merged
+revision's Foundation/Security result before accepting S4; pending is not passed.
+macOS/Windows installed-runtime qualification stays deferred to [document
+10](10-platform-revisit.md). F1a/F5 fixtures remain independent open work under
+Q11, not a reason to restart F8 or skip later Linux close prerequisites.
 
-The macOS part (F9.2) and the Windows part (F9.3) are deferred by the owner to [document 10](10-platform-revisit.md). Do not attempt them here.
+## 1. Outcome and non-goals
 
-## Outcome
+Build the same release-configuration bundles for one immutable revision on all
+four desktop runners without creating a tag or release. Install and exercise
+the Linux artifacts in clean Ubuntu 22.04 and current Fedora guests, including
+vault, helper, offline specialized views, failure paths and observed cleanup.
+C8 can then close **on Linux only**; it remains open for deferred platforms.
 
-Installers for a chosen revision can be built on the four CI runners without creating a tag or a release. The Linux installers are installed, launched, used, and removed on clean Ubuntu 22.04 and current Fedora virtual machines, with the helper, the vault, the offline assets, and shutdown cleanup observed. Checkpoint C8 then has its Linux rows; it stays open for the deferred platforms.
+No cluster features, profile UX, general shell/filesystem IPC, production signing,
+updater implementation, Talos/dependency refresh, performance budgets or M2 work.
+Do not invoke the tag/release workflow just to obtain packages. Do not use the
+owner's existing containers, clusters or `Win11 Jump` VM. No host firewall,
+bridge, zone, daemon or service changes are authorized by this packet.
 
-## Read before you start
+This planning branch grants no push, PR, dispatch, merge, tag or release
+authority. Use current owner authorization before remote operations. A manual
+workflow must exist on the default branch before dispatch; a 404 is a blocker,
+not evidence. Record the exact resource/authorization needed and continue only
+independent preparation. Never create a tag or temporary publishing trigger to
+work around it.
 
-| File                                                                                        | Why                                                               |
-| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [docs/ci-release.md](../../ci-release.md)                                                   | The preview release contract and failure recovery                 |
-| [docs/release-preview.md](../../release-preview.md)                                         | What a preview package is and is not                              |
-| `.github/workflows/release.yml`, `.github/tauri.release.conf.json`                          | The existing packaging steps you must reuse                       |
-| `.github/workflows/check.yml`                                                               | The four desktop runners                                          |
-| `scripts/release-assets.ts`, `scripts/release-metadata.ts`, `scripts/appimage-resources.ts` | Asset collection, metadata checks, and the AppImage resource gate |
-| `scripts/check-production-exclusion.ts`                                                     | The check that test support is absent from production artifacts   |
-| `scripts/build-helper.ts`, `src-tauri/tauri.conf.json`                                      | How the helper is built and bundled as a resource                 |
-| [Decision 0004](../../decisions/0004-native-vault-integration.md)                           | Vault behavior, including locked and unavailable states           |
-| [Decision 0010](../../decisions/0010-macos-minimum-webview.md)                              | Context for the deferred macOS rows                               |
+## 2. Read and reuse
 
-Apply the `talos-pilot-tauri` and `talos-pilot-typescript` skills.
+| Boundary                      | Sources and implication                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Release pipeline              | `.github/workflows/release.yml`, `.github/tauri.release.conf.json`, [CI/release](../../ci-release.md), [preview contract](../../release-preview.md). Extract one shared asset build path; preserve the final draft's dependency on source, QA, security, native and all assets.                                                                                          |
+| Version/provenance            | `scripts/release-metadata.ts`, `scripts/lib/release.ts`, `scripts/release-assets.ts` and their tests. The source validator requires a real tag and main ancestry; it cannot validate an untagged qualification build unchanged. The collector requires `RELEASE_TAG`, target-specific output directories and exactly one installer per format.                           |
+| AppImage                      | `scripts/appimage-resources.ts`, `.github/actions/linux-prerequisites/action.yml`, `scripts/ci-linux-prerequisites.sh`. Preserve the pinned runtime hash and executable WebKit helper gate; an AppDir scan alone is not rendered launch evidence.                                                                                                                        |
+| Payload and production checks | `scripts/check-production-exclusion.ts`, `scripts/advisory-baseline.ts`, `scripts/lib/notices/payload.ts`, [decision 0020](../../decisions/0020-dependency-notice-generation.md). Existing production/advisory scripts inspect the local default release executable, not downloaded installers. Extend narrow check inputs/tests instead of scanning the wrong artifact. |
+| Packaged binaries             | `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `src-tauri/examples/export_ipc_types.rs`, `scripts/build-helper.ts`, `src-tauri/build.rs`, `scripts/contracts.ts`. The F8 DEB included a maintainer exporter; it is now a Cargo example, and a payload allowlist keeps a future `src/bin` tool out. Preserve deterministic generation.                              |
+| Runtime ownership             | `src-tauri/src/helper/`, `helper/cmd/talos-pilot-helper/`, `docs/protocol/helper-v1.md`, `docs/protocol/application-ipc.md`. Inspect actual packaged-path resolution, build identity, deadlines and crash/shutdown ownership before designing faults.                                                                                                                    |
+| Vault/import                  | `src-tauri/src/storage/`, `src/features/settings/`, [decision 0004](../../decisions/0004-native-vault-integration.md), [decision 0005](../../decisions/0005-native-kubeconfig-import.md), [storage v1](../../storage/storage-v1.md). Startup must not open the vault; synthetic credential bytes never cross renderer IPC.                                               |
+| Native and CI harness         | `tests/native/`, `scripts/test-native.ts`, `.github/workflows/native.yml`, `.github/workflows/check.yml`, `scripts/lib/ci-scope.ts` and its tests. Test-feature builds are distinct from the ordinary installed product.                                                                                                                                                 |
 
-## Context
+Read the Tauri and TypeScript skills before scripts/workflows/packaging work;
+Rust for native/checker ownership changes, Go for helper changes, Svelte and its
+project/TypeScript/tooling skills for affected renderer behavior. Follow
+[quality.md](../../quality.md) and [FLASH pace](../../flash-pace.md).
 
-### How installers are built today
+## 3. Execution checkpoints
 
-Only the release workflow builds installers. It runs on a version tag, builds `deb`, `rpm`, and `appimage` on `ubuntu-22.04`, `app` and `dmg` on both macOS runners, and `nsis` on `windows-2022`, and then creates a draft prerelease. There is no way to get installers for an arbitrary revision without publishing something. `pnpm desktop:build` builds with `--no-bundle`, so it produces an executable and no installer.
+Use S4-A → S4-B → S4-C → S4-D. Each may span sessions; one coherent numbered
+subpart per checkpoint is sufficient. Mark the ledger in progress before code,
+open `docs/verification/f9-linux-packages.md` with the acceptance IDs below,
+record commands and pending rows, and leave a runnable result. That evidence
+file does not exist yet; do not copy planned results into it as passes.
 
-### Facts about this host
+### S4-A — Shared, tag-free artifact production (F9.0)
 
-- An AppImage built on this openSUSE host bundled correctly but failed to render, because WebKit helper processes were missing. `pnpm release:check-linux` exists to catch that. Fix a missing helper at its source; never patch an installer by hand.
-- This host has no DEB tooling. The reference Linux build is the Ubuntu 22.04 CI runner.
-- QEMU and KVM work with `sudo`.
+1. Inspect the actual tree, pins and hosted results. Write source validation,
+   output/provenance, permissions and failure cases before changing CI.
+2. Refactor existing matrix packaging into a reusable workflow or composite
+   action plus a small wrapper. Both release and qualification must call the
+   **same** build steps, targets, hooks and release configuration. Preserve
+   Ubuntu 22.04 DEB/RPM/AppImage, macOS ARM/Intel app+DMG, Windows NSIS, frozen
+   pnpm, locked Cargo, Go/protoc pins, icons, notices, AppImage runtime digest
+   and resource checks. No copied second recipe or routine dependency refresh.
+3. Give qualification a required source revision, resolved once to a full
+   commit SHA; validate its shape/existence and record the exact checkout.
+   Choose reviewed in-repository source only, not arbitrary repository URLs.
+   Treat dispatch inputs as data, not shell fragments. Verify matching
+   npm/Tauri/Cargo versions without requiring or creating a tag. Keep real-tag
+   resolution, main ancestry and version checks mandatory in release mode.
+4. Separate package version from publication identity. Refactor the collector
+   to handle untagged qualification honestly; do not fabricate a `RELEASE_TAG`
+   or relax `release:check`. Reject invalid SHA/target/version, missing/duplicate
+   installers and stale outputs. Keep Windows process invocation portable.
+5. Embed `TALOS_PILOT_BUILD_ID` as that same full SHA in Rust and Go, not the
+   workflow controller's `GITHUB_SHA`. Upload bounded artifacts containing the
+   expected packages, SHA-256 sums and provenance (source SHA, versions, target,
+   workflow/run identity, config and helper/application digests). No credentials,
+   signed publisher claim or local unrelated files. Keep artifact retention
+   bounded (existing 14 days), read-only build permissions and finite timeouts.
+6. Remove the maintainer `export_ipc_types` executable from shipped packages at
+   the build/bundle source, not by deleting it from completed installers.
+   Retain its use through `pnpm contracts:check`; add a payload allowlist check
+   for intended application programs on each target. Include required platform/
+   WebKit support executables explicitly; this is not a two-executable limit.
+   Reject maintainer/test tools without rejecting required runtime helpers.
+   If pinned Tauri cannot separate it, record evidence/proposal before changing
+   the packaging contract. Do not remove or hand-edit generated DTOs.
+7. Test source/ref injection rejection, version mismatch, missing/duplicate
+   outputs, partial build/upload failure and provenance mismatch. Validate
+   workflows with pinned actionlint/ShellCheck and run affected gates. Obtain
+   owner-authorized hosted execution on all four runners, read job/step results
+   and download the exact Linux artifact. Compare hashes and embedded identity.
+   If publishing the workflow to default is needed, stop for that owner action.
 
-### Networking for the virtual machines
+**Exit:** F9-01 has executed hosted evidence, not a local substitute. If hosted
+access/dispatch/artifacts are unavailable, record the blocker; S4-B image/smoke
+preparation may proceed, but no installed reference-build pass is possible.
+Release publication must still depend on every existing qualification job.
 
-Use QEMU user-mode networking for the clean virtual machines. It needs no bridge and no firewall change. The owner's permission for host firewall changes covers only the Talos fixture's recorded remediation; it does not cover these machines.
+### S4-B — Reproducible clean guests and smoke procedure
 
-### What "clean" means
+1. Use QEMU/KVM with user-mode networking under Q12. Discover available disk,
+   RAM, graphical access and tools without altering host services. Resolve exact
+   Ubuntu 22.04/current Fedora cloud image URLs, release/architecture and
+   published digests from primary sources; record retrieval date and hashes.
+   No guessed version/digest or mutable `latest` as durable provenance.
+2. Use an immutable verified base with disposable overlays, a non-root desktop
+   user, a working graphical session, D-Bus/Secret Service and declared runtime
+   prerequisites. A bare cloud image/Xvfb with no desktop vault is not enough.
+   Record guest provisioning/packages; no Node/Rust/Go/global Talos/Kubernetes/
+   Helm tools in the runtime image. Keep any test controller separate from it.
+3. Create a repeatable script or precise command procedure with real exit codes,
+   bounded waits, cleanup traps and explicit failure reporting. Record VM/disk/
+   port ownership, no host-network changes, and remove overlays/processes on
+   success and failure. Do not delete shared base-image caches or owner VMs.
+4. Define rendered-launch, helper-handshake, vault and worker evidence collection
+   before running it. Ordinary production has no WebDriver/test commands; use
+   trusted desktop interaction/screenshots/process observations where needed.
+   Do not enable test features, devtools bypasses, CSP relaxations or fake vaults
+   in the installer to make smoke automatable. Native-test evidence is separate.
+5. Transfer only verified packages and synthetic inputs. Stage network access
+   for OS prerequisites, then disable guest external networking for offline
+   asset rows while preserving local IPC/D-Bus. Record how isolation was enforced.
 
-A freshly installed operating system image with no development tools, no global `talosctl`, `kubectl`, or `helm`, and no leftover application data. Record the image name, its source, and its digest.
+**Exit:** pinned guest recipe and observable assertions ready; this preparation
+alone passes no installed-runtime acceptance row.
 
-## Do not
+### S4-C — Installed Linux runtime and faults (F9.1)
 
-- Do not push a tag or create a release or prerelease to obtain installers.
-- Do not copy the release job's steps into a new workflow. Reuse them, for example through a reusable workflow or shared composite steps.
-- Do not count a hosted macOS 15 or Windows Server run as macOS 13.3 or Windows 11 qualification.
-- Do not use the owner's `Win11 Jump` virtual machine.
-- Do not claim that ad-hoc signing authenticates a publisher. Production signing and notarization need owner-supplied material and remain release gates.
+Execute the following matrix using S4-A's exact hashes and clean S4-B overlays.
+Never substitute the development-host executable or an extracted AppDir for an
+installed launch.
 
-## Work
+| Guest                                         | Formats          | Required evidence                                                                     |
+| --------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------- |
+| Ubuntu 22.04 x86_64                           | AppImage and DEB | AppImage rendered launch/shutdown; DEB install, rendered launch, reinstall, uninstall |
+| Current Fedora x86_64, exact release recorded | AppImage and RPM | AppImage rendered launch/shutdown; RPM install, rendered launch, reinstall, uninstall |
 
-### F9.0: installer artifacts for a chosen revision
+For each guest/format record runtime dependency versions (WebKitGTK/GTK,
+Secret Service, FUSE/AppImage mode), install/resource paths, app/helper digests
+and identity. Do not disable WebKit sandboxing or run the app as root to bypass
+a startup failure. Fix packaging or document a supported prerequisite and rerun.
 
-1. Add a packaging path that builds the same release-configuration bundles for a chosen revision on the four runners and uploads them as workflow artifacts with their hashes. It creates no tag and no release.
-2. Reuse the release job's steps.
-3. Validate the workflow with the pinned workflow validator, push, and trigger it for the current revision.
-4. Read the result and download the Linux artifacts. If hosted results cannot be read or artifacts cannot be downloaded from this host, add a blocker to the ledger, record F9.0's hosted run as unexecuted, mark this document `blocked`, and do only the preparation in F9.1 steps 1 and 2. Do not substitute a locally built installer and call it the reference build.
+1. Show the actual window/content and local assets. Confirm helper handshake
+   from its packaged path, intended architecture and exact build identity with
+   no global CLI. Verify startup remains vault-lazy.
+2. Through the installed DEB/RPM application on each guest, import an offline,
+   synthetic supported kubeconfig through the native picker. Exercise Secret
+   Service available, locked and unavailable (cancel prompts where relevant);
+   demonstrate explicit session-only choice, no plaintext fallback and recovery
+   via explicit retry. Store a credential, quit/restart, explicitly list and
+   reopen its saved handle without reimport. Check database/files/logs for a
+   synthetic sentinel without printing it or the key. A real cluster is not
+   required to demonstrate encrypted persistence.
+3. Offline in **each format/guest**, open editor/diff, get worker-produced YAML
+   diagnostics, render terminal/chart and change theme/density. Preserve F6/F7
+   bounds, lazy loading, CSP denials and disposal. Native test-build results
+   corroborate behavior but cannot establish installed production assets.
+4. In disposable copies/overlays only, exercise path spaces/non-ASCII, missing
+   helper, wrong helper/architecture, mismatched build identity, stalled startup,
+   helper crash, parent crash and active-stream quit. Use synthetic fault helpers
+   only in the guest fault copy, never official artifacts or renderer commands.
+   Keep original hashes, record each injected alteration and restore afterward.
+   No secret in args/environment/logs. An installed active-stream case needs a
+   real allowlisted source or a clearly labelled synthetic external endpoint
+   matching the production transport; a native-test command does not qualify it.
+   If no source is available, keep this mandatory row open.
+5. Observe process/listener baselines and return to them after normal exit,
+   crashes, failed startup and every fault, not merely a cleanup callback. Check
+   for orphan helper/WebKit children and retained tasks; retain redacted evidence.
+6. Reinstall must retain user data. Record uninstall's exact retained database/
+   vault/preferences behavior and a deliberate test-profile removal procedure.
+   Do not delete user credentials silently as an uninstall convenience.
+7. A safe live Talos/Kubernetes read/stream from a guest is conditional on an
+   existing allowlist and reachable network without host changes. If unavailable,
+   label that combination unexecuted; do not borrow an owner context or start a
+   fixture inside this packet. This conditional row does not waive mandatory
+   installed stream-cleanup evidence above.
 
-### F9.1: Linux
+**Exit:** F9-02–F9-07 have observed evidence. A missing image, desktop vault,
+usable artifact or stream source keeps its required row in progress/blocked.
 
-1. Obtain clean Ubuntu 22.04 and current Fedora images. Verify each against its published digest.
-2. Write the smoke procedure as a script or a documented command sequence that can be repeated, with real exit codes.
-3. On Ubuntu: run the AppImage (rendered launch and shutdown), and install, reinstall, and uninstall the DEB.
-4. On Fedora: run the AppImage, and install, reinstall, and uninstall the RPM.
-5. On both, with the installed application:
-   - the window renders and the WebKit processes and resources are present;
-   - the helper starts from its packaged path and completes its handshake, with no global command-line tool installed;
-   - the Secret Service is exercised available, locked, and unavailable, and each produces the documented state;
-   - a credential stored through the vault survives a restart of the application;
-   - the offline editor, terminal, and chart from documents 05 and 06 load their assets from the installed package, with no network.
-6. Failure cases: an install path with spaces and non-ASCII characters; a missing helper; a wrong helper; a helper with a mismatched build identity; a stalled startup; an application crash; a helper crash; quitting with an active stream.
-7. For every case, observe that child processes, tasks, and listeners are gone afterwards, including after the parent exits abruptly.
-8. Data retention: reinstalling keeps user data; uninstalling follows the documented behavior. Record what is left on disk.
-9. If a Talos or Kubernetes fixture is reachable from a virtual machine without a host network change, exercise a safe read and stream. Otherwise record that combination as unexecuted.
+### S4-D — Final payload, security and acceptance (Linux F9.4)
 
-### F9.4, Linux part: integrity and final exclusion
+1. Inspect DEB, RPM and AppImage payloads safely in private bounded extraction
+   directories. Use `pnpm notices:check-packaged -- <actual-legal-directory>`
+   against each format; test missing/tampered/wrong-revision payload failure on
+   copies. The notices are an all-target superset under decision 0020, not newly
+   target-minimized notices. Record helper paths and the exporter exclusion.
+2. Adapt production exclusion/advisory inspection to explicit target/build or
+   extracted artifact paths with regression tests; retain current defaults.
+   Inspect the **actual bundled executable and renderer**, not the adjacent
+   `target/release` file. Prove test/driver/mock surfaces absent and no driver
+   listener on installed launches. The asset hash/provenance check must reject
+   a swapped package. Do not recompile inside clean runtime guests.
+3. Run fresh per-format artifact vulnerability/secret/misconfiguration scans
+   using the pinned tools; distinguish them from lockfile scans. Explain any
+   system-library finding and keep accepted exceptions ID/path/date-scoped;
+   never broaden an exception or suppress an artifact finding to pass. If a
+   scanner cannot inspect the payload, record that limit rather than a pass.
+   Run linked-symbol checks on an unstripped equivalent where necessary with
+   evidence tying it to the packaged binary; an unreadable/stripped binary is
+   not an applicability pass. Record hashes before and after bundler patching.
+4. Document publisher-signing/helper-integrity feasibility: what is signed,
+   trust verification at startup, limitations of build-identity matching, and
+   release credentials still needed. Hashes and matching build IDs do not prove
+   publisher authenticity. Production signing remains a later release gate.
+5. Run final applicable gates after fixes. If native tests share build outputs,
+   native first, ordinary build/bundles next, then production/advisory inspection
+   of those final bytes. Rebuild/requalify affected packages after corrections;
+   do not reuse a hash or clean-VM pass from an older artifact.
+6. Review the final diff separately, record candidate hosted CI/security and
+   artifact run identities, update evidence/ledgers/docs. Close C8's Linux rows
+   only after F9-01–F9-10 pass. Keep C6/C7 and global C8 open for deferred
+   platforms; do not close F1a/F5/F10 or declare Linux foundation/M2 acceptance.
 
-1. Record package hashes and the preview signing state.
-2. Document helper signing and integrity feasibility: what would be signed, with what, and what the application would verify at startup. This is a feasibility record, not an implementation with real credentials.
-3. Confirm the target-specific notices from document 07 are inside each Linux package.
-4. Run the final-artifact scans from document 07 on the Linux packages.
-5. Run `pnpm production:check` on the default production artifacts after any test-feature build, because the two builds share an executable path.
+## 4. Acceptance matrix
 
-## Acceptance cases
+All rows start **pending**. The implementing evidence file maps each ID to
+source/artifact SHA, command or manual steps, guest and results; planned checks
+and inherited F8 results cannot be marked fresh passes.
 
-1. Installer artifacts for a chosen revision are produced on the runners with no tag and no release, and their hashes are recorded.
-2. The AppImage launches, renders, and shuts down on Ubuntu 22.04 and on current Fedora.
-3. The DEB on Ubuntu and the RPM on Fedora each install, reinstall, and uninstall cleanly.
-4. The packaged helper completes its handshake with no global tool present.
-5. The vault's available, locked, and unavailable states each behave as documented, and an encrypted credential survives a restart.
-6. Offline assets resolve from the installed package under the packaged CSP.
-7. Each failure case in F9.1 step 6 ends in a clear state with nothing left running.
-8. The production artifacts contain no test command, driver listener, mock transport, or bypass capability.
-9. Package hashes, notices, and the signing state are recorded.
+| ID    | Required observable result                                                                                                                                 | Checkpoint |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| F9-01 | Shared release/qualification path produces all four targets for one SHA without tag/publication; downloaded hashes/provenance match; release guards remain | S4-A       |
+| F9-02 | AppImage renders and exits on clean Ubuntu 22.04 and recorded current Fedora                                                                               | S4-C       |
+| F9-03 | Ubuntu DEB and Fedora RPM install, render, reinstall and uninstall with documented data retention                                                          | S4-C       |
+| F9-04 | Packaged helper path/architecture/identity handshake, no global CLI, maintainer exporter absent                                                            | S4-A/C/D   |
+| F9-05 | Real desktop vault available/locked/unavailable, explicit session-only/retry, encrypted restart and no plaintext sentinel leakage on both guests           | S4-C       |
+| F9-06 | Each format/guest loads offline editor/worker/diff/terminal/chart under packaged CSP and cleans resources                                                  | S4-C       |
+| F9-07 | Every path/helper/startup/crash/active-stream fault has a clear outcome, observed child/task/listener cleanup, original artifact preserved                 | S4-C       |
+| F9-08 | Actual payloads exclude test/driver/mock code, installed launches expose no driver listener; missing/tampered/swapped artifacts fail                       | S4-D       |
+| F9-09 | All three Linux payload notices verified, artifact scans reviewed, package/helper/app hashes and signing/integrity limits recorded                         | S4-D       |
+| F9-10 | Final affected gates/hosted results read, separate review resolved, contracts/setup/runtime requirements/ledgers agree                                     | S4-D       |
 
-## Gates
+## 5. Gates and stop conditions
 
-- Workflow validation for the new packaging path.
-- `pnpm release:check`, `pnpm release:check-linux` before any AppImage is used, and `pnpm release:assets`.
-- The smoke procedure on both virtual machines, with its output recorded.
-- `pnpm desktop:build` followed by `pnpm production:check`.
-- TypeScript gates for changed scripts.
+Use existing [quality commands](../../quality.md#3-required-command-contracts),
+not invented scripts. New qualification/provenance/payload commands are S4-A/D
+deliverables and must have regression coverage and failure-propagating CI.
 
-## Done means
+- Formatting, links and `git diff --check`; pinned actionlint 1.7.12 and
+  ShellCheck 0.11.0 for workflows/shell. Test shared-call wiring and preservation
+  of the release publication dependency graph, not only valid YAML syntax.
+- For script/renderer changes: `pnpm check:ci` once on the final tree and
+  `pnpm test:e2e`; targeted script/provenance/negative-payload tests during
+  iteration. Do not immediately repeat equivalent coverage/non-coverage gates.
+- `pnpm contracts:check`, `pnpm icons:check`, `pnpm notices:check`,
+  `pnpm inventory:check`, `pnpm audit --audit-level=low`, `pnpm audit:go`,
+  `pnpm advisories:check` and affected native builds. Include Rust default and
+  `native-test` Clippy/tests, rustdoc/doctests and Go/race gates when touched.
+- Actual `pnpm test:native` via the manual tier or a local isolated equivalent
+  for native-boundary changes, followed by `pnpm desktop:build` and
+  `pnpm production:check`; same revision's release-config bundles and actual
+  payload/installed checks are additional, not replaced by these commands.
+- Release-mode `pnpm release:check` still needs an existing valid tag: test its
+  strict behavior through source-validator tests, but do not fabricate a tag
+  for this task. Tag-free validation must be separately implemented/tested.
+  Preserve `pnpm release:check-linux`, `pnpm release:assets` (extended honestly
+  for qualification) and real guest smoke on both OSes.
 
-- Every acceptance case has recorded evidence, or is recorded as unexecuted with the exact missing resource.
-- The carried rows "Real OS-vault restart of a Kubernetes credential on Linux" and "Packaged-installer helper startup" in the ledger are executed and linked, or still listed with their reason.
-- The milestone ledger's C8 row reads as complete on Linux with the macOS and Windows rows deferred to document 10. C8 is not complete, and this document does not claim it is.
-- C1, C2, C3, and C6 rows that were waiting on packaged-runtime evidence are updated for Linux.
+A required unexecuted row means **in progress/blocked, not done**. Record the
+missing resource and next action; never hide it in a done-with-limit footnote.
+C8 becomes complete on Linux only with the full matrix, while document 10 stays
+deferred. Next work after S4 is the remaining F1a/F5 fixture path (S5) before
+F10 measurements, separate technical review and mandatory Q13 owner review.
+M2.0 remains gated until that close; M2.1 is outside this launch.

@@ -53,7 +53,7 @@ stay listed there as unexecuted and are revisited through
 platforms are available. Items 2 and 3 above apply to the Linux rows now and to
 the deferred rows then.
 
-**Current follow-up, 2026-10-25:** the [foundation follow-up plan](foundation-finish/follow-up-to-m2.md) starts with browser stabilization and editor bounds, then finishes Linux packets and owner review before executing M2.0. This is a route to the entry gate, not evidence that it is met. M2.0 and its evidence ledger are not started; do not implement M2.1 from that planning document.
+**Current follow-up, 2026-10-26:** S0/S1/S2/S3 are accepted on Linux (S0 only under the recorded B11 exception). The [S4 handoff](foundation-finish/s4-launch-prompt.md) prepares F9 shared artifacts and clean Linux runtime qualification. F1a/F5 fixtures, F9 packages, F10 budgets and Q13 owner review still gate Linux close. This is a route to the entry gate, not evidence that it is met. M2.0 and its evidence ledger are not started; do not implement M2.1 from this planning document.
 
 ## 2. Scope and boundaries
 
@@ -242,8 +242,9 @@ evidence without reconstructing chat history.
 5. Recheck the current Talos 1.14 patch and the Kubernetes fixture patches from
    primary sources, per the design's version policy. A newer patch moves module,
    CLI, image and manifests together, as F1 did. Record the expiry dates of
-   accepted security exceptions. The foundation plan's Trivy exceptions expire
-   on 2026-11-30, and its date trigger carries into this milestone.
+   accepted security exceptions. Both Trivy exceptions were re-proved on 2026-10-26 and now expire
+   on **2027-02-28** ([F8 evidence](../verification/f8-notices-security.md));
+   the former 2026-11-30 date is superseded. Recheck the actual records on entry.
 
 **Acceptance:** prerequisite rows have evidence; the baseline passes or newly
 found defects are fixed and verified before dependent feature packets proceed.
@@ -588,7 +589,7 @@ directs otherwise. An owner-required item blocks only its dependent step.
 | Which kubeconfig exec providers can be trusted, and on what contract? | M2.3 step 3            | The design permits trusted exec. Write the trust contract and threat review before any code. It runs no provider until the review is accepted. Providers that need credential arguments or environment stay unsupported |
 | Do the starting log-ring and viewer limits survive measurement?       | M2.5, against F10 data | 5,000 lines/4 MiB per viewer and two live viewers. Change them only with the measurements and the contract update                                                                                                       |
 | Does a new Talos 1.14 patch or Kubernetes fixture patch exist?        | M2.0, M2.9             | Refresh module, CLI, image and manifests together after primary-source verification. Never mix versions                                                                                                                 |
-| Do Trivy exceptions expire during this milestone?                     | Before 2026-11-30      | Repeat the applicability evidence and renew or remove each exception, as foundation F8 describes. Never widen one to unblock a packet                                                                                   |
+| Do Trivy exceptions expire during this milestone?                     | Before 2027-02-28      | Repeat the applicability evidence and renew or remove each exception, as foundation F8 describes. Never widen one to unblock a packet                                                                                   |
 
 ## 9. Session handoff and first execution prompt
 

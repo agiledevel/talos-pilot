@@ -1,21 +1,17 @@
 # Foundation follow-up: stabilization through owner review and M2.0
 
 Date: 2026-10-25. Reviewed source: `889157f` on `ft-foundation-completion`.
-Current status, 2026-10-26: **S2/F7 is accepted on the development Linux WebView,
-document 06 is done and PR #4 merged at `41b1e00`. S3 is READY for implementation;
-F8 remains not started.** That exact `main` revision's Foundation
-[40245086906](https://github.com/agiledevel/talos-pilot/actions/runs/40245086906)
-and Security [40245086864](https://github.com/agiledevel/talos-pilot/actions/runs/40245086864)
-passed and their job/step results were read. The S3 entry gate is met; those runs
-are not S3 qualification. Use [document 07](07-f8-dependencies-notices-security.md)
-and the [S3 launch prompt](s3-launch-prompt.md) on `ft-dependency-notices-security`.
-The [S2 review](../../verification/s2-review-s3-readiness.md),
-[corrective record](../../verification/s2-r1-chart-frame-coalescing.md) and
-[F7 evidence](../../verification/f7-terminal-chart.md) retain the implementation,
-corrections and limits. S1/document 05 remain accepted on Linux, and their launch
-prompt is historical. S0 remains accepted under the [B11 owner
+Current status, 2026-10-26: **S1/F6, S2/F7 and S3/F8 are accepted on Linux;
+PR #5 merged at `4a2f991`. S4/F9 is READY, implementation not started.** Use
+[document 08](08-f9-linux-packages.md), the [S4 launch prompt](s4-launch-prompt.md)
+and [readiness review](../../verification/f8-review-s4-readiness.md) on
+`ft-linux-package-qualification`. The [F8 evidence](../../verification/f8-notices-security.md)
+records candidate hosted acceptance; exact-merge main CI was still running at
+planning entry and is tracked in the ledger. Earlier launch prompts are
+historical, not restart instructions. S0 remains accepted under the [B11 owner
 exception](../../verification/s0-native-keyboard-acceptance.md); B11 remains
-unresolved/not fixed. S3 and later implementation are not started.
+unresolved/not fixed. F1a/F5, installed packages, budgets and Q13 review remain
+open. No Linux close or M2 entry acceptance is implied.
 Audience: an LLM starting with no conversation history.
 
 ## 1. Goal, authority, and stopping point
@@ -43,19 +39,19 @@ prerequisite is blocked does not authorize closing F10 or starting M2.0.
 
 ## 2. Current state and evidence
 
-| Boundary        | Current state                                                                                                       | Remaining work                                                                                             |
-| --------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| F0/F1/F2        | Closed/accepted under recorded owner decisions                                                                      | Preserve; do not reimplement or reopen owner decisions                                                     |
-| F3/F4           | Accepted Linux list/watch implementation, native and disposable Kubernetes 1.36 evidence                            | Refresh affected evidence after relevant corrections; F5 remains separate                                  |
-| F1a/document 01 | Deterministic stall detection and Part A harness exist                                                              | Part B: all eight live cases, measured outcomes, cleanup and host restoration                              |
-| F5/document 04  | Not started; existing 1.36 list/watch evidence is not the full matrix                                               | Pinned 1.35/1.37 fixtures plus the complete 1.36 harness cases                                             |
-| F6/document 05  | Accepted on Linux 2026-10-25: S1 at `812c4fb`, P2 corrections at `cac672b`, final corrective evidence in the ledger | Preserve as attributed evidence; F7 is now accepted; C6 installed-package and deferred WebView rows remain |
-| F7/document 06  | Accepted on Linux; PR #4 merged at `41b1e00`, exact main Foundation/Security passed and read 2026-10-26             | Preserve corrective/native evidence; installed-package/deferred WebView rows remain separate               |
-| F8/document 07  | Inventory/advisory machinery exists; C7 not fully complete                                                          | Generated/packaged notices, drift enforcement, refreshed security/applicability                            |
-| F9/document 08  | Linux package qualification not done                                                                                | Revision-based artifacts and clean Ubuntu/Fedora installed-runtime evidence                                |
-| F10/document 09 | No measured budgets/harness or final acceptance                                                                     | Measurements, enforced budgets, final review, owner review                                                 |
-| Document 10     | Deferred by owner; no macOS/Windows hardware                                                                        | Revisit only when resources are explicitly available                                                       |
-| M2.0            | Not started; entry gate unmet                                                                                       | Inventory accepted foundation and create milestone 2 evidence ledger after Linux close                     |
+| Boundary        | Current state                                                                                                       | Remaining work                                                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| F0/F1/F2        | Closed/accepted under recorded owner decisions                                                                      | Preserve; do not reimplement or reopen owner decisions                                                                              |
+| F3/F4           | Accepted Linux list/watch implementation, native and disposable Kubernetes 1.36 evidence                            | Refresh affected evidence after relevant corrections; F5 remains separate                                                           |
+| F1a/document 01 | Deterministic stall detection and Part A harness exist                                                              | Part B: all eight live cases, measured outcomes, cleanup and host restoration                                                       |
+| F5/document 04  | Not started; existing 1.36 list/watch evidence is not the full matrix                                               | Pinned 1.35/1.37 fixtures plus the complete 1.36 harness cases                                                                      |
+| F6/document 05  | Accepted on Linux 2026-10-25: S1 at `812c4fb`, P2 corrections at `cac672b`, final corrective evidence in the ledger | Preserve as attributed evidence; F7 is now accepted; C6 installed-package and deferred WebView rows remain                          |
+| F7/document 06  | Accepted on Linux; PR #4 merged at `41b1e00`, exact main Foundation/Security passed and read 2026-10-26             | Preserve corrective/native evidence; installed-package/deferred WebView rows remain separate                                        |
+| F8/document 07  | Accepted on Linux; merged via PR #5 at `4a2f991`; candidate hosted acceptance in the F8 record                      | Preserve notice generation/enforcement and renewed 2027-02-28 exceptions; remaining C7 format/runtime rows belong to F9/document 10 |
+| F9/document 08  | READY on `ft-linux-package-qualification`, implementation not started                                               | S4-A shared tag-free artifacts, then clean Ubuntu/Fedora runtime, fault/cleanup and final-artifact evidence                         |
+| F10/document 09 | No measured budgets/harness or final acceptance                                                                     | Measurements, enforced budgets, final review, owner review                                                                          |
+| Document 10     | Deferred by owner; no macOS/Windows hardware                                                                        | Revisit only when resources are explicitly available                                                                                |
+| M2.0            | Not started; entry gate unmet                                                                                       | Inventory accepted foundation and create milestone 2 evidence ledger after Linux close                                              |
 
 ### Fresh review evidence at `889157f`
 
@@ -262,11 +258,9 @@ implementation launch stopped before S3.
 
 ### S3 — F8 notices, dependencies and security
 
-**S3/F8 ACCEPTED ON LINUX (2026-10-26); document 07 done.** Candidate head `0bf8d75` in [PR #5](https://github.com/agiledevel/talos-pilot/pull/5) passed Foundation [40294023817](https://github.com/agiledevel/talos-pilot/actions/runs/40294023817) (renderer plus desktop on Ubuntu 22.04, macOS 15 and Windows Server 2022, each executing `pnpm notices:check`) and Security [40294023939](https://github.com/agiledevel/talos-pilot/actions/runs/40294023939) (Trivy 0 results with the renewed exceptions; CodeQL 0 results in all three languages, all freshly analysed). Installed packages, non-Linux runtimes and RPM/AppImage payloads remain F9/document 10, so C7 stays in progress for them. Branch
-`ft-dependency-notices-security` starts from merged `main` `41b1e00`; exact
-Foundation/Security job/step results have been read. Execute
-[document 07](07-f8-dependencies-notices-security.md) using the
-[S3 launch prompt](s3-launch-prompt.md), one checkpoint at a time:
+**S3/F8 ACCEPTED ON LINUX (2026-10-26); document 07 done.** Candidate head `0bf8d75` in [PR #5](https://github.com/agiledevel/talos-pilot/pull/5) passed Foundation [40294023817](https://github.com/agiledevel/talos-pilot/actions/runs/40294023817) (renderer plus desktop on Ubuntu 22.04, macOS 15 and Windows Server 2022, each executing `pnpm notices:check`) and Security [40294023939](https://github.com/agiledevel/talos-pilot/actions/runs/40294023939) (Trivy 0 results with the renewed exceptions; CodeQL 0 results in all three languages, all freshly analysed). Installed packages, non-Linux runtimes and RPM/AppImage payloads remain F9/document 10, so C7 stays in progress for them. The following completed S3 checkpoints are retained as historical context;
+do not re-execute the [S3 launch prompt](s3-launch-prompt.md). Continue at S4,
+not the pre-implementation branch instructions:
 
 1. **S3-A:** review live locked inputs, redistribution/target coverage, full
    license/subcomponent texts and MPL recipient/source obligations; fix exact
@@ -286,8 +280,9 @@ choose explicit reproducible cross-target coverage, not a relabelled Linux copy.
 No automatic/widened exceptions, incidental Go/Talos refresh or fixture work.
 No push/PR/release authority is granted by preparing this branch.
 
-**Date override:** at or after **2026-11-15**, handle the two Trivy exceptions
-before continuing another lengthy packet; hard expiry is **2026-11-30**.
+**Current security date:** both exceptions were re-proved on 2026-10-26 and
+expire **2027-02-28**, as the F8 evidence records. The earlier 2026-11-15
+priority trigger and 2026-11-30 expiry are superseded; renewal is never automatic.
 
 **Exit:** all F8-01–08 accepted with reproducible full notices, demonstrated
 source/package failure/pass, real Linux payload/native evidence and final
@@ -298,8 +293,16 @@ do not call C7 globally done. Stop before S4 in the S3 implementation launch.
 
 ### S4 — F9 Linux installer and vault qualification
 
-Execute [document 08](08-f9-linux-packages.md). Build the same release-config
-artifacts for a chosen revision without a tag/release, reusing packaging steps.
+**S4-A implemented locally; hosted artifact production blocked.** Use the
+[S4 launch prompt](s4-launch-prompt.md) on `ft-linux-package-qualification`.
+The shared packaging recipe, tag-free qualification wrapper, provenance,
+exporter exclusion and payload allowlist exist with local evidence in the
+[F9 record](../../verification/f9-linux-packages.md); F9-01 needs an
+owner-authorised default-branch publication and dispatch. Then the S4-B/C/D
+checkpoints and F9-01–F9-10 matrix in [document 08](08-f9-linux-packages.md). The [readiness
+review](../../verification/f8-review-s4-readiness.md) records source findings,
+merged baseline and remaining evidence. No remote authority is inferred by the
+local planning branch. Build the same release-config artifacts for a chosen revision without a tag/release, reusing packaging steps.
 Read hosted results and download reference Linux artifacts. Qualify AppImage on
 clean Ubuntu 22.04/current Fedora, DEB on Ubuntu and RPM on Fedora, with pinned
 image digests and package hashes.

@@ -1,0 +1,78 @@
+name: Package qualification
+
+# Produces the same release-configuration installers for one immutable commit
+# without creating a tag or a release. Manual dispatch only; the revision must
+# already exist on a branch of this repository. This workflow has read-only
+# permissions and cannot publish. F9-01 uses it once the owner authorises
+# dispatch on the default branch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Full 40-character commit SHA on a branch of this repository
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qualification-${{ inputs.revision }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Validate qualification source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      revision: ${{ steps.metadata.outputs.revision }}
+      version: ${{ steps.metadata.outputs.version }}
+    steps:
+      # Validate the dispatch input before it reaches any checkout or Git
+      # argument. It is passed as environment data, never interpolated into the
+      # script text.
+      - name: Validate the requested revision shape
+        shell: bash
+        env:
+          REQUESTED_REVISION: ${{ inputs.revision }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$REQUESTED_REVISION" | grep -Eqx '[0-9a-f]{40}'; then
+            echo "revision must be a full lowercase 40-character commit SHA" >&2
+            exit 1
+          fi
+      # The default branch supplies the full history and branch refs; the
+      # requested commit is then checked out by SHA after shape validation.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check out the requested qualification revision
+        shell: bash
+        env:
+          REQUESTED_REVISION: ${{ inputs.revision }}
+        run: git checkout --detach "$REQUESTED_REVISION"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - run: rustup toolchain install 1.99.1 --profile minimal
+      - id: metadata
+        run: node scripts/release-metadata.ts
+        env:
+          RELEASE_MODE: qualification
+          RELEASE_REVISION: ${{ inputs.revision }}
+
+  assets:
+    needs: resolve
+    permissions:
+      contents: read
+    uses: ./.github/workflows/build-assets.yml
+    with:
+      revision: ${{ needs.resolve.outputs.revision }}
+      version: ${{ needs.resolve.outputs.version }}
+      mode: qualification
+      tag: ""

@@ -81,7 +81,8 @@ main() {
   case "$mode" in
     security) ;;
     native) packages+=(xvfb) ;;
-    release) packages+=(librsvg2-dev patchelf libfuse2 rpm) ;;
+    # The release build also inspects the RPM/AppImage payloads with rpm2cpio and cpio.
+    release) packages+=(librsvg2-dev patchelf libfuse2 rpm cpio) ;;
     browser)
       # Ask the pinned Playwright CLI which system packages are missing. Its
       # dry-run exits 1 when packages are missing; other failures must not be

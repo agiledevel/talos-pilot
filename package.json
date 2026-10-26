@@ -43,7 +43,9 @@
     "contracts:check": "node scripts/contracts.ts --check",
     "release:check": "node scripts/release-metadata.ts",
     "release:check-linux": "node scripts/appimage-resources.ts",
-    "release:assets": "node scripts/release-assets.ts"
+    "release:assets": "node scripts/release-assets.ts",
+    "release:verify": "node scripts/verify-artifacts.ts",
+    "payload:check": "node scripts/check-payload.ts"
   },
   "dependencies": {
     "@internationalized/date": "3.12.4",
