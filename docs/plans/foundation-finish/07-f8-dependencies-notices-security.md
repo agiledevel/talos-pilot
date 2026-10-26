@@ -1,10 +1,12 @@
 # 07 — F8: dependency, notices, and security evidence
 
-Status: **IN PROGRESS — S3-A recorded 2026-10-26** on
-`ft-dependency-notices-security`; F8 is not accepted. The reviewed inputs,
-output paths, bounds, target strategy and gate plan are recorded under
-[S3-A record](#s3-a-record-2026-10-26) below; generated artifacts, packaging,
-security re-proof and hosted evidence are still outstanding.
+Status: **IN PROGRESS — S3-A–C and every local S3-D row recorded 2026-10-26** on
+`ft-dependency-notices-security`. F8 is **not accepted**: F8-07 (candidate
+hosted Foundation/Security results) is unexecuted because the branch is local
+and no push/PR is authorised. Notices are generated, committed, bundled into a
+verified Linux DEB payload, drift-enforced in the build and CI, and both Trivy
+exceptions are re-proved and renewed to 2027-02-28; the per-row evidence is in
+[the F8 record](../../verification/f8-notices-security.md).
 S2/document 06 is accepted on the development Linux WebView and merged via
 [PR #4](https://github.com/agiledevel/talos-pilot/pull/4) at
 `41b1e008abbcb9a663d02f425bdc67775f4170b6`. That exact `main` revision passed
@@ -327,3 +329,27 @@ with production-graph absence evidence.
 | F8-06 | Decisions 0006/0017 re-proof, dated renewal or removal, expired-exception negative check                                            |
 | F8-07 | Candidate Foundation/Security run identity, jobs and steps; unexecuted if the branch stays unpushed                                 |
 | F8-08 | Separate final diff review, documentation/link/format checks, ledger and README agreement                                           |
+
+## S3-B–D record (2026-10-26)
+
+- **S3-B:** `scripts/lib/notices/*` and `scripts/notices.ts` implement
+  `notices:generate`, `notices:check` and `notices:check-packaged` with separate
+  collection, rendering, CLI and payload inspection; the committed artifacts are
+  639 components / 1,059 texts. Drift, failure paths, cache independence and
+  packaged tampering are covered by the synthetic-graph and payload suites.
+  `pnpm notices:check` runs first in `beforeBuildCommand` and in the Linux
+  desktop job.
+- **S3-C:** Tauri's `bundle.resources` map ships both artifacts; the measured DEB
+  installs them to `/usr/lib/Talos Pilot/legal/`, the real payload matches byte
+  for byte, and the missing/tampered/extra negatives fail. Native smoke passed
+  **31/31** on WebKitGTK before the ordered ordinary builds.
+- **S3-D:** fresh npm/Go/Cargo scans pass; decisions 0006 and 0017 were reviewed;
+  both Trivy exceptions were re-proved against primary sources and renewed to
+  2027-02-28 with a re-run negative expiry check. `pnpm check:ci` (351 tests),
+  `pnpm test:e2e` (31 flows), a frozen install plus locked build from a clean
+  checkout, pinned actionlint/ShellCheck, formatting and links all pass.
+- **Remaining blocker:** F8-07. No candidate Foundation/Security run exists for
+  `0c93868`; the owner must authorise pushing
+  `ft-dependency-notices-security` and opening a pull request, after which a
+  session reads that exact run's jobs/steps. Until then F8 stays in progress and
+  C7 stays open.

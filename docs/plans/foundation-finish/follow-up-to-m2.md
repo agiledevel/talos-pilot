@@ -262,7 +262,7 @@ implementation launch stopped before S3.
 
 ### S3 — F8 notices, dependencies and security
 
-**IN PROGRESS; S3-A reviewed inputs recorded (2026-10-26), no acceptance ID claimed.** Branch
+**IN PROGRESS; S3-A–C and every local S3-D row are recorded (2026-10-26), with F8-07 blocked on candidate hosted results (no push/PR authority).** Branch
 `ft-dependency-notices-security` starts from merged `main` `41b1e00`; exact
 Foundation/Security job/step results have been read. Execute
 [document 07](07-f8-dependencies-notices-security.md) using the
