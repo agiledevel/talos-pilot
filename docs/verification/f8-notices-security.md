@@ -56,8 +56,11 @@ components), `pnpm inventory:check` (**current**, 538 npm / 614 Cargo / 143 Go,
 35 linked) and a locked build (`pnpm tauri build --no-bundle -- --locked`,
 1 min 04 s), producing `/tmp/tp-f8-clean-tree/.../talos-pilot`
 (`7d35fac9…`). The checked-out artifacts hash to exactly the values above, so
-the committed bytes survive a fresh checkout (`.gitattributes` stores them
-without line-ending normalization for that reason).
+the committed bytes survive a fresh checkout. `.gitattributes` marks the notices
+file and the curated upstream/canonical/native copies `-text`, because Git must
+not normalize text that embeds upstream line endings and is digest-checked; the
+manifest is LF-only JSON whose normalization is a no-op, which the same checkout
+confirms.
 
 Repeated generation is byte-stable: two consecutive `pnpm notices:generate` runs
 in the main tree produced the same two digests, and the synthetic-graph suite
@@ -243,7 +246,14 @@ component left the graph instead of failing as stale, Go components claimed
 "every declared target" instead of recording their per-target membership, and
 untrusted crate metadata could forge a notice heading through control
 characters. Those fixes carry regression tests and are in `5810c15`; every gate
-below was re-run on that revision. `pnpm check:ci` (**353 tests / 47 files**,
+below was re-run on that revision. Two further review nits were examined and
+resolved without a code change: a crate that declares only a Cargo
+`license-file` and no SPDX expression is still rejected, because shipping a
+component whose terms are not reviewed is exactly what the contract forbids, and
+its error message should name the `license-file` the next time that branch is
+touched (a message-only change did not justify rebuilding the verified bundle);
+and the Windows/macOS execution of the new check stays unexecuted until the
+hosted candidate run, as recorded under Limits. `pnpm check:ci` (**353 tests / 47 files**,
 coverage 70.19 % statements / 73.3 % branches, production build) and
 `pnpm test:e2e` (**31 passed**, 27.5 s) passed on the final relevant tree;
 `pnpm format:check`, `pnpm lint`, `git diff --check`, actionlint and ShellCheck
