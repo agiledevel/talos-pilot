@@ -140,6 +140,34 @@ says otherwise.
 - Local logs and the extracted payload live under `/tmp`; the extraction
   directory and the ignored `release-assets/` output were removed after use.
 
+### Hosted candidate results (PR #6)
+
+Owner-authorised push of `ft-linux-package-qualification` and pull request
+[#6](https://github.com/agiledevel/talos-pilot/pull/6) (base `main`
+`4a2f9914ddac222433ba99437e8aa39d54314078`). Candidate head
+`fd6e30f1a62cebdae72b17a09f83d11af2fce761`.
+
+- Foundation [40324397456](https://github.com/agiledevel/talos-pilot/actions/runs/40324397456)
+  **passed**. The scope decision chose **RUN** for desktop and renderer with 21
+  affected paths since `4a2f991`, naming the new workflows, `package.json` and
+  `scripts/check-payload.ts`. `renderer` 2 m 31 s: `svelte-check` 0/0, **394
+  tests / 49 files**, production build, **31/31 browser flows in 58.9 s**.
+  `desktop (ubuntu-22.04)` 4 m 30 s, `desktop (macos-15)` 6 m 42 s and
+  `desktop (windows-2022)` 8 m 11 s all executed: frozen install, notices
+  current (639 components, 1059 texts, 4,816,465 bytes), Rust/Go/contract gates,
+  `desktop:build`, `production:check` and `contracts:check` passed.
+  `Foundation checks result` passed, so every executed job passed.
+- Security [40324397585](https://github.com/agiledevel/talos-pilot/actions/runs/40324397585)
+  **passed**. The scope decision chose **RUN** for `actions`,
+  `javascript-typescript` and `rust` (19/19/21 affected paths); nothing was
+  reused. Trivy 0.74.0 filesystem scan 22 s → 0 results; CodeQL `actions` 40 s,
+  `javascript-typescript` 55 s, `rust` 7 m 33 s → 0 results each.
+
+These are hosted CI results for the candidate change, not downloaded-artifact,
+installed-runtime or F9-01 evidence: the `Package qualification` workflow is not
+yet on the default branch, so no tag-free artifact run exists. F9-01 stays
+blocked on owner-authorised publication and dispatch.
+
 ## S4-A review corrections
 
 An independent review of the S4-A diff found two defects. Both are fixed with
