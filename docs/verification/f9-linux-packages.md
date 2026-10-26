@@ -394,3 +394,59 @@ No test treats a filename alone as proof or rewrites the inspected files.
 Final local gates and delivery/qualification identities are recorded in the
 ledger. B12 remains open for hosted requalification; F9-01 and all installed
 runtime rows remain pending until their own complete evidence exists.
+
+## 40401994013 follow-up: pre-bundle references (2026-10-26)
+
+Owner requested review and correction after qualification failed again. PR #8
+merged as `9e2de303fd833ef80acb225c7afd81cdd99ca678`; exact-main Foundation
+[40399677772](https://github.com/agiledevel/talos-pilot/actions/runs/40399677772)
+and Security
+[40399677855](https://github.com/agiledevel/talos-pilot/actions/runs/40399677855)
+passed before dispatch. Qualification
+[40401994013](https://github.com/agiledevel/talos-pilot/actions/runs/40401994013)
+then failed on Linux; Windows and both macOS targets passed. Linux
+[job 121850177181](https://github.com/agiledevel/talos-pilot/actions/runs/40401994013/job/121850177181)
+passed the resource, DEB/notices and RPM checks, but AppImage verification
+reported `Cannot verify AppImage system data usr/share/doc/libatk-bridge2.0-0/copyright: the source must be a regular non-executable system file`.
+Its artifacts contain only the Windows/two macOS uploads: no Linux bytes or
+provenance were available for download/verification. Log:
+`/tmp/tp-qualification-40401994013-failed.log`.
+
+The combined error establishes that the **post-build reference** failed the
+regular/non-executable condition; it did not print the actual mode/type or
+prove which tool changed it, or whether it was suitable before packaging.
+The earlier local fixture did not reproduce this reference-lifetime issue.
+Therefore the prior section's use of the live `/` tree is superseded by:
+
+- Before Tauri runs, capture eligible OS data into a new private reference
+  directory with independent read-only files, never hard links. Original
+  regular-file/non-executable, content, path and per-file limits still apply.
+  Unsupported candidates are reported and omitted, never silently permitted;
+  any later executable payload copy without a reference still fails.
+- Bound reference discovery to 10,000 entries / 256 MiB. A write/report failure
+  removes only the newly owned directory; an existing destination is rejected
+  and never overwritten/deleted. Originals and completed installers are not
+  chmodded or rewritten. Data proof still enforces its stricter 256-file /
+  32-MiB payload limits and exact bytes. Read errors now include regular-file
+  status and mode for diagnosis.
+- Pass that reference through the existing AppImage-only trusted-root option.
+  It remains an operator/CI trust input, not OS/publisher authentication. A
+  later change in the live OS cannot authorize a changed payload.
+- On Linux payload failure only, retain one failed AppImage of at most 256 MiB,
+  log its hash, and upload under `diagnostic-appimage-<revision>` for one day.
+  This is **not** a qualified/release artifact; release collection excludes its
+  name and the original job remains failed. Missing/multiple/oversized images
+  are not uploaded. This avoids another diagnosis based solely on filenames.
+
+Acceptance regressions reproduce the old live-reference failure after a source
+chmod, prove independent captured bytes still work, and reject payload bytes
+matching a subsequently changed source. They cover omitted executable/script/
+binary/non-UTF-8/oversized/escaping sources, stale roots, partial-write cleanup,
+source enumeration bounds, spaced CLI arguments, actual diagnostic shell limits
+(including 256 MiB inclusive), and snapshot-before-build/diagnostic segregation.
+The first narrow run passed **58 tests / 3 files**, type-aware lint and actionlint.
+These are synthetic process/filesystem fixtures, not Ubuntu package evidence.
+Broader final gates and actual Ubuntu validation are pending at this checkpoint.
+The branch qualification will exercise this correction before protected delivery;
+its source is not an accepted-main F9-01 candidate. B12, F9-01 and installed-runtime
+rows stay pending until their own evidence exists.

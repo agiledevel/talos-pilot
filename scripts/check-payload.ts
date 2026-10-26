@@ -100,8 +100,9 @@ const platform = valueOf(args, "--platform");
 const root = valueOf(args, "--root");
 const releaseOutput = valueOf(args, "--release-output");
 const target = valueOf(args, "--target");
-// Offline inspection may supply a trusted copy of the exact build OS's data.
-// The hosted recipe never overrides this: it compares against its own OS root.
+// The hosted recipe supplies a private copy captured before packaging, not the
+// live OS tree after the bundler has run. Offline callers also need a trusted
+// reference; choosing a root is not OS/publisher authentication.
 const appimageSystemRoot = valueOf(args, "--appimage-system-root");
 if (
   appimageSystemRoot !== undefined &&

@@ -1,5 +1,13 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  truncateSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -17,6 +25,45 @@ afterEach(() => {
 
 /** Executes the actual shared workflow command against an argv-recording CLI. */
 describe("shared package build invocation", () => {
+  it("captures the trusted reference before bundling and consumes it afterward", () => {
+    const workflow = readFileSync(workflowPath, "utf8");
+    const capture = workflow.indexOf("      - name: Capture pristine AppImage system data");
+    const build = workflow.indexOf("      - name: Build preview packages");
+    const inspect = workflow.indexOf("      - name: Inspect packaged Linux payloads");
+    expect(capture).toBeGreaterThan(0);
+    expect(capture).toBeLessThan(build);
+    expect(build).toBeLessThan(inspect);
+    expect(workflow.slice(capture, build)).toContain(
+      'node scripts/snapshot-appimage-system-data.ts --directory "$RUNNER_TEMP/appimage-system-data"',
+    );
+    expect(workflow.slice(inspect)).toContain(
+      '--appimage-system-root "$RUNNER_TEMP/appimage-system-data"',
+    );
+    expect(workflow).not.toContain("continue-on-error");
+  });
+
+  it("retains failed AppImages only under a short-lived non-release diagnostic name", () => {
+    const workflow = readFileSync(workflowPath, "utf8");
+    const block =
+      /      - name: Preserve failed Linux AppImage for diagnosis\n([\s\S]*?)\n      - /u.exec(
+        workflow,
+      )?.[1];
+    if (block === undefined) throw new Error("The failed-payload diagnostic step is missing.");
+    expect(workflow).toContain(
+      "if: failure() && runner.os == 'Linux' && steps.linux_payload.outcome == 'failure'",
+    );
+    expect(workflow).toContain('test "${#images[@]}" -eq 1');
+    expect(workflow).toContain('test "$(stat -c \'%s\' "${images[0]}")" -le 268435456');
+    expect(block).toContain(
+      "if: failure() && runner.os == 'Linux' && steps.linux_diagnostic.outcome == 'success'",
+    );
+    expect(block).toContain("name: diagnostic-appimage-${{ inputs.revision }}");
+    expect(block).toContain("retention-days: 1");
+    expect(block).toContain("if-no-files-found: error");
+    expect(block).not.toContain("name: release-");
+    expect(readFileSync(".github/workflows/release.yml", "utf8")).toContain("pattern: release-*");
+  });
+
   it("preserves the Cargo separator without a pnpm/PowerShell forwarding layer", () => {
     const workflow = readFileSync(workflowPath, "utf8");
     const block = /      - name: Build preview packages\n([\s\S]*?)\n      - /u.exec(workflow)?.[1];
@@ -62,6 +109,51 @@ describe("shared package build invocation", () => {
       ]);
     }
   });
+});
+
+describe.skipIf(process.platform === "win32")("failed AppImage diagnostic bounds", () => {
+  function inspect(sizes: readonly number[]) {
+    const workflow = readFileSync(workflowPath, "utf8");
+    const block =
+      /      - name: Bound failed Linux AppImage diagnostic\n([\s\S]*?)\n      - /u.exec(
+        workflow,
+      )?.[1];
+    const body = block?.split("        run: |\n")[1];
+    if (body === undefined) throw new Error("The actual diagnostic guard command is missing.");
+    const command = body
+      .split("\n")
+      .map((line) => line.slice(10))
+      .join("\n")
+      .replace("${{ matrix.target }}", "x86_64-unknown-linux-gnu");
+    const directory = join(
+      fixture,
+      "src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage",
+    );
+    mkdirSync(directory, { recursive: true });
+    sizes.forEach((bytes, index) => {
+      const file = join(directory, `Talos Pilot ${index}.AppImage`);
+      writeFileSync(file, "");
+      truncateSync(file, bytes);
+    });
+    return spawnSync("bash", ["-c", command], { cwd: fixture, encoding: "utf8", timeout: 5_000 });
+  }
+
+  it("accepts exactly one image at the inclusive 256 MiB diagnostic limit", () => {
+    const result = inspect([268435456]);
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(0);
+    expect(result.stdout).toMatch(/^[0-9a-f]{64} {2}/u);
+  });
+
+  it.each([{ sizes: [] }, { sizes: [1, 1] }, { sizes: [268435457] }])(
+    "refuses absent, multiple or oversized diagnostic inputs: $sizes",
+    ({ sizes }) => {
+      const result = inspect(sizes);
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe("");
+    },
+  );
 });
 
 // This is a hosted Linux extraction procedure, not a Windows application API.
