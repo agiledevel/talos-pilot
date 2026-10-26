@@ -105,7 +105,10 @@ jobs:
       - uses: ./.github/actions/install-protoc
       - run: pnpm icons:check
       - name: Build preview packages
-        run: pnpm tauri build --ci --config .github/tauri.release.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} -- --locked
+        # PowerShell/pnpm command forwarding dropped the Cargo separator on
+        # Windows. Invoke the pinned Node CLI directly from bash on every OS.
+        shell: bash
+        run: node node_modules/@tauri-apps/cli/tauri.js build --ci --config .github/tauri.release.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} -- --locked
       - name: Check packaged Linux resources
         if: runner.os == 'Linux'
         run: pnpm release:check-linux
@@ -139,7 +142,7 @@ jobs:
           test "${#packages[@]}" -eq 1
           package=$(realpath "${packages[0]}")
           mkdir "$work/rpm"
-          rpm2cpio "$package" | (cd "$work/rpm" && cpio --quiet -idm)
+          bash scripts/extract-rpm.sh "$package" "$work/rpm"
           node scripts/check-payload.ts --platform linux-rpm --root "$work/rpm"
 
           packages=("$bundle"/appimage/*.AppImage)

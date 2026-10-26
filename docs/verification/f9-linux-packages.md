@@ -197,3 +197,59 @@ files** (`/tmp/tp-s4a-r1-scripts.log`); `pnpm lint`, `pnpm format:check` and
 synthetic fixture bytes plus the earlier real local DEB; the versioned-library
 case was not observed in a hosted AppImage extraction, and the format rule is
 enforced by the verifier rather than inferred from the collector.
+
+## First hosted qualification failure and correction (2026-10-26)
+
+PR #6 merged as `ba90cb2d7fd6acc25939d8509cf829f11cf1587a`. Qualification
+[40328346368](https://github.com/agiledevel/talos-pilot/actions/runs/40328346368)
+validated that source; both macOS targets passed and uploaded artifacts. Windows
+failed during `Build preview packages`, and Linux built DEB/RPM/AppImage but
+failed during `Inspect packaged Linux payloads` after successful DEB payload and
+notices checks. No Linux or Windows artifact was uploaded. **F9-01 remains
+pending**, superseding the earlier default-branch-publication blocker without
+rewriting its history.
+
+Owner requested investigation, correction and delivery to `main`. Acceptance:
+preserve locked Cargo builds on all four targets, extract the real Tauri RPM
+without ignoring failures, keep every payload/provenance gate, and deliver
+through required branch checks rather than bypassing protection. No tag,
+release, cluster mutation or host provisioning is involved.
+
+- **Windows:** the log shows `pnpm tauri build ... -- --locked` becoming
+  `tauri build ... --locked`, which Tauri rejects. The shared step now uses
+  explicit `shell: bash` and `node node_modules/@tauri-apps/cli/tauri.js`;
+  neither pnpm's script wrapper nor PowerShell forwards the argument list.
+- **Linux:** Ubuntu RPM 4.17's
+  [`rpm2cpio.c`](https://github.com/rpm-software-management/rpm/blob/rpm-4.17.0-release/rpm2cpio.c)
+  compares bytes copied with `LONGARCHIVESIZE`, even if absent. A locally
+  Tauri-built RPM has neither `LONGARCHIVESIZE` nor `ARCHIVESIZE`. Executing
+  Ubuntu's `rpm2cpio` 4.17.0+dfsg1-4build1 against it returned **1** after
+  copying **70,090,848 bytes**, reproducing the silent failure. The corrected
+  recipe provisions `libarchive-tools` and calls `scripts/extract-rpm.sh`:
+  `timeout 60s bsdtar --no-same-owner -xf ... -C ...`. Failure is not masked;
+  RPM payload validation immediately follows as before.
+- **Regression boundary:** `scripts/package-workflow.test.ts` executes the
+  actual shared YAML build command against an argv-recording CLI for all four
+  targets (including a working directory with spaces). It requires the Cargo
+  separator and locked flag, exercises extraction argument boundaries and
+  nonzero propagation, and rejects missing inputs. These are process fixtures,
+  not Windows installed-runtime or hosted package evidence.
+
+Local package reproduction used the private pinned toolchain on the openSUSE
+x86_64 development host, with a real Tauri release-config RPM build via the
+new direct-Node command. RPM SHA-256:
+`ec4e18eb7601929e5a62789a336cb5a1810ac800a80efa6be0f1b88ef4382e4e`.
+Ubuntu tools were downloaded from the official archive into `/tmp`, checked
+against its Packages-index SHA-256, and extracted **without system install**.
+Ubuntu `bsdtar` and libarchive **3.6.0-1ubuntu1.9** extracted this RPM with the
+checked-in script; `payload:check` passed (6 entries) and
+`notices:check-packaged` passed (2 files, 639 components, 1059 texts). A truncated
+100,000-byte copy failed with exit 1 and `truncated gzip input`. Temporary
+payloads were removed. This is a dirty-tree local RPM, not hosted immutable-SHA
+artifact evidence and not an installed desktop guest.
+
+Final aggregate/native results and hosted delivery status are recorded in the
+corresponding [ledger entry](../plans/foundation-finish/ledger.md). A fresh
+four-target qualification plus downloaded Linux artifact verification remains
+required before accepting F9-01; no previous run or local reproduction substitutes
+for it.
