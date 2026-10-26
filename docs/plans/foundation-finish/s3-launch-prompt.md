@@ -1,6 +1,6 @@
 # S3 launch prompt: dependency notices and security
 
-Status: **READY; implementation not started** (2026-10-26). Prepared on
+Status: **LAUNCHED; S3 in progress** (S3-A recorded 2026-10-26; evidence in the ledger and document 07). Prepared on
 `ft-dependency-notices-security` from merged `main`
 `41b1e008abbcb9a663d02f425bdc67775f4170b6`. S2/document 06 is accepted on Linux,
 merged via PR #4, and that exact main revision's Foundation

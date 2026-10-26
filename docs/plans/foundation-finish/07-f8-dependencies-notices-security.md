@@ -1,6 +1,10 @@
 # 07 — F8: dependency, notices, and security evidence
 
-Status: **READY for S3 implementation; F8 not started** (2026-10-26).
+Status: **IN PROGRESS — S3-A recorded 2026-10-26** on
+`ft-dependency-notices-security`; F8 is not accepted. The reviewed inputs,
+output paths, bounds, target strategy and gate plan are recorded under
+[S3-A record](#s3-a-record-2026-10-26) below; generated artifacts, packaging,
+security re-proof and hosted evidence are still outstanding.
 S2/document 06 is accepted on the development Linux WebView and merged via
 [PR #4](https://github.com/agiledevel/talos-pilot/pull/4) at
 `41b1e008abbcb9a663d02f425bdc67775f4170b6`. That exact `main` revision passed
@@ -273,3 +277,53 @@ notice-packaging-open wording in `docs/dependencies.md` only for rows actually
 qualified, leaving F9/platform limits explicit. Mark document 07 done on Linux
 only then and hand off to document 08 in a later task. Missing hosted, bundle or
 native evidence leaves F8 in progress/blocked; it is not an accepted exception.
+
+## S3-A record (2026-10-26)
+
+Executed before any generator code, on branch `ft-dependency-notices-security`
+at `40ecc07` (tree based on merged `main` `41b1e00`). The private pinned
+toolchain was reused: Node 26.12.1, pnpm 12.15.0, Rust 1.99.1, Go 1.27.3,
+cargo-audit present. `pnpm inventory:check` reported the committed inventory
+current (538 npm / 614 Cargo / 143 Go, 35 linked), so no regeneration was
+needed and the only change since S2 is the three F7 pins.
+
+**Coverage decision.** Reproducible all-target superset from pinned sources:
+npm production graph (101), union of the normal/build Cargo closures for
+`x86_64-unknown-linux-gnu`, `x86_64-apple-darwin`, `aarch64-apple-darwin` and
+`x86_64-pc-windows-msvc` (502 crates; 449/377/375/377 per target), and the Go
+modules providing helper packages on linux/amd64, darwin/amd64, darwin/arm64
+and windows/amd64 (35). Per-target membership is recorded per crate. Go
+graph-only modules stay `unobserved`. Unavailable evidence: every installed
+package and runtime row for macOS/Windows, which stays F9/document 10 work.
+
+**Output paths.** `legal/THIRD-PARTY-NOTICES.txt`,
+`legal/third-party-manifest.json`, curated inputs under `legal/sources/`
+(registry, upstream override texts, canonical SPDX texts, SQLite extract).
+Commands `pnpm notices:generate`, `pnpm notices:check`,
+`pnpm notices:check-packaged -- <payload-root>`.
+
+**Bounds.** ≤2,000 components, 24 texts per component, 4 MiB per text, 32 MiB
+total text, depth 4, 4,096 directory entries, 300 s and 256 MiB per graph
+command, 48 MiB notices output, 8 MiB manifest.
+
+**Reviewed obligations.** See [dependencies](../../dependencies.md#third-party-notices-and-redistribution)
+and [decision 0020](../../decisions/0020-dependency-notice-generation.md):
+alternatives selected per expression, the five `AND` expressions checked file by
+file, Monaco `ThirdPartyNotices.txt`, nested `ring`/`once_cell` texts, the
+public-domain SQLite amalgamation with a digest check, MPL-2.0 source
+availability for five crates, 30 digest-checked overrides for packages that
+publish no licence text, and the `css-value@0.0.1` development-only exclusion
+with production-graph absence evidence.
+
+**Gate plan by acceptance ID.**
+
+| ID    | Planned evidence class                                                                                                              |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| F8-01 | Local frozen install, inventory check, repeated generation byte comparison, clean and extra-cache runs, clean-checkout locked build |
+| F8-02 | Generated manifest/notices review against the recorded obligations; unknown-term and missing-text negative tests                    |
+| F8-03 | Isolated synthetic-graph drift failure/regeneration pass, malformed/missing/extra output and source failure tests, CI/build wiring  |
+| F8-04 | Extracted DEB payload comparison against the manifest, negative missing/tampered/extra cases, native resource/helper/cleanup smoke  |
+| F8-05 | Fresh `pnpm audit`, `pnpm audit:go`, `cargo audit`, `pnpm advisories:check` on the rebuilt ordinary executable                      |
+| F8-06 | Decisions 0006/0017 re-proof, dated renewal or removal, expired-exception negative check                                            |
+| F8-07 | Candidate Foundation/Security run identity, jobs and steps; unexecuted if the branch stays unpushed                                 |
+| F8-08 | Separate final diff review, documentation/link/format checks, ledger and README agreement                                           |
