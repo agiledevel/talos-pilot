@@ -2,7 +2,7 @@
 # Extract one declared data member, preserving its archive permissions (never
 # ownership/ACLs/xattrs), into a new private directory. No package is installed.
 set -euo pipefail
-if [[ $# != 3 || ! -f $1 || ! $2 =~ ^\./usr/share/(doc/[a-z0-9][a-z0-9+.-]*/copyright|glib-2\.0/schemas/(gschema\.dtd|[A-Za-z0-9][A-Za-z0-9_.-]*\.gschema\.(xml|override)))$ ]]; then
+if [[ $# != 3 || ! -f $1 || ! $2 =~ ^\./usr/share/(doc/[a-z0-9][a-z0-9+.-]*/copyright|glib-2\.0/schemas/(gschema\.dtd|org\.gnome\.desktop\.enums\.xml|[A-Za-z0-9][A-Za-z0-9_.-]*\.gschema\.(xml|override)))$ ]]; then
   echo 'Usage: extract-deb-data.sh <authenticated.deb> <./declared-data-member> <new-directory>' >&2
   exit 1
 fi

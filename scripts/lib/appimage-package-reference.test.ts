@@ -116,6 +116,17 @@ describe.skipIf(process.platform === "win32")("archive-proven Ubuntu data refere
     expect(messages.join("\n")).toContain(`installed=${packageId}; archive=${archiveIdentity}`);
   });
 
+  it("proves the exact GNOME enum data through the same archive boundary", () => {
+    candidate(
+      "usr/share/glib-2.0/schemas/org.gnome.desktop.enums.xml",
+      '<schemalist><enum id="fixture"/></schemalist>\n',
+    );
+    expect(prepare().files).toBe(1);
+    expect(messages.join("\n")).toContain(
+      "Archive-proven AppImage data usr/share/glib-2.0/schemas/org.gnome.desktop.enums.xml",
+    );
+  });
+
   it("resolves distro copyright aliases without trusting outside files", () => {
     candidate();
     rmSync(join(root, "system", copyright));

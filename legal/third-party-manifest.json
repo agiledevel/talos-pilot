@@ -16187,7 +16187,7 @@
       "name": "golang.org/x/crypto",
       "notes": [],
       "selectedLicense": "BSD-3-Clause",
-      "source": "https://pkg.go.dev/golang.org/x/crypto@v0.57.0",
+      "source": "https://pkg.go.dev/golang.org/x/crypto@v0.58.0",
       "targets": [
         "darwin/amd64",
         "darwin/arm64",
@@ -16198,11 +16198,11 @@
         {
           "bytes": 1453,
           "origin": "upstream",
-          "provenance": "go:golang.org/x/crypto@v0.57.0/LICENSE",
+          "provenance": "go:golang.org/x/crypto@v0.58.0/LICENSE",
           "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
         }
       ],
-      "version": "v0.57.0"
+      "version": "v0.58.0"
     },
     {
       "ecosystem": "go",
@@ -16210,7 +16210,7 @@
       "name": "golang.org/x/net",
       "notes": [],
       "selectedLicense": "BSD-3-Clause",
-      "source": "https://pkg.go.dev/golang.org/x/net@v0.60.0",
+      "source": "https://pkg.go.dev/golang.org/x/net@v0.62.0",
       "targets": [
         "darwin/amd64",
         "darwin/arm64",
@@ -16221,11 +16221,11 @@
         {
           "bytes": 1453,
           "origin": "upstream",
-          "provenance": "go:golang.org/x/net@v0.60.0/LICENSE",
+          "provenance": "go:golang.org/x/net@v0.62.0/LICENSE",
           "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
         }
       ],
-      "version": "v0.60.0"
+      "version": "v0.62.0"
     },
     {
       "ecosystem": "go",
@@ -16233,7 +16233,7 @@
       "name": "golang.org/x/sys",
       "notes": [],
       "selectedLicense": "BSD-3-Clause",
-      "source": "https://pkg.go.dev/golang.org/x/sys@v0.48.0",
+      "source": "https://pkg.go.dev/golang.org/x/sys@v0.49.0",
       "targets": [
         "darwin/amd64",
         "darwin/arm64",
@@ -16244,11 +16244,11 @@
         {
           "bytes": 1453,
           "origin": "upstream",
-          "provenance": "go:golang.org/x/sys@v0.48.0/LICENSE",
+          "provenance": "go:golang.org/x/sys@v0.49.0/LICENSE",
           "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
         }
       ],
-      "version": "v0.48.0"
+      "version": "v0.49.0"
     },
     {
       "ecosystem": "go",
@@ -16256,7 +16256,7 @@
       "name": "golang.org/x/text",
       "notes": [],
       "selectedLicense": "BSD-3-Clause",
-      "source": "https://pkg.go.dev/golang.org/x/text@v0.42.0",
+      "source": "https://pkg.go.dev/golang.org/x/text@v0.43.0",
       "targets": [
         "darwin/amd64",
         "darwin/arm64",
@@ -16267,11 +16267,11 @@
         {
           "bytes": 1453,
           "origin": "upstream",
-          "provenance": "go:golang.org/x/text@v0.42.0/LICENSE",
+          "provenance": "go:golang.org/x/text@v0.43.0/LICENSE",
           "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
         }
       ],
-      "version": "v0.42.0"
+      "version": "v0.43.0"
     },
     {
       "ecosystem": "go",
@@ -16398,7 +16398,7 @@
   "generatedBy": "pnpm notices:generate",
   "inputs": {
     "cargoLockSha256": "9e3ae2f9e24b53dc17ec71a2076a635f5401f55310a95c8bc13d3974c97d1bea",
-    "goSumSha256": "ffb278d2583c3268a8ca81ca86449aa64e8e2f788deea074fbfee96032f7e00b",
+    "goSumSha256": "ba853de8a16da8b18324832289179411ae47031fa3283bb7d23a57276e6e5979",
     "pnpmLockSha256": "0ab7f895fd8c559cb8febdcfd9b05ae16cec4fbf025df44e187e83845b9f5e12",
     "registrySha256": "b15d5449ade55135c798f7f0be6d0d56e3aed6ccf8eb624310dcd2d37924f97e",
     "cargoTargets": [
@@ -16417,7 +16417,7 @@
   "notices": {
     "bytes": 5406879,
     "path": "legal/THIRD-PARTY-NOTICES.txt",
-    "sha256": "39a7c887a94f796927991c16464de29319ceaaef59ba226e5a37b051739842ba"
+    "sha256": "ffecd3bf7ee802eea7dc2db473b6ea5764f175609d866863b426c83a22c13bf3"
   },
   "policy": "docs/decisions/0020-dependency-notice-generation.md",
   "schemaVersion": 1

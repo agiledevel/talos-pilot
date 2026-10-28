@@ -9,7 +9,7 @@
     "lockfiles": {
       "pnpmLock": "0ab7f895fd8c559cb8febdcfd9b05ae16cec4fbf025df44e187e83845b9f5e12",
       "cargoLock": "9e3ae2f9e24b53dc17ec71a2076a635f5401f55310a95c8bc13d3974c97d1bea",
-      "goSum": "ffb278d2583c3268a8ca81ca86449aa64e8e2f788deea074fbfee96032f7e00b"
+      "goSum": "ba853de8a16da8b18324832289179411ae47031fa3283bb7d23a57276e6e5979"
     }
   },
   "npm": [
@@ -9248,7 +9248,7 @@
     },
     {
       "path": "golang.org/x/crypto",
-      "version": "v0.57.0",
+      "version": "v0.58.0",
       "indirect": true,
       "linked": true,
       "license": "BSD-3-Clause",
@@ -9277,7 +9277,7 @@
     },
     {
       "path": "golang.org/x/net",
-      "version": "v0.60.0",
+      "version": "v0.62.0",
       "indirect": true,
       "linked": true,
       "license": "BSD-3-Clause",
@@ -9297,7 +9297,7 @@
     },
     {
       "path": "golang.org/x/sync",
-      "version": "v0.23.0",
+      "version": "v0.24.0",
       "indirect": true,
       "linked": false,
       "license": "unobserved",
@@ -9306,7 +9306,7 @@
     },
     {
       "path": "golang.org/x/sys",
-      "version": "v0.48.0",
+      "version": "v0.49.0",
       "indirect": true,
       "linked": true,
       "license": "BSD-3-Clause",
@@ -9317,7 +9317,7 @@
     },
     {
       "path": "golang.org/x/term",
-      "version": "v0.46.0",
+      "version": "v0.47.0",
       "indirect": true,
       "linked": false,
       "license": "unobserved",
@@ -9326,7 +9326,7 @@
     },
     {
       "path": "golang.org/x/text",
-      "version": "v0.42.0",
+      "version": "v0.43.0",
       "indirect": true,
       "linked": true,
       "license": "BSD-3-Clause",
@@ -9348,7 +9348,7 @@
     },
     {
       "path": "golang.org/x/tools",
-      "version": "v0.49.0",
+      "version": "v0.51.0",
       "indirect": true,
       "linked": false,
       "license": "unobserved",

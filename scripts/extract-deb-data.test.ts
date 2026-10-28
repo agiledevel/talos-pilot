@@ -49,10 +49,10 @@ case "$1" in
     test "$6" = --no-fflags
     test "$7" = -C
     test "$9" = --
-    test "\${10}" = ./usr/share/doc/libfixture/copyright
+    test "\${10}" = "$MOCK_MEMBER"
     cat > /dev/null
-    mkdir -p "$8/usr/share/doc/libfixture"
-    printf 'synthetic data' > "$8/usr/share/doc/libfixture/copyright" ;;
+    mkdir -p "$8/$(dirname "\${10}")"
+    printf 'synthetic data' > "$8/\${10}" ;;
   *) exit 19 ;;
 esac
 `,
@@ -66,6 +66,7 @@ esac
         PATH: `${bin}:${process.env.PATH ?? ""}`,
         MOCK_CORRUPT: options.corrupt ? "1" : "0",
         MOCK_DUPLICATE: options.duplicate ? "1" : "0",
+        MOCK_MEMBER: options.path ?? member,
       },
       encoding: "utf8",
       timeout: 5_000,
@@ -79,6 +80,12 @@ esac
     expect(readFileSync(join(root, "extracted/usr/share/doc/libfixture/copyright"), "utf8")).toBe(
       "synthetic data",
     );
+  });
+
+  it("admits only the exact additional GNOME enum member through the same extraction flags", () => {
+    const path = "./usr/share/glib-2.0/schemas/org.gnome.desktop.enums.xml";
+    expect(extract({ path }).status).toBe(0);
+    expect(readFileSync(join(root, "extracted", path), "utf8")).toBe("synthetic data");
   });
 
   it("propagates a failed/truncated producer and removes partial output", () => {
@@ -97,6 +104,8 @@ esac
     "./usr/share/doc/../copyright",
     "/usr/share/doc/libfixture/copyright",
     "./usr/share/glib-2.0/schemas/evil.sh",
+    "./usr/share/glib-2.0/schemas/org.example.enums.xml",
+    "./usr/share/glib-2.0/schemas/arbitrary.xml",
   ])("rejects undeclared member %s", (path) => {
     const result = extract({ path });
     expect(result.status).toBe(1);

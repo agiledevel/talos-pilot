@@ -16,7 +16,7 @@ export const APPIMAGE_DATA_LIMITS = {
 export function isAppImageSystemDataPath(path: string): boolean {
   return (
     /^usr\/share\/doc\/[a-z0-9][a-z0-9+.-]*\/copyright$/u.test(path) ||
-    /^usr\/share\/glib-2\.0\/schemas\/(?:gschema\.dtd|[A-Za-z0-9][A-Za-z0-9_.-]*\.gschema\.(?:xml|override))$/u.test(
+    /^usr\/share\/glib-2\.0\/schemas\/(?:gschema\.dtd|org\.gnome\.desktop\.enums\.xml|[A-Za-z0-9][A-Za-z0-9_.-]*\.gschema\.(?:xml|override))$/u.test(
       path,
     )
   );
@@ -73,8 +73,10 @@ export interface VerifiedAppImageData {
  *
  * Both roots are caller-owned/trusted inspection inputs, never renderer inputs.
  * `systemRoot` defaults to a pristine build OS. Hosted packaging instead
- * supplies a private reference derived from authenticated exact-version Ubuntu
- * archives, since runner-image data modes are not pristine. Tests use fixtures.
+ * supplies private byte-identical data references from authenticated Ubuntu
+ * archive candidates, since runner-image modes are not pristine. The package
+ * reference preparer records installed/archive versions; this comparison alone
+ * never authenticates an OS image or publisher. Tests use fixtures.
  * Symlinks must resolve within the matching doc/schema subtree. No file is
  * modified, installed or executed. Unknown paths and any missing, changed,
  * executable, binary, oversized or unreadable source fail closed.

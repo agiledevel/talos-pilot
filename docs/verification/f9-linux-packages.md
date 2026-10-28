@@ -561,3 +561,46 @@ The candidate-data and native-inspector changes passed 87 focused tests before
 a test-only lint-shape correction; the affected 32 tests then passed with full
 lint/types, ShellCheck and actionlint. A new actual Ubuntu probe and final broad
 gates remain required. PR #9 stays draft; B12/F9-01/runtime acceptance stay open.
+
+### 2026-10-28 resume — authenticated references executed, exact enum member
+
+Pushed the pending correction as `af18cda9fe80df387801c1ffd10a991221ff7d74`
+and executed branch qualification
+[40668168072](https://github.com/agiledevel/talos-pilot/actions/runs/40668168072).
+Linux job `122748055957` passed the candidate acquisition and data proof for
+**122 files / 1,237,913 bytes / 90 packages**, including available patch-version
+data for the retired systemd case. It then failed for exactly one undeclared
+executable-mode path: `usr/share/glib-2.0/schemas/org.gnome.desktop.enums.xml`.
+The non-release diagnostic image was retained, not a qualified Linux upload.
+Log: `/tmp/tp-archive-af18cda-ubuntu.log`. This is actual signed-APT/data evidence,
+not a full AppImage/F9-01 pass.
+
+The next increment recognizes **only that exact GNOME enum filename** through
+the identical owner/architecture, non-executable archive original, bounded UTF-8
+and byte-equality checks. It does not exempt arbitrary XML or other enum names.
+Added actual shell-boundary and data-preparation/verification positives and
+negative arbitrary-XML/other-enum cases. Focused **71 tests / 4 files**, full
+lint/types, actionlint 1.7.12 and ShellCheck 0.11.0 passed. Both private static
+tools were restored at the existing pins and verified against CI's SHA-256s;
+no toolchain refresh was performed.
+
+Fresh final local checks at `af18cda` passed: **463 tests / 54 files**, coverage
+**72.31% statements / 74.70% branches**, Svelte 0 errors/warnings, frontend build,
+browser **31/31** (26.4 s), actual private-XDG/Xvfb native **31 tests / 5 specs**
+(16 s), no helper/endpoint remaining, default-feature production rebuild,
+production driver exclusion/runtime check and Rust advisory baseline. B13's
+inspection failure is corrected, not ignored. These precede the enum/dependency
+increment and must not be presented as its final evidence.
+
+Required CI now has a separate security blocker:
+[Foundation 40668175939](https://github.com/agiledevel/talos-pilot/actions/runs/40668175939)
+failed the unchanged npm audit for unpatched build-only deepmerge;
+[Security 40668175820](https://github.com/agiledevel/talos-pilot/actions/runs/40668175820)
+failed Trivy on two newly published x/net findings, while all CodeQL languages
+passed. The minimum Go fix and required graph updates are applied with regenerated
+inventory/notices and passing Go format/vet/test/race/build/module, symbol-audit,
+contract, inventory and notices checks. All four updated redistributed modules
+retain the same BSD-3-Clause terms/text. See [B14 evidence and the proposed owner
+choice](b14-build-advisories.md). No npm exception or skipped audit is active.
+Protected delivery and accepted-main/download verification are still blocked;
+all installed-runtime rows remain pending.
