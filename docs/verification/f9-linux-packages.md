@@ -28,20 +28,20 @@ not installed-package evidence.
   evidence yet. The planning
   entry's earlier observation is preserved there.
 
-## Acceptance matrix (all pending)
+## Acceptance matrix (S4-A accepted; installed runtime pending)
 
-| ID    | Required row                                                                                              | Checkpoint | Status  |
-| ----- | --------------------------------------------------------------------------------------------------------- | ---------- | ------- |
-| F9-01 | Shared release/qualification path, four targets, one SHA, no tag/publication; downloaded bytes match      | S4-A       | pending |
-| F9-02 | AppImage renders/exits on clean Ubuntu 22.04 and recorded current Fedora                                  | S4-C       | pending |
-| F9-03 | Ubuntu DEB and Fedora RPM install, render, reinstall and uninstall with documented data retention         | S4-C       | pending |
-| F9-04 | Packaged helper path/architecture/identity handshake, no global CLI, maintainer exporter absent           | S4-A/C/D   | pending |
-| F9-05 | Desktop vault available/locked/unavailable, session-only/retry, encrypted restart, no plaintext leakage   | S4-C       | pending |
-| F9-06 | Each format/guest loads offline editor/worker/diff/terminal/chart under packaged CSP and cleans up        | S4-C       | pending |
-| F9-07 | Every path/helper/startup/crash/active-stream fault measured, cleanup observed, original preserved        | S4-C       | pending |
-| F9-08 | Actual payloads exclude test/driver/mock code and expose no driver listener; swapped bytes fail           | S4-D       | pending |
-| F9-09 | All three Linux payload notices verified, artifact scans reviewed, hashes and signing limits recorded     | S4-D       | pending |
-| F9-10 | Final gates/hosted results read, separate review resolved, contracts/setup/runtime docs and ledgers agree | S4-D       | pending |
+| ID    | Required row                                                                                              | Checkpoint | Status                                              |
+| ----- | --------------------------------------------------------------------------------------------------------- | ---------- | --------------------------------------------------- |
+| F9-01 | Shared release/qualification path, four targets, one SHA, no tag/publication; downloaded bytes match      | S4-A       | accepted 2026-10-28; main 2831d4a / run 40685092801 |
+| F9-02 | AppImage renders/exits on clean Ubuntu 22.04 and recorded current Fedora                                  | S4-C       | pending                                             |
+| F9-03 | Ubuntu DEB and Fedora RPM install, render, reinstall and uninstall with documented data retention         | S4-C       | pending                                             |
+| F9-04 | Packaged helper path/architecture/identity handshake, no global CLI, maintainer exporter absent           | S4-A/C/D   | pending                                             |
+| F9-05 | Desktop vault available/locked/unavailable, session-only/retry, encrypted restart, no plaintext leakage   | S4-C       | pending                                             |
+| F9-06 | Each format/guest loads offline editor/worker/diff/terminal/chart under packaged CSP and cleans up        | S4-C       | pending                                             |
+| F9-07 | Every path/helper/startup/crash/active-stream fault measured, cleanup observed, original preserved        | S4-C       | pending                                             |
+| F9-08 | Actual payloads exclude test/driver/mock code and expose no driver listener; swapped bytes fail           | S4-D       | pending                                             |
+| F9-09 | All three Linux payload notices verified, artifact scans reviewed, hashes and signing limits recorded     | S4-D       | pending                                             |
+| F9-10 | Final gates/hosted results read, separate review resolved, contracts/setup/runtime docs and ledgers agree | S4-D       | pending                                             |
 
 ## Planned evidence by checkpoint
 
@@ -687,3 +687,88 @@ checks and actual relevant Ubuntu qualification before draft promotion. This
 branch evidence is **not protected-main acceptance**: F9-01 remains pending
 until ordinary delivery, exact-main checks/qualification and independent
 accepted-main download verification. All installed-runtime rows remain pending.
+
+### S4-A / F9-01 acceptance — protected-main reference build
+
+**Accepted 2026-10-28, S4-A only.** PR [#9](https://github.com/agiledevel/talos-pilot/pull/9)
+was promoted from draft only after the final-source branch's actual four-target
+qualification **40682754365**, Foundation **40682760923** and Security
+**40682760893** passed. The scoped npm step executed the live scan successfully;
+CodeQL analyses actually executed (not reused). Independent Linux verification
+also passed at `3f60a9498568d61d7dc2ab283f0c4d40ebd424cb`.
+
+Ordinary protected merge produced **`2831d4ae0dc21fa7a3a2a5101f3124d3f63cdc90`**,
+whose tree exactly matches the tested PR head. No admin/bypass, forced upload,
+tag or release was used. Exact-main results:
+
+- [Foundation 40685069059](https://github.com/agiledevel/talos-pilot/actions/runs/40685069059):
+  renderer and **all four desktop runners** passed, including Intel macOS;
+  scope/result passed. This was a full main execution, not reused PR evidence.
+- [Security 40685069062](https://github.com/agiledevel/talos-pilot/actions/runs/40685069062):
+  Trivy and all three actual CodeQL analyses passed.
+- [Qualification 40685092801](https://github.com/agiledevel/talos-pilot/actions/runs/40685092801),
+  **attempt 1, version 0.1.0, successful overall and on every target**:
+  Linux **122805464564**, Windows **122805464371**, ARM macOS **122805464426**,
+  Intel macOS **122805464509**, plus source validation. Intel's build took
+  22m10s; all its functional steps passed before delayed workflow finalization.
+  Healthy work was not cancelled/restarted. Watcher timeouts were not workflow
+  failures; final success was read back from GitHub.
+
+Main Ubuntu proved **123 files / 1,244,477 bytes / 90 authenticated packages**,
+including the exact enum hash already recorded. All three payload/notices gates
+and collection/upload passed. Log `/tmp/tp-main-2831-qualified-linux.log`.
+Artifact `release-x86_64-unknown-linux-gnu`, ID **12815555520**, ZIP **152,779,270
+bytes**, GitHub-reported ZIP digest
+`393c4f1242ee4a12027db742b1c96ee0a5969fb2d99c9e124132d32108a2893f`.
+Other uploaded artifact IDs: ARM macOS **12815500482**, Intel macOS
+**12816615077**, Windows **12815550409**; these were not independently downloaded
+or installed in this session.
+
+Downloaded main Linux bytes to `/tmp/tp-main-2831-linux-qualified` and executed:
+
+```sh
+pnpm release:verify --directory /tmp/tp-main-2831-linux-qualified \
+  --mode qualification --revision 2831d4ae0dc21fa7a3a2a5101f3124d3f63cdc90 \
+  --version 0.1.0 --targets x86_64-unknown-linux-gnu
+```
+
+**Passed:** all three installers, exact file set, sizes, installer SHA-256 sums,
+source/mode/version/target and provenance. These are the accepted reference bytes,
+not the earlier diagnostic/branch artifacts:
+
+| Format   | Bytes       | SHA-256                                                            |
+| -------- | ----------- | ------------------------------------------------------------------ |
+| AppImage | 102,418,936 | `60c5d519d2c8ab432952e34ae7b2d88c883921b1f6bd07f9d550cf022d778fe4` |
+| DEB      | 25,628,830  | `b3bef22584470e3e0cb9df12f926732f53d8eb45b24713ecb82084836aa36942` |
+| RPM      | 25,626,462  | `350a34a5fedeff8513acebbbdac13a238e219d71a62e1893827df5ea25702456` |
+
+Additional **static**, non-runtime inspection read the DEB's regular app/helper
+members in memory with a 128-MiB/member bound. Both contain the full accepted-main
+build marker. The helper member digest equals provenance
+`ce1bac5d2e78d1410cc5439943c325d8511d46126e26fa9538b3d34424d050aa`.
+An extra attempted DEB-app-to-unbundled-output equality assertion failed: those
+are different stages, not a `release:verify` failure. `build.applicationSha256`
+hashes `target/<target>/release/talos-pilot`, **not a format member**. The DEB
+member hashes to `f6b11059eac3e2155bfef2a01d5c66590196a4da02dedc5ae7c7d850d21c3355`;
+the unbundled output hashes to `5f0e7d5fbf146679447b47d26e1684a71be60f1ea2d2bff3eede6ed37e8bf9bc`.
+An isolated accepted-AppImage extraction also showed its ELF has
+`RUNPATH=$ORIGIN/../lib`, unlike the DEB, illustrating format-specific processing.
+Do not assume all member bytes equal the unbundled build hash. No application
+or helper was launched by this static check; the extraction runtime ran only its
+extract operation with an empty environment/private HOME, and owned scratch was
+removed. **Installed identity handshake remains F9-04, pending.**
+
+The owner-approved [decision 0021](../decisions/0021-temporary-build-advisory-applicability.md)
+remains a temporary unpatched build-input risk through 2026-11-11 00:00 UTC, not a
+library fix. B12/B15 corrections and B14 remediation/applicability now have
+protected-main evidence. S4-A / F9-01 is accepted; **F9-02–10, S4-B/C/D and all
+installed-runtime rows remain pending**, as do C6/C7's remaining rows, F1a/F5,
+F10/Q13 and Linux foundation/M2 entry. No owner cluster/VM, host service,
+firewall or bridge was changed. macOS/Windows runtimes remain deferred.
+
+**Next:** S4-B reproducible clean desktop guests and observable smoke procedure
+under QEMU user-mode networking. Use the immutable reference SHA and exact hashes
+above; a later documentation HEAD is not a replacement build. Preserve verified
+bytes before 14-day artifact retention expires; if unavailable or a new build
+is required, requalify explicitly without a date/guard bypass. No guest mutation
+was executed by this packaging correction.

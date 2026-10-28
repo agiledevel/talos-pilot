@@ -1,13 +1,16 @@
 # Foundation follow-up: stabilization through owner review and M2.0
 
 Date: 2026-10-25. Reviewed source: `889157f` on `ft-foundation-completion`.
-Current status, 2026-10-26: **S1/F6, S2/F7 and S3/F8 are accepted on Linux;
-PR #5 merged at `4a2f991`. S4/F9 is READY, implementation not started.** Use
-[document 08](08-f9-linux-packages.md), the [S4 launch prompt](s4-launch-prompt.md)
-and [readiness review](../../verification/f8-review-s4-readiness.md) on
-`ft-linux-package-qualification`. The [F8 evidence](../../verification/f8-notices-security.md)
-records candidate hosted acceptance; exact-merge main CI was still running at
-planning entry and is tracked in the ledger. Earlier launch prompts are
+Current status, 2026-10-28: **S1/F6, S2/F7 and S3/F8 are accepted on Linux.
+S4/F9 is in progress; S4-A package corrections are merged through PR #9 at
+`2831d4a`, with exact-main Foundation/Security passed and downloaded Linux
+AppImage/DEB/RPM verified.** Exact-main four-target qualification `40685092801` passed: **S4-A / F9-01 is
+accepted**, with [F9 evidence](../../verification/f9-linux-packages.md). Use
+[document 08](08-f9-linux-packages.md), the current continuation in the
+[S4 prompt](s4-launch-prompt.md) and the ledger: S4-B clean-guest preparation is
+next, and every installed-runtime row remains pending. F8 is preserved in its
+[record](../../verification/f8-notices-security.md); the original readiness
+review describes its historical planning state. Earlier launch prompts are
 historical, not restart instructions. S0 remains accepted under the [B11 owner
 exception](../../verification/s0-native-keyboard-acceptance.md); B11 remains
 unresolved/not fixed. F1a/F5, installed packages, budgets and Q13 review remain
@@ -39,19 +42,19 @@ prerequisite is blocked does not authorize closing F10 or starting M2.0.
 
 ## 2. Current state and evidence
 
-| Boundary        | Current state                                                                                                       | Remaining work                                                                                                                      |
-| --------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| F0/F1/F2        | Closed/accepted under recorded owner decisions                                                                      | Preserve; do not reimplement or reopen owner decisions                                                                              |
-| F3/F4           | Accepted Linux list/watch implementation, native and disposable Kubernetes 1.36 evidence                            | Refresh affected evidence after relevant corrections; F5 remains separate                                                           |
-| F1a/document 01 | Deterministic stall detection and Part A harness exist                                                              | Part B: all eight live cases, measured outcomes, cleanup and host restoration                                                       |
-| F5/document 04  | Not started; existing 1.36 list/watch evidence is not the full matrix                                               | Pinned 1.35/1.37 fixtures plus the complete 1.36 harness cases                                                                      |
-| F6/document 05  | Accepted on Linux 2026-10-25: S1 at `812c4fb`, P2 corrections at `cac672b`, final corrective evidence in the ledger | Preserve as attributed evidence; F7 is now accepted; C6 installed-package and deferred WebView rows remain                          |
-| F7/document 06  | Accepted on Linux; PR #4 merged at `41b1e00`, exact main Foundation/Security passed and read 2026-10-26             | Preserve corrective/native evidence; installed-package/deferred WebView rows remain separate                                        |
-| F8/document 07  | Accepted on Linux; merged via PR #5 at `4a2f991`; candidate hosted acceptance in the F8 record                      | Preserve notice generation/enforcement and renewed 2027-02-28 exceptions; remaining C7 format/runtime rows belong to F9/document 10 |
-| F9/document 08  | READY on `ft-linux-package-qualification`, implementation not started                                               | S4-A shared tag-free artifacts, then clean Ubuntu/Fedora runtime, fault/cleanup and final-artifact evidence                         |
-| F10/document 09 | No measured budgets/harness or final acceptance                                                                     | Measurements, enforced budgets, final review, owner review                                                                          |
-| Document 10     | Deferred by owner; no macOS/Windows hardware                                                                        | Revisit only when resources are explicitly available                                                                                |
-| M2.0            | Not started; entry gate unmet                                                                                       | Inventory accepted foundation and create milestone 2 evidence ledger after Linux close                                              |
+| Boundary        | Current state                                                                                                                | Remaining work                                                                                                                      |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| F0/F1/F2        | Closed/accepted under recorded owner decisions                                                                               | Preserve; do not reimplement or reopen owner decisions                                                                              |
+| F3/F4           | Accepted Linux list/watch implementation, native and disposable Kubernetes 1.36 evidence                                     | Refresh affected evidence after relevant corrections; F5 remains separate                                                           |
+| F1a/document 01 | Deterministic stall detection and Part A harness exist                                                                       | Part B: all eight live cases, measured outcomes, cleanup and host restoration                                                       |
+| F5/document 04  | Not started; existing 1.36 list/watch evidence is not the full matrix                                                        | Pinned 1.35/1.37 fixtures plus the complete 1.36 harness cases                                                                      |
+| F6/document 05  | Accepted on Linux 2026-10-25: S1 at `812c4fb`, P2 corrections at `cac672b`, final corrective evidence in the ledger          | Preserve as attributed evidence; F7 is now accepted; C6 installed-package and deferred WebView rows remain                          |
+| F7/document 06  | Accepted on Linux; PR #4 merged at `41b1e00`, exact main Foundation/Security passed and read 2026-10-26                      | Preserve corrective/native evidence; installed-package/deferred WebView rows remain separate                                        |
+| F8/document 07  | Accepted on Linux; merged via PR #5 at `4a2f991`; candidate hosted acceptance in the F8 record                               | Preserve notice generation/enforcement and renewed 2027-02-28 exceptions; remaining C7 format/runtime rows belong to F9/document 10 |
+| F9/document 08  | In progress; S4-A / F9-01 accepted at protected-main 2831d4a after all-four qualification and independent Linux verification | S4-B clean Ubuntu/Fedora guest recipe, then installed runtime, fault/cleanup and final-artifact evidence                            |
+| F10/document 09 | No measured budgets/harness or final acceptance                                                                              | Measurements, enforced budgets, final review, owner review                                                                          |
+| Document 10     | Deferred by owner; no macOS/Windows hardware                                                                                 | Revisit only when resources are explicitly available                                                                                |
+| M2.0            | Not started; entry gate unmet                                                                                                | Inventory accepted foundation and create milestone 2 evidence ledger after Linux close                                              |
 
 ### Fresh review evidence at `889157f`
 
