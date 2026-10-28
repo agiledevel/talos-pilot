@@ -95,6 +95,66 @@ describe.skipIf(process.platform === "win32")("bounded Ubuntu provisioning", () 
     expect(output).not.toContain("UNEXPECTED-INSTALL");
   });
 
+  it("downloads data candidates with one official fallback and never installs them", () => {
+    const directory = mkdtempSync(join(tmpdir(), "talos-apt-reference-"));
+    try {
+      const output = execFileSync(
+        "bash",
+        [
+          "-c",
+          `source ${script}
+        attempts=0
+        fetch_references() { attempts=$((attempts + 1)); printf 'fetch:%s\\n' "$*"; [[ $attempts == 2 ]]; }
+        apt_get() { echo UNEXPECTED-INSTALL; return 99; }
+        download_references "$REF_TARGET" 'libfixture:amd64'
+      `,
+        ],
+        { encoding: "utf8", env: { ...process.env, REF_TARGET: join(directory, "archives") } },
+      );
+      expect(output).toContain("fetch:https://archive.ubuntu.com/ubuntu libfixture:amd64");
+      expect(output).toContain("fetch:https://azure.archive.ubuntu.com/ubuntu libfixture:amd64");
+      expect(output).not.toContain("UNEXPECTED-INSTALL");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects malformed reference specs before touching a destination or network", () => {
+    const directory = mkdtempSync(join(tmpdir(), "talos-invalid-reference-"));
+    try {
+      for (const spec of [
+        "--allow-unauthenticated",
+        "libfixture=1;echo bad",
+        "libfixture=not-a-version",
+      ]) {
+        const result = spawnSync(
+          "bash",
+          [
+            "-c",
+            `source ${script}; fetch_references() { echo UNEXPECTED-NETWORK; }; download_references "$REF_TARGET" "$SPEC"`,
+          ],
+          {
+            encoding: "utf8",
+            env: { ...process.env, SPEC: spec, REF_TARGET: join(directory, "archives") },
+          },
+        );
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain("Invalid Ubuntu reference package");
+        expect(result.stdout).not.toContain("UNEXPECTED-NETWORK");
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("does not download references when signed metadata fails", () => {
+    expect(
+      run(
+        `update_metadata() { return 17; }; if fetch_references https://archive.ubuntu.com/ubuntu 'libfixture'; then exit 9; else echo "status:$?"; fi`,
+      ).trim(),
+    ).toBe("status:17");
+  });
+
   it("parses only complete pinned Playwright reports and rejects malformed or injected packages", () => {
     expect(
       run(

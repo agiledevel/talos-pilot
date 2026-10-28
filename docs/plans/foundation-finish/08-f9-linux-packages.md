@@ -1,8 +1,11 @@
 # 08 — F9 on Linux: installer artifacts and clean-target runtime
 
 Plan revision: 3, 2026-10-26. **F9 in progress: shared packaging is on main;
-qualification 40361473939 passed Windows/macOS but Linux upload is blocked by
-AppImage payload validation (B12). Correction/requalification is in progress.**
+qualification 40401994013 passed Windows/macOS but Linux upload is blocked by
+AppImage reference validation (B12). Branch probe 40407825315 established that
+runner data is already mode 0777 before bundling; authenticated, byte-identical
+package-data candidates are being verified (retired installed versions are not
+required or substituted into the build). Hosted acceptance remains pending.**
 Original planning branch: `ft-linux-package-qualification`, from merged `main`
 `4a2f9914ddac222433ba99437e8aa39d54314078` (PR #5). Local results and remaining
 rows: [F9 evidence](../../verification/f9-linux-packages.md).

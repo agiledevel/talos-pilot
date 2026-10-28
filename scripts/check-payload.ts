@@ -100,8 +100,9 @@ const platform = valueOf(args, "--platform");
 const root = valueOf(args, "--root");
 const releaseOutput = valueOf(args, "--release-output");
 const target = valueOf(args, "--target");
-// Offline inspection may supply a trusted copy of the exact build OS's data.
-// The hosted recipe never overrides this: it compares against its own OS root.
+// Hosted checks use a private reference extracted from authenticated Ubuntu
+// archives, not the runner image's altered modes. Offline callers also need a
+// trusted reference; choosing a root alone is not OS/publisher authentication.
 const appimageSystemRoot = valueOf(args, "--appimage-system-root");
 if (
   appimageSystemRoot !== undefined &&

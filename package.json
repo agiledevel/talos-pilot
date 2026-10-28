@@ -16,6 +16,7 @@
     "production:check": "node scripts/check-production-exclusion.ts",
     "advisories:check": "node scripts/advisory-baseline.ts",
     "audit:go": "node scripts/go-vulnerability-scan.ts",
+    "audit:npm": "node scripts/npm-advisory-scan.ts",
     "talos:fixture": "node scripts/talos-fixture.ts",
     "kubernetes:fixture": "node scripts/kubernetes-fixture.ts",
     "inventory:generate": "node scripts/dependency-inventory.ts",

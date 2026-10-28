@@ -1,9 +1,11 @@
-import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import process from "node:process";
+
+import { helperProcessCount } from "./lib/native-processes.ts";
 
 const isWindows = process.platform === "win32";
 const packageManager = isWindows ? "pnpm.cmd" : "pnpm";
@@ -25,29 +27,6 @@ function run(command: string, args: string[], env = process.env): number {
     return 1;
   }
   return result.status ?? 1;
-}
-
-function helperProcessCount(): number {
-  try {
-    const output = isWindows
-      ? execFileSync(
-          "tasklist",
-          ["/FI", "IMAGENAME eq talos-pilot-helper.exe", "/FO", "CSV", "/NH"],
-          {
-            encoding: "utf8",
-          },
-        )
-      : execFileSync("ps", ["-A", "-o", "args="], { encoding: "utf8" });
-    return output
-      .split(/\r?\n/u)
-      .filter((line) =>
-        isWindows
-          ? line.startsWith('"talos-pilot-helper.exe"')
-          : /(?:^|\/)talos-pilot-helper(?:\s|$)/u.test(line.trim()),
-      ).length;
-  } catch {
-    throw new Error("Could not inspect helper process cleanup after the native test.");
-  }
 }
 
 async function waitForHelperCount(expected: number, timeoutMs: number): Promise<boolean> {

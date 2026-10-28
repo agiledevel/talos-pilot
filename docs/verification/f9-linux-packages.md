@@ -394,3 +394,296 @@ No test treats a filename alone as proof or rewrites the inspected files.
 Final local gates and delivery/qualification identities are recorded in the
 ledger. B12 remains open for hosted requalification; F9-01 and all installed
 runtime rows remain pending until their own complete evidence exists.
+
+## 40401994013 follow-up: pre-bundle references (2026-10-26)
+
+Owner requested review and correction after qualification failed again. PR #8
+merged as `9e2de303fd833ef80acb225c7afd81cdd99ca678`; exact-main Foundation
+[40399677772](https://github.com/agiledevel/talos-pilot/actions/runs/40399677772)
+and Security
+[40399677855](https://github.com/agiledevel/talos-pilot/actions/runs/40399677855)
+passed before dispatch. Qualification
+[40401994013](https://github.com/agiledevel/talos-pilot/actions/runs/40401994013)
+then failed on Linux; Windows and both macOS targets passed. Linux
+[job 121850177181](https://github.com/agiledevel/talos-pilot/actions/runs/40401994013/job/121850177181)
+passed the resource, DEB/notices and RPM checks, but AppImage verification
+reported `Cannot verify AppImage system data usr/share/doc/libatk-bridge2.0-0/copyright: the source must be a regular non-executable system file`.
+Its artifacts contain only the Windows/two macOS uploads: no Linux bytes or
+provenance were available for download/verification. Log:
+`/tmp/tp-qualification-40401994013-failed.log`.
+
+The combined error establishes that the **post-build reference** failed the
+regular/non-executable condition; it did not print the actual mode/type or
+prove which tool changed it, or whether it was suitable before packaging.
+The earlier local fixture did not reproduce this reference-lifetime issue.
+Therefore the prior section's use of the live `/` tree is superseded by:
+
+- Before Tauri runs, capture eligible OS data into a new private reference
+  directory with independent read-only files, never hard links. Original
+  regular-file/non-executable, content, path and per-file limits still apply.
+  Unsupported candidates are reported and omitted, never silently permitted;
+  any later executable payload copy without a reference still fails.
+- Bound reference discovery to 10,000 entries / 256 MiB. A write/report failure
+  removes only the newly owned directory; an existing destination is rejected
+  and never overwritten/deleted. Originals and completed installers are not
+  chmodded or rewritten. Data proof still enforces its stricter 256-file /
+  32-MiB payload limits and exact bytes. Read errors now include regular-file
+  status and mode for diagnosis.
+- Pass that reference through the existing AppImage-only trusted-root option.
+  It remains an operator/CI trust input, not OS/publisher authentication. A
+  later change in the live OS cannot authorize a changed payload.
+- On Linux payload failure only, retain one failed AppImage of at most 256 MiB,
+  log its hash, and upload under `diagnostic-appimage-<revision>` for one day.
+  This is **not** a qualified/release artifact; release collection excludes its
+  name and the original job remains failed. Missing/multiple/oversized images
+  are not uploaded. This avoids another diagnosis based solely on filenames.
+
+Acceptance regressions reproduce the old live-reference failure after a source
+chmod, prove independent captured bytes still work, and reject payload bytes
+matching a subsequently changed source. They cover omitted executable/script/
+binary/non-UTF-8/oversized/escaping sources, stale roots, partial-write cleanup,
+source enumeration bounds, spaced CLI arguments, actual diagnostic shell limits
+(including 256 MiB inclusive), and snapshot-before-build/diagnostic segregation.
+The first narrow run passed **58 tests / 3 files**, type-aware lint and actionlint.
+These are synthetic process/filesystem fixtures, not Ubuntu package evidence.
+Broader final gates and actual Ubuntu validation are pending at this checkpoint.
+The branch qualification will exercise this correction before protected delivery;
+its source is not an accepted-main F9-01 candidate. B12, F9-01 and installed-runtime
+rows stay pending until their own evidence exists.
+
+### Actual Ubuntu diagnosis and archive-authoritative correction
+
+The pre-bundle hypothesis was tested rather than merged. Branch qualification
+[40407825315](https://github.com/agiledevel/talos-pilot/actions/runs/40407825315)
+for `f3275d90b8be57a29c6ef2ff749468bfbc7c9f36` failed Linux: **before Tauri**,
+`libatk-bridge2.0-0/copyright` and affected schema originals were already
+`regular=true, mode=0100777`. Capture preserved 112 files / 2,143,917 bytes but
+omitted 1,552 unsuitable originals; the payload correctly failed for its missing
+reference. The draft PR #9 was not merged based on fixtures or green ordinary
+CI. This disproves a timing-only correction and the pre-bundle implementation
+is removed, not left as dead code. The code checkpoint's local aggregate did
+pass 440 tests / 51 files, browser 31/31 and native 31/31, followed by production
+rebuild/exclusion/advisories; none established the reference's Ubuntu validity.
+
+The failed-payload diagnostic worked. Downloaded the explicitly **unqualified**
+`diagnostic-appimage-f3275d90b8be57a29c6ef2ff749468bfbc7c9f36` artifact (101,729,222
+zip bytes), verified the enclosed AppImage hash against the job's diagnostic
+hash, and extracted it privately. AppImage SHA-256:
+`e19956f0491ed4dc2701862669b54974449742cb0482ee232b31584e8f867259`.
+The actual copyright is valid Debian copyright-format text and mode 0777.
+An official Ubuntu
+[`libatk-bridge2.0-0_2.38.0-3_amd64.deb`](https://archive.ubuntu.com/ubuntu/pool/main/a/at-spi2-atk/libatk-bridge2.0-0_2.38.0-3_amd64.deb)
+contains the **same 4,460 bytes**, but its archive declares mode **0644**.
+The checked-in extractor preserved 0644 and the actual data verifier matched
+SHA-256 `87368802a069bed7640702c5932e4b2424b41f896fc4fdeea75ac5c212a5709b`.
+A 1,000-byte truncated archive failed exit 1 with `Truncated input file`, leaving
+no output directory. This local retrieval used HTTPS and the cached private
+Ubuntu libarchive tool, not a system install; it does **not** claim local signed
+APT authentication or full AppImage qualification. Paths/logs:
+`/tmp/tp-appimage-diagnostic-40407825315/`,
+`/tmp/tp-prebundle-ubuntu-branch.log`, `/tmp/tp-deb-data-truncated.log`.
+
+Chosen correction: obtain intended data metadata from authenticated **package
+archives**, not the runner image. For each actual executable-mode data candidate,
+resolve its canonical declared OS path, unique dpkg owner and exact installed
+package/version/architecture; download only those exact versions through the
+existing isolated signed Ubuntu metadata/package-hash policy. Check identities,
+counts and archive sizes, log archive hashes, and extract only each declared
+member with original archive permissions (no ownership/ACL/xattr restoration).
+The archive member must still be regular non-executable UTF-8/nonbinary data
+and match the actual AppImage bytes. Then write independent read-only reference
+copies for the unchanged payload checker. No package is installed, no OS or
+installer permissions are changed, and there is no unavailable-version/live-tree
+fallback. The non-executable-original invariant is retained against the
+**archive original**, rather than weakened to accept the image's 0777 modes.
+
+Bounds: 10,000 discovered payload entries, 256 data files / 1 MiB each / 32 MiB
+total; 256 requested packages, 64 MiB per archive and 512 MiB maximum archive set
+before inspection; existing 90/180-second metadata/download limits and one
+mirror retry; 60-second / 1-MiB extraction bounds. Existing destinations are
+never overwritten/deleted; partial references and owned temporary downloads/
+extractions are cleaned. Authentication, ambiguous ownership, wrong identities,
+missing versions, corruption, escapes, executable archive members and changed
+bytes all fail closed. New process/filesystem regressions exercise the 0777
+runner/0644 archive distinction, aliases, malformed metadata, failed downloads,
+changed data, original modes, symlink escapes, count/byte bounds and cleanup.
+The next checkpoint's **84 tests / 6 files**, lint/types, ShellCheck and actionlint
+passed; broader final gates and the actual authenticated Ubuntu run still need
+execution before delivery. B12, F9-01 and installed-runtime rows remain pending.
+
+### Available data identity, not retired binary versions
+
+Branch probe
+[40415080640](https://github.com/agiledevel/talos-pilot/actions/runs/40415080640)
+for `80226bf` reached signed metadata but could not download installed
+`libsystemd0`/`libudev1` `249.11-0ubuntu3.22`: those versions were retired from
+the current archive. The official fallback then timed out; both errors remained
+fatal. This does not establish a payload mismatch or an authenticated reference
+pass. Log: `/tmp/tp-archive-reference-ubuntu.log`.
+
+The available official
+[`libsystemd0_249.11-0ubuntu3.23_amd64.deb`](https://archive.ubuntu.com/ubuntu/pool/main/s/systemd/libsystemd0_249.11-0ubuntu3.23_amd64.deb)
+contains **10,893 mode-0644 copyright bytes identical to the actual failed image**,
+SHA-256 `8541750aba2193c885f0c77df20870ef454c2ae8f905077105922bf3130108ad`.
+Local HTTPS extraction/comparison is again a concrete data/mode observation,
+not signed-APT or full-payload acceptance. A separate synthetic real-libarchive
+counterexample preserved archive mode **0755**, and the actual reader rejected
+it as an executable original; modes are not being normalized before validation.
+
+**Decision:** data attestation requires a signed Ubuntu **candidate of the same
+package name/architecture**, its declared canonical member path, a regular
+non-executable original and **exact byte identity** with the payload. It does not
+require the retired installed binary package version. Log installed and archive
+versions separately plus archive/data hashes; never install, upgrade or
+substitute a build library. This is an explicit data-only policy, not an
+implicit different-version fallback or a claim about binary authenticity,
+advisory status or the full runner image. Different data, wrong package/
+architecture, unavailable candidates and authentication errors still fail.
+Requiring retired binaries prevents legitimate data proof; trusting the 0777
+live tree, broad path exemptions or refreshing runtime libraries just to classify
+unchanged text would weaken evidence or unnecessarily change installer inputs.
+The standalone root option remains an operator trust input, not publisher/OS
+image authentication. The exact-version attempt above is superseded by this
+rule, with all content/original-mode/executable-exclusion checks retained.
+
+The `80226bf` local aggregate passed **460 tests / 53 files**, **72.25% statements /
+74.59% branches**, Svelte 0 errors/warnings and frontend build; browser **31/31**
+(27.5 s). Native application flows all passed (31 tests / 5 specs, 15 s), but its
+**overall gate failed** during cleanup inspection: the host's real process list
+was 1,718,841 bytes, exceeding Node's default 1 MiB (`ENOBUFS`). A separate bounded
+8-MiB inspection confirmed zero helpers. No raw process arguments were logged.
+The harness now captures at most **8 MiB / 5 s**, preserves matching/count/fatal-
+error behavior, and reports only safe OS codes without raw stdout/stderr/cause.
+A real >1-MiB subprocess regression plus Windows/privacy cases cover this gate
+correction. Final native/production/advisory gates need rerunning after it.
+
+The candidate-data and native-inspector changes passed 87 focused tests before
+a test-only lint-shape correction; the affected 32 tests then passed with full
+lint/types, ShellCheck and actionlint. A new actual Ubuntu probe and final broad
+gates remain required. PR #9 stays draft; B12/F9-01/runtime acceptance stay open.
+
+### 2026-10-28 resume — authenticated references executed, exact enum member
+
+Pushed the pending correction as `af18cda9fe80df387801c1ffd10a991221ff7d74`
+and executed branch qualification
+[40668168072](https://github.com/agiledevel/talos-pilot/actions/runs/40668168072).
+Linux job `122748055957` passed the candidate acquisition and data proof for
+**122 files / 1,237,913 bytes / 90 packages**, including available patch-version
+data for the retired systemd case. It then failed for exactly one undeclared
+executable-mode path: `usr/share/glib-2.0/schemas/org.gnome.desktop.enums.xml`.
+The non-release diagnostic image was retained, not a qualified Linux upload.
+Log: `/tmp/tp-archive-af18cda-ubuntu.log`. This is actual signed-APT/data evidence,
+not a full AppImage/F9-01 pass.
+
+The next increment recognizes **only that exact GNOME enum filename** through
+the identical owner/architecture, non-executable archive original, bounded UTF-8
+and byte-equality checks. It does not exempt arbitrary XML or other enum names.
+Added actual shell-boundary and data-preparation/verification positives and
+negative arbitrary-XML/other-enum cases. Focused **71 tests / 4 files**, full
+lint/types, actionlint 1.7.12 and ShellCheck 0.11.0 passed. Both private static
+tools were restored at the existing pins and verified against CI's SHA-256s;
+no toolchain refresh was performed.
+
+Fresh final local checks at `af18cda` passed: **463 tests / 54 files**, coverage
+**72.31% statements / 74.70% branches**, Svelte 0 errors/warnings, frontend build,
+browser **31/31** (26.4 s), actual private-XDG/Xvfb native **31 tests / 5 specs**
+(16 s), no helper/endpoint remaining, default-feature production rebuild,
+production driver exclusion/runtime check and Rust advisory baseline. B13's
+inspection failure is corrected, not ignored. These precede the enum/dependency
+increment and must not be presented as its final evidence.
+
+Required CI now has a separate security blocker:
+[Foundation 40668175939](https://github.com/agiledevel/talos-pilot/actions/runs/40668175939)
+failed the unchanged npm audit for unpatched build-only deepmerge;
+[Security 40668175820](https://github.com/agiledevel/talos-pilot/actions/runs/40668175820)
+failed Trivy on two newly published x/net findings, while all CodeQL languages
+passed. The minimum Go fix and required graph updates are applied with regenerated
+inventory/notices and passing Go format/vet/test/race/build/module, symbol-audit,
+contract, inventory and notices checks. All four updated redistributed modules
+retain the same BSD-3-Clause terms/text. See [B14 evidence and the proposed owner
+choice](b14-build-advisories.md). No npm exception or skipped audit is active.
+Protected delivery and accepted-main/download verification are still blocked;
+all installed-runtime rows remain pending.
+
+### Cold Go cache read-back and correction
+
+At `873d8fb510947cd014eebe968c3294c3c3fed284`,
+[Security 40671911707](https://github.com/agiledevel/talos-pilot/actions/runs/40671911707)
+passed **Trivy plus all three CodeQL languages**. The Go findings are remediated
+in hosted dependency scanning. Foundation desktop jobs passed on Ubuntu,
+macOS and Windows, but the renderer/aggregate still failed the unpatched npm
+audit. No new audit exception is authorized.
+
+Branch qualification
+[40671904277](https://github.com/agiledevel/talos-pilot/actions/runs/40671904277)
+failed all four pre-build packaging jobs. Linux and ARM logs identify missing
+source metadata for `github.com/ProtonMail/go-crypto@v1.4.1`. The notices collector
+captured `go list -m` objects **before** target package discovery extracted their
+sources; their saved `Dir` fields stayed absent even after downloads. This is
+B15, not a license exemption or enum proof failure. The enum/payload step was
+unexecuted. Logs `/tmp/tp-enum-net-{linux,arm}-failed.log`.
+
+Correction: discover packages first, then snapshot module directories once, in
+both notices and inventory. Every linked-source/license and command failure
+remains fatal; no unrelated module download or graph exclusion is added. A
+synthetic cold/target-only metadata regression compares both generated artifacts
+byte for byte to warm output and fails with the old ordering. **24 tests / 2
+files** plus lint/types passed. Actual independent **empty private GOMODCACHE**
+runs of `pnpm notices:check` and `pnpm inventory:check` also passed without
+changing generated output: **639 components / 1,059 texts / 4,816,465 notice
+bytes**, **538 npm / 614 Cargo / 143 Go inventory modules**. Both owned caches
+were cleaned. Logs `/tmp/tp-cold-go-{notices,inventory}-check.log`.
+
+Local `873d8fb` final aggregate before this collector-only fix passed **470 tests /
+54 files**, **72.31% statements / 74.70% branches**, Svelte 0 errors/warnings and
+build; browser **31/31** (26.6 s), actual private-XDG/Xvfb native **31 tests / 5
+specs** (15 s), cleanup, production rebuild/exclusion and Rust advisory baseline.
+The collector increment still needs final affected verification and another
+actual hosted packaging run. PR #9 stays draft; the [B14 owner decision](b14-build-advisories.md)
+and accepted-main/installed-runtime gates remain unresolved.
+
+### Successful branch qualification and approved advisory resolution
+
+[Qualification 40674016343](https://github.com/agiledevel/talos-pilot/actions/runs/40674016343)
+completed **successfully on all four targets**, for one immutable source
+`d80e8abf02e348378db07106cf53c3f798278858` (attempt 1, version 0.1.0).
+Linux job **122767847395** prepared and verified **123 data files / 1,244,477
+bytes / 90 authenticated Ubuntu packages**. The exact GNOME enum original and
+payload both hash to `c33bef4f89b67716e5137a5d386008cb26ba347fe9a2f8a361c9f982ed37be3c`.
+DEB/RPM/AppImage payload and notice gates, collection and upload all passed.
+This is actual hosted archive/mode/content proof, not a fixture or HTTPS-only
+observation. Log `/tmp/tp-d80-qualified-linux.log`.
+
+Downloaded `release-x86_64-unknown-linux-gnu` to `/tmp/tp-d80-linux-qualified`;
+`pnpm release:verify --directory /tmp/tp-d80-linux-qualified --mode qualification
+--revision d80e8abf02e348378db07106cf53c3f798278858 --version 0.1.0 --targets
+x86_64-unknown-linux-gnu` **passed all three installers**, exact file set, byte
+sizes, SHA-256 sums and provenance. Recorded installer bytes (branch only):
+
+| Format   | Bytes       | SHA-256                                                            |
+| -------- | ----------- | ------------------------------------------------------------------ |
+| AppImage | 102,423,032 | `76eebfa99891a8520911915182c9415705744dfa10e9aa00732296391ef3762d` |
+| DEB      | 25,625,776  | `2608b71e4bb13fd9605e329f6b9fe34ad76a9e4243ef6b99c0f7b09160fb1ff3` |
+| RPM      | 25,626,802  | `0e17227a3634309ca2d49873cc40f0dc3a7d6547649dc2cce9fb10ae4375d9b7` |
+
+Security **40674025634 passed**. Foundation **40674025576 failed** the unchanged
+npm audit. The owner subsequently selected `approve-scoped-temporary-exception`;
+[decision 0021](../decisions/0021-temporary-build-advisory-applicability.md)
+records the exact build-only scope, mandatory main/worker graph rejection and
+2026-11-11 00:00 UTC expiry. No library is represented as patched. The new
+implementation retains the full low-or-higher scan and fails on any other
+finding, scope drift, scanner error or expiry. Local negative fixtures exercise
+the actual production config, not an alternative plugin list.
+
+The final pre-exception `d80e8ab` local gates passed **471 tests / 54 files**,
+**72.31% statements / 74.70% branches**, Svelte 0 errors/warnings and frontend
+build; browser **31/31** (26.4 s), private-XDG/Xvfb native **31 tests / 5 specs**
+(15 s), cleanup, production rebuild/exclusion and Rust advisories. PR evidence:
+[comment](https://github.com/agiledevel/talos-pilot/pull/9#issuecomment-6466963382).
+
+B12's branch fix and B15's cold-cache correction are now established by real
+hosted packaging. The new exception/build-guard increment still needs final
+checks and actual relevant Ubuntu qualification before draft promotion. This
+branch evidence is **not protected-main acceptance**: F9-01 remains pending
+until ordinary delivery, exact-main checks/qualification and independent
+accepted-main download verification. All installed-runtime rows remain pending.

@@ -47,6 +47,7 @@ describe("AppImage system-data proof", () => {
     copyright,
     schema,
     "usr/share/glib-2.0/schemas/gschema.dtd",
+    "usr/share/glib-2.0/schemas/org.gnome.desktop.enums.xml",
     "usr/share/glib-2.0/schemas/10_gsettings-desktop-schemas.gschema.override",
   ])("proves unchanged data despite copied execute bits: %s", (path) => {
     write("system", path, text, 0o644);
@@ -61,6 +62,8 @@ describe("AppImage system-data proof", () => {
   it.each([
     "usr/share/doc/libglib2.0-0/extra-tool",
     "usr/share/glib-2.0/schemas/evil.sh",
+    "usr/share/glib-2.0/schemas/org.example.enums.xml",
+    "usr/share/glib-2.0/schemas/arbitrary.xml",
     "usr/bin/copyright",
     "usr/share/doc/../copyright",
     "AppRun.wrapped",

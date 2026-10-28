@@ -117,6 +117,7 @@ jobs:
       # all three payloads must contain only declared programs. Nothing is
       # installed on the runner and no file is removed from a completed package.
       - name: Inspect packaged Linux payloads
+        id: linux_payload
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -153,7 +154,31 @@ jobs:
             cd "$work/appimage"
             "$package" --appimage-extract > /dev/null
           )
-          node scripts/check-payload.ts --platform linux-appimage --root "$work/appimage/squashfs-root"
+          node scripts/prepare-appimage-reference.ts --root "$work/appimage/squashfs-root" \
+            --directory "$work/appimage/reference"
+          node scripts/check-payload.ts --platform linux-appimage --root "$work/appimage/squashfs-root" \
+            --appimage-system-root "$work/appimage/reference"
+      # Never upload these failed bytes under release-* or feed them to a
+      # release collector. They are diagnosis only, retained for one day.
+      - name: Bound failed Linux AppImage diagnostic
+        id: linux_diagnostic
+        if: failure() && runner.os == 'Linux' && steps.linux_payload.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          images=(src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage)
+          test "${#images[@]}" -eq 1
+          test "$(stat -c '%s' "${images[0]}")" -le 268435456
+          sha256sum "${images[0]}"
+      - name: Preserve failed Linux AppImage for diagnosis
+        if: failure() && runner.os == 'Linux' && steps.linux_diagnostic.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: diagnostic-appimage-${{ inputs.revision }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+          retention-days: 1
       - name: Inspect the macOS app payload
         if: runner.os == 'macOS'
         shell: bash
