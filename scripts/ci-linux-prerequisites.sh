@@ -23,8 +23,10 @@ fetch_packages() {
     timeout 180s sudo --preserve-env=APT_CONFIG apt-get install -y --no-install-recommends --download-only "$@"
 }
 
-# Download exact installed versions without installing or changing the host.
-# Metadata and package hashes retain the same signed Ubuntu-only trust policy.
+# Download available Ubuntu data candidates without installing/changing the host.
+# Installed versions can be retired; callers must prove exact payload bytes and
+# original data modes, log both versions, and never claim binary substitution.
+# Metadata and package hashes retain the signed Ubuntu-only trust policy.
 fetch_references() {
   local mirror=$1
   shift
@@ -41,8 +43,8 @@ download_references() {
   fi
   local spec
   for spec in "$@"; do
-    if [[ ! $spec =~ ^[a-z0-9][a-z0-9+.-]*(:[a-z0-9]+)?=[0-9][A-Za-z0-9.+:~_-]*$ ]]; then
-      echo 'Invalid exact reference package version.' >&2
+    if [[ ! $spec =~ ^[a-z0-9][a-z0-9+.-]*(:amd64)?$ ]]; then
+      echo 'Invalid Ubuntu reference package.' >&2
       return 1
     fi
   done

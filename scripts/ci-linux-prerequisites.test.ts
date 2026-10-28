@@ -95,7 +95,7 @@ describe.skipIf(process.platform === "win32")("bounded Ubuntu provisioning", () 
     expect(output).not.toContain("UNEXPECTED-INSTALL");
   });
 
-  it("downloads exact reference versions with one official fallback and never installs them", () => {
+  it("downloads data candidates with one official fallback and never installs them", () => {
     const directory = mkdtempSync(join(tmpdir(), "talos-apt-reference-"));
     try {
       const output = execFileSync(
@@ -106,17 +106,13 @@ describe.skipIf(process.platform === "win32")("bounded Ubuntu provisioning", () 
         attempts=0
         fetch_references() { attempts=$((attempts + 1)); printf 'fetch:%s\\n' "$*"; [[ $attempts == 2 ]]; }
         apt_get() { echo UNEXPECTED-INSTALL; return 99; }
-        download_references "$REF_TARGET" 'libfixture:amd64=1:2.3-4ubuntu1'
+        download_references "$REF_TARGET" 'libfixture:amd64'
       `,
         ],
         { encoding: "utf8", env: { ...process.env, REF_TARGET: join(directory, "archives") } },
       );
-      expect(output).toContain(
-        "fetch:https://archive.ubuntu.com/ubuntu libfixture:amd64=1:2.3-4ubuntu1",
-      );
-      expect(output).toContain(
-        "fetch:https://azure.archive.ubuntu.com/ubuntu libfixture:amd64=1:2.3-4ubuntu1",
-      );
+      expect(output).toContain("fetch:https://archive.ubuntu.com/ubuntu libfixture:amd64");
+      expect(output).toContain("fetch:https://azure.archive.ubuntu.com/ubuntu libfixture:amd64");
       expect(output).not.toContain("UNEXPECTED-INSTALL");
     } finally {
       rmSync(directory, { recursive: true, force: true });
@@ -143,7 +139,7 @@ describe.skipIf(process.platform === "win32")("bounded Ubuntu provisioning", () 
           },
         );
         expect(result.status).toBe(1);
-        expect(result.stderr).toContain("Invalid exact reference package version");
+        expect(result.stderr).toContain("Invalid Ubuntu reference package");
         expect(result.stdout).not.toContain("UNEXPECTED-NETWORK");
       }
     } finally {
@@ -154,7 +150,7 @@ describe.skipIf(process.platform === "win32")("bounded Ubuntu provisioning", () 
   it("does not download references when signed metadata fails", () => {
     expect(
       run(
-        `update_metadata() { return 17; }; if fetch_references https://archive.ubuntu.com/ubuntu 'libfixture=1'; then exit 9; else echo "status:$?"; fi`,
+        `update_metadata() { return 17; }; if fetch_references https://archive.ubuntu.com/ubuntu 'libfixture'; then exit 9; else echo "status:$?"; fi`,
       ).trim(),
     ).toBe("status:17");
   });

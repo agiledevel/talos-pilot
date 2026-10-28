@@ -510,3 +510,54 @@ changed data, original modes, symlink escapes, count/byte bounds and cleanup.
 The next checkpoint's **84 tests / 6 files**, lint/types, ShellCheck and actionlint
 passed; broader final gates and the actual authenticated Ubuntu run still need
 execution before delivery. B12, F9-01 and installed-runtime rows remain pending.
+
+### Available data identity, not retired binary versions
+
+Branch probe
+[40415080640](https://github.com/agiledevel/talos-pilot/actions/runs/40415080640)
+for `80226bf` reached signed metadata but could not download installed
+`libsystemd0`/`libudev1` `249.11-0ubuntu3.22`: those versions were retired from
+the current archive. The official fallback then timed out; both errors remained
+fatal. This does not establish a payload mismatch or an authenticated reference
+pass. Log: `/tmp/tp-archive-reference-ubuntu.log`.
+
+The available official
+[`libsystemd0_249.11-0ubuntu3.23_amd64.deb`](https://archive.ubuntu.com/ubuntu/pool/main/s/systemd/libsystemd0_249.11-0ubuntu3.23_amd64.deb)
+contains **10,893 mode-0644 copyright bytes identical to the actual failed image**,
+SHA-256 `8541750aba2193c885f0c77df20870ef454c2ae8f905077105922bf3130108ad`.
+Local HTTPS extraction/comparison is again a concrete data/mode observation,
+not signed-APT or full-payload acceptance. A separate synthetic real-libarchive
+counterexample preserved archive mode **0755**, and the actual reader rejected
+it as an executable original; modes are not being normalized before validation.
+
+**Decision:** data attestation requires a signed Ubuntu **candidate of the same
+package name/architecture**, its declared canonical member path, a regular
+non-executable original and **exact byte identity** with the payload. It does not
+require the retired installed binary package version. Log installed and archive
+versions separately plus archive/data hashes; never install, upgrade or
+substitute a build library. This is an explicit data-only policy, not an
+implicit different-version fallback or a claim about binary authenticity,
+advisory status or the full runner image. Different data, wrong package/
+architecture, unavailable candidates and authentication errors still fail.
+Requiring retired binaries prevents legitimate data proof; trusting the 0777
+live tree, broad path exemptions or refreshing runtime libraries just to classify
+unchanged text would weaken evidence or unnecessarily change installer inputs.
+The standalone root option remains an operator trust input, not publisher/OS
+image authentication. The exact-version attempt above is superseded by this
+rule, with all content/original-mode/executable-exclusion checks retained.
+
+The `80226bf` local aggregate passed **460 tests / 53 files**, **72.25% statements /
+74.59% branches**, Svelte 0 errors/warnings and frontend build; browser **31/31**
+(27.5 s). Native application flows all passed (31 tests / 5 specs, 15 s), but its
+**overall gate failed** during cleanup inspection: the host's real process list
+was 1,718,841 bytes, exceeding Node's default 1 MiB (`ENOBUFS`). A separate bounded
+8-MiB inspection confirmed zero helpers. No raw process arguments were logged.
+The harness now captures at most **8 MiB / 5 s**, preserves matching/count/fatal-
+error behavior, and reports only safe OS codes without raw stdout/stderr/cause.
+A real >1-MiB subprocess regression plus Windows/privacy cases cover this gate
+correction. Final native/production/advisory gates need rerunning after it.
+
+The candidate-data and native-inspector changes passed 87 focused tests before
+a test-only lint-shape correction; the affected 32 tests then passed with full
+lint/types, ShellCheck and actionlint. A new actual Ubuntu probe and final broad
+gates remain required. PR #9 stays draft; B12/F9-01/runtime acceptance stay open.

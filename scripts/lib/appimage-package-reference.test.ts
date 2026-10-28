@@ -34,6 +34,7 @@ let archiveSize: number;
 let extraArchive: boolean;
 let downloads: string;
 let calls: { command: string; args: readonly string[] }[];
+let messages: string[];
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "talos archive reference-"));
@@ -43,6 +44,7 @@ beforeEach(() => {
   extraArchive = false;
   downloads = "";
   calls = [];
+  messages = [];
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
@@ -65,7 +67,7 @@ const run: ReferenceCommand = (command, args) => {
   if (command === "dpkg-deb") return archiveIdentity;
   if (command === "bash" && args[0]?.endsWith("ci-linux-prerequisites.sh")) {
     expect(args[1]).toBe("appimage-reference");
-    expect(args.slice(3)).toEqual(["libfixture:amd64=1:2.3-4ubuntu1"]);
+    expect(args.slice(3)).toEqual(["libfixture:amd64"]);
     downloads = args[2] ?? "";
     mkdirSync(downloads);
     writeFileSync(join(downloads, "fixture.deb"), "process-boundary fixture");
@@ -91,7 +93,7 @@ function prepare(command: ReferenceCommand = run) {
   return prepareAppImagePackageReference(join(root, "payload"), join(root, "reference"), {
     systemRoot: join(root, "system"),
     run: command,
-    log: () => {},
+    log: (message) => messages.push(message),
   });
 }
 
@@ -105,6 +107,13 @@ describe.skipIf(process.platform === "win32")("archive-proven Ubuntu data refere
     expect(statSync(join(root, "payload", copyright)).mode & 0o777).toBe(0o755);
     expect(existsSync(dirname(downloads))).toBe(false);
     expect(calls.filter((call) => call.command === "dpkg-deb")).toHaveLength(1);
+  });
+
+  it("accepts byte-identical data across package patch versions and logs both identities", () => {
+    candidate();
+    archiveIdentity = "libfixture:amd64=1:2.3-5ubuntu1";
+    expect(prepare().files).toBe(1);
+    expect(messages.join("\n")).toContain(`installed=${packageId}; archive=${archiveIdentity}`);
   });
 
   it("resolves distro copyright aliases without trusting outside files", () => {
@@ -129,6 +138,7 @@ describe.skipIf(process.platform === "win32")("archive-proven Ubuntu data refere
 
   it("rejects changed payload bytes even when they match the mutable live OS", () => {
     candidate(copyright, "printf 'tampered'\n");
+    archiveIdentity = "libfixture:amd64=1:2.3-5ubuntu1";
     writeFileSync(join(root, "archive", copyright), data);
     expect(() => prepare()).toThrow("payload bytes differ");
     expect(existsSync(join(root, "reference"))).toBe(false);
@@ -157,17 +167,15 @@ describe.skipIf(process.platform === "win32")("archive-proven Ubuntu data refere
     expect(() => prepare()).toThrow("archive data symlink escapes");
   });
 
-  it.each([
-    "foreign:amd64=1.0",
-    "libfixture:amd64=2.0",
-    "libfixture:i386=1:2.3-4ubuntu1",
-    "malformed",
-  ])("rejects mismatched or malformed archive identity %s", (value) => {
-    candidate();
-    archiveIdentity = value;
-    expect(() => prepare()).toThrow(/Ubuntu reference package identity/u);
-    expect(existsSync(join(root, "reference"))).toBe(false);
-  });
+  it.each(["foreign:amd64=1.0", "libfixture:i386=1:2.3-4ubuntu1", "malformed"])(
+    "rejects mismatched or malformed archive identity %s",
+    (value) => {
+      candidate();
+      archiveIdentity = value;
+      expect(() => prepare()).toThrow(/Ubuntu reference package identity/u);
+      expect(existsSync(join(root, "reference"))).toBe(false);
+    },
+  );
 
   it("rejects extra/oversized archives before extraction", () => {
     candidate();

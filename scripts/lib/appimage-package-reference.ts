@@ -61,8 +61,12 @@ function identity(text: string): PackageIdentity {
     arch,
     version,
     identity: `${name}:${arch}=${version}`,
-    spec: `${name}${arch === "all" ? "" : `:${arch}`}=${version}`,
+    spec: `${name}${arch === "all" ? "" : `:${arch}`}`,
   };
+}
+
+function packageKey(pkg: PackageIdentity): string {
+  return `${pkg.name}:${pkg.arch}`;
 }
 
 function dataPaths(root: string): string[] {
@@ -98,8 +102,11 @@ const execute: ReferenceCommand = (command, args, cwd) =>
   });
 
 /**
- * Builds a private data reference from authenticated exact-installed-version
- * Ubuntu archives, not the runner image's potentially altered file modes.
+ * Builds a private data reference from authenticated Ubuntu archive candidates,
+ * not the runner image's altered modes or retired installed package versions.
+ * A reference is data attestation only: package family/architecture and exact
+ * payload bytes must match, while both versions are logged. No build library
+ * is upgraded/substituted, and binary-version qualification is not claimed.
  *
  * Dpkg supplies ownership/version only; the shared isolated APT helper must
  * authenticate downloads. Extract just each declared canonical data member,
@@ -143,7 +150,7 @@ export function prepareAppImagePackageReference(
       throw new Error(`Ubuntu owner/identity mismatch: ${path}`);
     return { path, source, pkg };
   });
-  const packages = new Map(requests.map((request) => [request.pkg.identity, request.pkg]));
+  const packages = new Map(requests.map((request) => [packageKey(request.pkg), request.pkg]));
   mkdirSync(destination, { mode: 0o700 });
   let work: string | undefined;
   try {
@@ -177,18 +184,19 @@ export function prepareAppImagePackageReference(
       const pkg = identity(
         run("dpkg-deb", ["--show", "--showformat=${Package}:${Architecture}=${Version}", file]),
       );
-      if (!packages.has(pkg.identity) || byPackage.has(pkg.identity))
+      const installed = packages.get(packageKey(pkg));
+      if (installed === undefined || byPackage.has(packageKey(pkg)))
         throw new Error("Unexpected or duplicate Ubuntu reference package identity.");
-      byPackage.set(pkg.identity, file);
+      byPackage.set(packageKey(pkg), file);
       // Downloads are complete and private: no concurrent writer owns these files.
       log(
-        `Ubuntu data reference ${pkg.identity}: ${createHash("sha256").update(readFileSync(file)).digest("hex")}`,
+        `Ubuntu data reference installed=${installed.identity}; archive=${pkg.identity}: ${createHash("sha256").update(readFileSync(file)).digest("hex")}`,
       );
     }
     let bytes = 0;
     for (const [index, request] of requests.entries()) {
       try {
-        const archive = byPackage.get(request.pkg.identity);
+        const archive = byPackage.get(packageKey(request.pkg));
         if (archive === undefined)
           throw new Error(`Missing Ubuntu reference archive: ${request.pkg.identity}`);
         const extracted = join(work, `member-${index}`);
