@@ -79,8 +79,6 @@ const npmLicenses = JSON.parse(run("pnpm", ["licenses", "list", "--json"], root)
 const cargoMetadata = JSON.parse(
   run("cargo", ["metadata", "--locked", "--format-version", "1"], join(root, "src-tauri")),
 ) as unknown;
-const goList = run("go", ["list", "-m", "-json", "all"], join(root, "helper"));
-const goModules: unknown[] = splitJsonObjects(goList).map((chunk) => JSON.parse(chunk) as unknown);
 // Modules that actually contribute packages to the helper binary. Their sources
 // are present in the module cache, so their license files are always observable;
 // they are the only Go modules whose license files the inventory reads.
@@ -92,6 +90,11 @@ for (const chunk of splitJsonObjects(goDeps)) {
     linkedModules.add(pkg.Module.Path);
   }
 }
+
+// Snapshot module directories only after package discovery has extracted the
+// linked sources; otherwise a cold cache reports missing Dir fields forever.
+const goList = run("go", ["list", "-m", "-json", "all"], join(root, "helper"));
+const goModules: unknown[] = splitJsonObjects(goList).map((chunk) => JSON.parse(chunk) as unknown);
 
 const inventory: DependencyInventory = {
   schemaVersion: 2,

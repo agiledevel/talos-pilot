@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { runNoticeCli } from "./cli";
 import type { CommandInvocation, CommandRunner } from "./collect";
 import { MANIFEST_PATH, NOTICES_PATH } from "./render";
+import { GO_TARGETS } from "./types";
 import { loadNoticeRegistry } from "./sources";
 
 /** One npm production package installed in the synthetic graph. */
@@ -252,6 +253,32 @@ describe("notice CLI on a synthetic graph", () => {
     expect(run(root, graph, ["check"]).message).toContain("are current");
     // The Cargo workspace member and the helper module itself are first-party.
     expect(notices).not.toContain("talos-pilot 0.1.0");
+  });
+
+  it("emits identical artifacts on cold Go caches requiring every target's source discovery", () => {
+    const { graph, root } = createFixture();
+    run(root, graph, ["generate"]);
+    const warmNotices = read(join(root, NOTICES_PATH));
+    const warmManifest = read(join(root, MANIFEST_PATH));
+    const prepared = new Set<string>();
+    const base = runner(root, graph);
+    const cold: CommandRunner = (invocation) => {
+      if (invocation.command === "go" && invocation.args[1] === "-deps")
+        prepared.add(`${invocation.env.GOOS}/${invocation.env.GOARCH}`);
+      if (
+        invocation.command === "go" &&
+        invocation.args[1] === "-m" &&
+        !GO_TARGETS.every(({ goos, goarch }) => prepared.has(`${goos}/${goarch}`))
+      ) {
+        // A real pre-discovery go list -m omits Dir until source extraction.
+        return JSON.stringify({ Path: "example.invalid/mod-a", Version: "v1.0.0" });
+      }
+      return base(invocation);
+    };
+    const generated = runNoticeCli(["generate"], { root, run: cold });
+    expect(generated.message).toContain("4 components (2 npm, 1 cargo, 1 go)");
+    expect(read(join(root, NOTICES_PATH))).toBe(warmNotices);
+    expect(read(join(root, MANIFEST_PATH))).toBe(warmManifest);
   });
 
   it("fails on a new dependency without rewriting output, then recovers", () => {

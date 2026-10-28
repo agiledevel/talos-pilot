@@ -481,15 +481,6 @@ function collectGo(
 ): NoticeComponent[] {
   const { root, run, limits, registry, log } = options;
   const helper = join(root, "helper");
-  const modulesOutput = run({
-    command: "go",
-    args: ["list", "-m", "-json", "all"],
-    cwd: helper,
-    env: {},
-  });
-  const modules: unknown[] = splitJsonObjects(modulesOutput).map(
-    (chunk) => JSON.parse(chunk) as unknown,
-  );
   const linked = new Map<string, Set<string>>();
   for (const target of GO_TARGETS) {
     const label = `${target.goos}/${target.goarch}`;
@@ -521,6 +512,18 @@ function collectGo(
       throw new Error(`go list reported no helper modules for ${label}.`);
     }
   }
+  // Package discovery extracts linked sources, including target-only modules.
+  // Query directories afterwards: a pre-discovery snapshot omits Dir on cold
+  // caches even though the subsequent Go commands have downloaded the sources.
+  const modulesOutput = run({
+    command: "go",
+    args: ["list", "-m", "-json", "all"],
+    cwd: helper,
+    env: {},
+  });
+  const modules: unknown[] = splitJsonObjects(modulesOutput).map(
+    (chunk) => JSON.parse(chunk) as unknown,
+  );
   const components: NoticeComponent[] = [];
   for (const item of modules) {
     if (!isRecord(item) || typeof item.Path !== "string") {

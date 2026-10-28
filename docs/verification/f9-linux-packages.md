@@ -604,3 +604,40 @@ retain the same BSD-3-Clause terms/text. See [B14 evidence and the proposed owne
 choice](b14-build-advisories.md). No npm exception or skipped audit is active.
 Protected delivery and accepted-main/download verification are still blocked;
 all installed-runtime rows remain pending.
+
+### Cold Go cache read-back and correction
+
+At `873d8fb510947cd014eebe968c3294c3c3fed284`,
+[Security 40671911707](https://github.com/agiledevel/talos-pilot/actions/runs/40671911707)
+passed **Trivy plus all three CodeQL languages**. The Go findings are remediated
+in hosted dependency scanning. Foundation desktop jobs passed on Ubuntu,
+macOS and Windows, but the renderer/aggregate still failed the unpatched npm
+audit. No new audit exception is authorized.
+
+Branch qualification
+[40671904277](https://github.com/agiledevel/talos-pilot/actions/runs/40671904277)
+failed all four pre-build packaging jobs. Linux and ARM logs identify missing
+source metadata for `github.com/ProtonMail/go-crypto@v1.4.1`. The notices collector
+captured `go list -m` objects **before** target package discovery extracted their
+sources; their saved `Dir` fields stayed absent even after downloads. This is
+B15, not a license exemption or enum proof failure. The enum/payload step was
+unexecuted. Logs `/tmp/tp-enum-net-{linux,arm}-failed.log`.
+
+Correction: discover packages first, then snapshot module directories once, in
+both notices and inventory. Every linked-source/license and command failure
+remains fatal; no unrelated module download or graph exclusion is added. A
+synthetic cold/target-only metadata regression compares both generated artifacts
+byte for byte to warm output and fails with the old ordering. **24 tests / 2
+files** plus lint/types passed. Actual independent **empty private GOMODCACHE**
+runs of `pnpm notices:check` and `pnpm inventory:check` also passed without
+changing generated output: **639 components / 1,059 texts / 4,816,465 notice
+bytes**, **538 npm / 614 Cargo / 143 Go inventory modules**. Both owned caches
+were cleaned. Logs `/tmp/tp-cold-go-{notices,inventory}-check.log`.
+
+Local `873d8fb` final aggregate before this collector-only fix passed **470 tests /
+54 files**, **72.31% statements / 74.70% branches**, Svelte 0 errors/warnings and
+build; browser **31/31** (26.6 s), actual private-XDG/Xvfb native **31 tests / 5
+specs** (15 s), cleanup, production rebuild/exclusion and Rust advisory baseline.
+The collector increment still needs final affected verification and another
+actual hosted packaging run. PR #9 stays draft; the [B14 owner decision](b14-build-advisories.md)
+and accepted-main/installed-runtime gates remain unresolved.

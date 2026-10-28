@@ -29,8 +29,10 @@ imported packages**. Its one module-only result is the pre-existing
 [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932), unmaintained
 `x/crypto/openpgp`, which is not imported/called; no new exclusion was added.
 Contracts, regenerated inventory and notices consistency checks passed.
-Hosted Trivy must still confirm the final revision; local symbol analysis does
-not substitute for its dependency scan. No real Talos lifecycle fixture was
+Hosted [Security 40671911707](https://github.com/agiledevel/talos-pilot/actions/runs/40671911707)
+then passed Trivy and all three CodeQL languages for `873d8fb`, confirming this
+Go remediation in the dependency scan. Final later revisions still need their
+own required checks; local symbol analysis does not substitute for that scan. No real Talos lifecycle fixture was
 executed or accepted by this dependency correction.
 
 ## Unpatched npm finding — decision required
