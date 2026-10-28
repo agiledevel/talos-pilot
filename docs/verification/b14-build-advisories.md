@@ -1,7 +1,7 @@
 # B14 — resumed qualification security findings
 
 Date: 2026-10-28. Status: **Go remediated and hosted-verified; scoped temporary npm
-exception approved by the owner; implementation verification in progress**.
+exception approved by the owner and implemented/hosted-verified**.
 See [decision 0021](../decisions/0021-temporary-build-advisory-applicability.md).
 No global ignore or protected-branch bypass is authorized.
 This record supplements [F9 evidence](f9-linux-packages.md) and
@@ -95,10 +95,15 @@ in their module graphs. New/disappearing findings, scope drift, scanner errors
 and expiry all fail; no pnpm ignore list is added. **46 focused tests**, including
 real Vite main/worker negative fixtures using the production configuration, plus
 live `pnpm audit:npm`, actual frontend build, lint/types and actionlint passed.
-Full final and hosted checks remain required.
+Final aggregate **517 tests / 56 files**, browser **31/31**, actual isolated
+native **31 tests / 5 specs**, production gates and required PR/exact-main
+Foundation/Security all passed. Exact-main qualification **40685092801** also
+passed all four targets. Full execution/byte evidence is in the F9 record.
 
 Existing Rust decisions did not authorize this npm exception; the explicit new
-owner answer does. PR #9 stays draft until actual qualification and required
-checks pass. F9-01 remains open until accepted-main/download gates are satisfied;
-installed-runtime qualification is separate and pending. No protection bypass,
-tag/release or installed-runtime acceptance follows from this decision alone.
+owner answer does. PR #9 merged ordinarily as `2831d4a` only after final-source
+actual four-target qualification and required checks passed. Exact-main checks,
+qualification and independent Linux byte verification then passed, closing
+F9-01 only. Installed-runtime qualification is separate and pending. No
+protection bypass, tag/release or installed-runtime acceptance follows from
+this applicability decision; deepmerge remains unpatched within accepted scope.

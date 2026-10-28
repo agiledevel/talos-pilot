@@ -1,6 +1,6 @@
 # 0021 — Expiring build-only deepmerge applicability exception
 
-- **Status:** owner approved 2026-10-28; implementation in draft PR #9, required hosted checks pending
+- **Status:** owner approved 2026-10-28; implemented in protected PR #9 (`2831d4a`), required PR/exact-main Foundation and Security passed; [qualification evidence](../verification/f9-linux-packages.md)
 - **Decision source:** user form `deepmerge-remediation`, answer `approve-scoped-temporary-exception`
 - **Expiry:** **2026-11-11 00:00:00 UTC** (the exception is invalid at that instant)
 - **Evidence:** [B14 investigation](../verification/b14-build-advisories.md)
@@ -77,6 +77,8 @@ placement, input drift, scanner errors, malformed output/privacy, expiry and
 Windows/proxy IDs. Real Vite builds using the actual production config reject
 synthetic main **and worker** imports and accept clean builds. These fixtures
 never execute/repackage the real vulnerable dependency. Live npm audit/placement
-checks and the actual application build also pass locally. Full aggregate,
-browser/native, production and hosted checks are recorded in the ledger/PR as
-executed, not presumed from these narrow tests.
+checks and the actual application build also pass locally. Final aggregate **517 tests / 56 files**, browser **31/31**, actual private-XDG
+native **31 tests / 5 specs**, production and hosted PR/exact-main checks passed;
+executions and limits are recorded in the ledger/F9 record, not presumed from
+these narrow tests. This finding remains unpatched and accepted only within the
+expiring scope above.

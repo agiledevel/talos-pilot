@@ -1,11 +1,31 @@
 # S4 FLASH launch — tag-free installer artifacts, then Linux qualification
 
-Prepared: 2026-10-26. Branch: `ft-linux-package-qualification`, based on merged
-`main` `4a2f9914ddac222433ba99437e8aa39d54314078` (PR #5). **READY; F9
-implementation not started.** This prompt is not evidence of a completed build
-or authority for remote operations.
+Updated: 2026-10-28. **S4-A is implemented; S4-B preparation is next.**
+**S4-A / F9-01 is accepted.** The immutable qualified reference is protected-main
+`2831d4ae0dc21fa7a3a2a5101f3124d3f63cdc90` (PR #9), qualification
+`40685092801`, successful on all four targets with independently verified Linux bytes. Read the
+[F9 evidence](../../verification/f9-linux-packages.md) and [ledger](ledger.md)
+for its executed state. Do not substitute a later documentation/build SHA or
+rebuild package bytes silently. No installed-runtime row has passed.
 
-## Copy-ready implementation prompt
+## Current continuation
+
+Read AGENTS.md, design/quality/FLASH, the series README/ledger, all of
+[document 08](08-f9-linux-packages.md) and the F9 evidence. Start with S4-B's
+primary-source image/digest research and a bounded QEMU **user-mode** clean
+desktop/vault recipe. No owner clusters/VMs, host service/bridge/firewall changes,
+ambient credentials, global development tools in runtime guests, or mock-vault
+substitutes. Prepare observable smoke/fault/cleanup assertions before mutations.
+Use only separately authorized owned guests and the exact verified reference
+bytes for S4-C. S4-D, F1a/F5, F10/Q13, C6/C7 and M2 gates remain open; deferred
+macOS/Windows runtime is not passed. Check the expiring npm applicability record
+in [decision 0021](../../decisions/0021-temporary-build-advisory-applicability.md).
+This document grants no new remote, guest, tag/release or acceptance authority.
+
+## Historical S4-A implementation prompt (not restart instructions)
+
+Originally prepared 2026-10-26 on `ft-linux-package-qualification`, from PR #5
+main `4a2f991`. The starting state and authority below are historical.
 
 > Work on `ft-linux-package-qualification`. Read AGENTS.md, docs/design.md,
 > docs/quality.md, docs/flash-pace.md, docs/plans/foundation-finish/README.md,

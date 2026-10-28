@@ -36,13 +36,17 @@ its candidate CI/native/DEB payload evidence remains separately attributed.
 Exact-merge main Foundation [40313099783](https://github.com/agiledevel/talos-pilot/actions/runs/40313099783)
 and Security [40313099694](https://github.com/agiledevel/talos-pilot/actions/runs/40313099694)
 were in progress at planning entry; consult the ledger for the final observation.
-S4/[document 08](08-f9-linux-packages.md) is **in progress** on
-`ft-linux-package-qualification`, with the [readiness review](../../verification/f8-review-s4-readiness.md),
-the [S4 launch prompt](s4-launch-prompt.md) and the [F9 evidence
-record](../../verification/f9-linux-packages.md). S4-A's shared tag-free
-artifact path is implemented and locally verified; a hosted qualification run
-and every installed-package row are still pending. The S1/S2/S3 launch prompts are historical. No push,
-PR, dispatch, merge, tag or release authority is granted by this handoff.
+S4/[document 08](08-f9-linux-packages.md) remains **in progress**. Protected PR #9
+merged the final package corrections as `2831d4a`; exact-main Foundation/Security
+passed and qualification `40685092801` produced independently verified Linux
+AppImage/DEB/RPM bytes. Exact-main qualification `40685092801` passed all four
+targets: **S4-A / F9-01 accepted**, with [evidence](../../verification/f9-linux-packages.md). The next work is S4-B
+clean-guest preparation, not rebuilding S4-A or claiming installed acceptance.
+Every installed-runtime row remains pending. The [S4 prompt](s4-launch-prompt.md)
+separates the current continuation from its historical implementation prompt.
+The owner-approved npm exception expires 2026-11-11 00:00 UTC; [decision 0021](../../decisions/0021-temporary-build-advisory-applicability.md).
+No push, PR, dispatch, merge, tag/release or guest-mutation authority is granted
+by this handoff; use current owner authority.
 
 **Historical branch context for S2 preparation:** PR #3 merged into `main` at `a7ada06`, including
 the normalized editor-bounds correction. Old branch names, PR #2/#3 commands
