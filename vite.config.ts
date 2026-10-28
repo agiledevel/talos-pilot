@@ -2,9 +2,13 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 
+import { npmRuntimeGuard } from "./scripts/lib/npm-runtime-guard";
+
 export default defineConfig({
   // Tailwind must run before Svelte so component styles can use its directives.
-  plugins: [tailwindcss(), svelte()],
+  plugins: [npmRuntimeGuard(), tailwindcss(), svelte()],
+  worker: { plugins: () => [npmRuntimeGuard()] },
+
   clearScreen: false,
   // The worker-only import is invisible to the initial dependency crawl. If it
   // is discovered on first editor use, Vite re-optimizes and reloads every open

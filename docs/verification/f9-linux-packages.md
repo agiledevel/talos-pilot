@@ -641,3 +641,49 @@ specs** (15 s), cleanup, production rebuild/exclusion and Rust advisory baseline
 The collector increment still needs final affected verification and another
 actual hosted packaging run. PR #9 stays draft; the [B14 owner decision](b14-build-advisories.md)
 and accepted-main/installed-runtime gates remain unresolved.
+
+### Successful branch qualification and approved advisory resolution
+
+[Qualification 40674016343](https://github.com/agiledevel/talos-pilot/actions/runs/40674016343)
+completed **successfully on all four targets**, for one immutable source
+`d80e8abf02e348378db07106cf53c3f798278858` (attempt 1, version 0.1.0).
+Linux job **122767847395** prepared and verified **123 data files / 1,244,477
+bytes / 90 authenticated Ubuntu packages**. The exact GNOME enum original and
+payload both hash to `c33bef4f89b67716e5137a5d386008cb26ba347fe9a2f8a361c9f982ed37be3c`.
+DEB/RPM/AppImage payload and notice gates, collection and upload all passed.
+This is actual hosted archive/mode/content proof, not a fixture or HTTPS-only
+observation. Log `/tmp/tp-d80-qualified-linux.log`.
+
+Downloaded `release-x86_64-unknown-linux-gnu` to `/tmp/tp-d80-linux-qualified`;
+`pnpm release:verify --directory /tmp/tp-d80-linux-qualified --mode qualification
+--revision d80e8abf02e348378db07106cf53c3f798278858 --version 0.1.0 --targets
+x86_64-unknown-linux-gnu` **passed all three installers**, exact file set, byte
+sizes, SHA-256 sums and provenance. Recorded installer bytes (branch only):
+
+| Format   | Bytes       | SHA-256                                                            |
+| -------- | ----------- | ------------------------------------------------------------------ |
+| AppImage | 102,423,032 | `76eebfa99891a8520911915182c9415705744dfa10e9aa00732296391ef3762d` |
+| DEB      | 25,625,776  | `2608b71e4bb13fd9605e329f6b9fe34ad76a9e4243ef6b99c0f7b09160fb1ff3` |
+| RPM      | 25,626,802  | `0e17227a3634309ca2d49873cc40f0dc3a7d6547649dc2cce9fb10ae4375d9b7` |
+
+Security **40674025634 passed**. Foundation **40674025576 failed** the unchanged
+npm audit. The owner subsequently selected `approve-scoped-temporary-exception`;
+[decision 0021](../decisions/0021-temporary-build-advisory-applicability.md)
+records the exact build-only scope, mandatory main/worker graph rejection and
+2026-11-11 00:00 UTC expiry. No library is represented as patched. The new
+implementation retains the full low-or-higher scan and fails on any other
+finding, scope drift, scanner error or expiry. Local negative fixtures exercise
+the actual production config, not an alternative plugin list.
+
+The final pre-exception `d80e8ab` local gates passed **471 tests / 54 files**,
+**72.31% statements / 74.70% branches**, Svelte 0 errors/warnings and frontend
+build; browser **31/31** (26.4 s), private-XDG/Xvfb native **31 tests / 5 specs**
+(15 s), cleanup, production rebuild/exclusion and Rust advisories. PR evidence:
+[comment](https://github.com/agiledevel/talos-pilot/pull/9#issuecomment-6466963382).
+
+B12's branch fix and B15's cold-cache correction are now established by real
+hosted packaging. The new exception/build-guard increment still needs final
+checks and actual relevant Ubuntu qualification before draft promotion. This
+branch evidence is **not protected-main acceptance**: F9-01 remains pending
+until ordinary delivery, exact-main checks/qualification and independent
+accepted-main download verification. All installed-runtime rows remain pending.

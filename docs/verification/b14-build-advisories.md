@@ -1,7 +1,9 @@
 # B14 — resumed qualification security findings
 
-Date: 2026-10-28. Status: **partially remediated locally; owner decision pending**.
-No new audit exception, ignored advisory or protected-branch bypass is active.
+Date: 2026-10-28. Status: **Go remediated and hosted-verified; scoped temporary npm
+exception approved by the owner; implementation verification in progress**.
+See [decision 0021](../decisions/0021-temporary-build-advisory-applicability.md).
+No global ignore or protected-branch bypass is authorized.
 This record supplements [F9 evidence](f9-linux-packages.md) and
 [the ledger](../plans/foundation-finish/ledger.md).
 
@@ -35,7 +37,7 @@ Go remediation in the dependency scan. Final later revisions still need their
 own required checks; local symbol analysis does not substitute for that scan. No real Talos lifecycle fixture was
 executed or accepted by this dependency correction.
 
-## Unpatched npm finding — decision required
+## Unpatched npm finding — owner-approved build-only applicability
 
 Required Foundation run
 [40668175939](https://github.com/agiledevel/talos-pilot/actions/runs/40668175939)
@@ -62,26 +64,41 @@ is not a remediation.
   failed if the exact `node_modules/deepmerge/` package entered the renderer
   graph. It passed: **2,362 renderer modules; vulnerable deepmerge absent**.
   `deepmerge-ts` is a different package and was not confused with this advisory.
-- No audit configuration, exception file or gate was changed. Logs:
+- At that diagnostic checkpoint no audit configuration, exception file or gate
+  had been changed. Logs:
   `/tmp/tp-deepmerge-renderer-graph.log`,
   `/tmp/tp-archive-final-foundation-failed.log`.
 
-### Proposed resolution, not yet authorized
+### Owner resolution
 
-Request an owner choice:
+The owner selected **`approve-scoped-temporary-exception`** in the
+`deepmerge-remediation` user form on 2026-10-28. This authorizes only option 1
+below through **2026-11-11 00:00:00 UTC**, not a patched-version claim, global
+ignore or permanent policy change. The original alternatives are retained as
+context:
 
 1. **A narrow temporary build-only applicability exception**, expiring
    **2026-11-11**, only for this advisory at these exact package versions/path.
    Enforce expiry, exact dependency placement and no renderer inclusion; keep
    every other vulnerability and scanner/registry error fatal. Record that this
    accepts a trusted-build-input risk, not a package fix. Re-review/remove it on
-   any changed inputs or upstream fix. No implementation is authorized yet.
+   any changed inputs or upstream fix. This is the selected option.
 2. **Hold protected delivery** until upstream publishes a fixed compatible
    plugin/dependency. Continue branch packaging verification, but do not merge.
 3. **Investigate and qualify a maintained compatible replacement**, keeping the
    PR draft and all current gates while reviewing the extra dependency change.
 
-Existing Rust advisory decisions do not authorize a new npm exception. The PR
-stays draft and F9-01 remains open until the owner-directed resolution and all
-required protected-delivery/accepted-main gates are satisfied. Installed-runtime
-qualification is still separate and pending.
+Implementation retains the live full low-or-higher audit and validates the exact
+advisory/finding, actual sole dev chain, absence from production placement, and
+reviewed build/audit input hashes. Actual main/worker builds reject the package
+in their module graphs. New/disappearing findings, scope drift, scanner errors
+and expiry all fail; no pnpm ignore list is added. **46 focused tests**, including
+real Vite main/worker negative fixtures using the production configuration, plus
+live `pnpm audit:npm`, actual frontend build, lint/types and actionlint passed.
+Full final and hosted checks remain required.
+
+Existing Rust decisions did not authorize this npm exception; the explicit new
+owner answer does. PR #9 stays draft until actual qualification and required
+checks pass. F9-01 remains open until accepted-main/download gates are satisfied;
+installed-runtime qualification is separate and pending. No protection bypass,
+tag/release or installed-runtime acceptance follows from this decision alone.

@@ -83,7 +83,9 @@ jobs:
       - if: needs.scope.outputs.renderer == 'true'
         run: pnpm icons:check
       # Always refresh advisories, including on documentation-only pushes.
-      - run: pnpm audit --audit-level=low
+      # Decision 0021 retains the full low-or-higher audit and fails closed
+      # except for the exact owner-approved temporary build-only finding.
+      - run: pnpm audit:npm
       - name: Install browser system prerequisites
         if: needs.scope.outputs.renderer == 'true'
         uses: ./.github/actions/linux-prerequisites
